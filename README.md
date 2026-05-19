@@ -9,6 +9,10 @@ A premium, open-source desktop application that wraps the powerful `yt-dlp` comm
 - 🎥 **High-Quality Video Downloads**: Pair high-resolution video streams with the best matching audio formats (optimized for Adobe After Effects compatibility with standard H.264 MP4 wrapping).
 - 🎵 **Variable Bitrate MP3 Extraction**: Extract pure, high-quality audio streams encoded directly to MP3 (up to 320kbps Variable Bitrate level 0) via `ffmpeg`.
 - 💬 **Subtitle Extraction**: Download YouTube closed-captions and standard subtitles in English and other languages instantly without downloading the video itself.
+- ⚙️ **Persistent Application Settings**: Dynamically change and persist your base save locations, pre-selected default video qualities, and preferred subtitle languages.
+- 🎨 **Dynamic Theme Accent Palettes**: Re-theme the entire application instantly with one of six curated color scheme styles (Silver, YouTube Red, Cyan Spark, Emerald, Velvet Purple, and Gold Mine) featuring dynamic CSS variables.
+- 🔊 **Dynamic Sound Synthesizer**: Premium double-tone completion chimes synthesized dynamically in real-time using the Web Audio API on successful downloads.
+- 📂 **Auto-Reveal Downloads**: Optional setting to automatically open the download folder in Windows Explorer and highlight the file once the download completes.
 - 🎨 **Shadcn-Inspired Design**: A sleek, fully responsive true dark-mode dashboard featuring modern glassmorphism elements, Lucide UI icons, and smooth micro-animations.
 - ⚡ **Asynchronous Background Checkers**: Instant verification of `yt-dlp` updates and `ffmpeg` availability on application launch, keeping the UI fully interactive.
 - 🕒 **Cached Recents History**: Locally cached history (via `localStorage`) showing active YouTube thumbnails fetched dynamically from video IDs.

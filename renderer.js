@@ -84,6 +84,9 @@ window.electronAPI.onDownloadError((error) => {
 window.electronAPI.onDownloadComplete((data) => {
   appendLog(`[✓] Download Complete: ${data.url} (${data.type})`, 'log-success');
   saveRecent(data.url, data.type, data.filePath);
+  if (currentSettings.soundEnabled) {
+    playSuccessChime();
+  }
 });
 
 // Recents Logic
@@ -149,3 +152,146 @@ function renderRecents() {
 
 // Initial render
 renderRecents();
+
+// Settings Variables and State
+let currentSettings = {};
+let selectedAccent = 'default';
+
+// Success Sound Synthesizer
+function playSuccessChime() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // First tone (C5)
+    const osc1 = audioCtx.createOscillator();
+    const gain1 = audioCtx.createGain();
+    
+    osc1.connect(gain1);
+    gain1.connect(audioCtx.destination);
+    
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+    gain1.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+    
+    osc1.start(audioCtx.currentTime);
+    osc1.stop(audioCtx.currentTime + 0.3);
+    
+    // Second tone (E5, delayed by 0.1s)
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    
+    osc2.connect(gain2);
+    gain2.connect(audioCtx.destination);
+    
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
+    gain2.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain2.gain.setValueAtTime(0.08, audioCtx.currentTime + 0.1);
+    gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+    
+    osc2.start(audioCtx.currentTime + 0.1);
+    osc2.stop(audioCtx.currentTime + 0.5);
+  } catch (err) {
+    console.error('Failed to play success chime:', err);
+  }
+}
+
+// Apply Theme
+function applyTheme(accent) {
+  document.documentElement.setAttribute('data-theme', accent || 'default');
+}
+
+// Theme Picker Interactions
+document.querySelectorAll('.theme-option').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.theme-option').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedAccent = btn.dataset.theme;
+    
+    // Instant live preview
+    applyTheme(selectedAccent);
+  });
+});
+
+// Select folder browser
+document.getElementById('btn-select-dir').addEventListener('click', async () => {
+  const dirPath = await window.electronAPI.selectFolder();
+  if (dirPath) {
+    document.getElementById('settings-save-dir').value = dirPath;
+  }
+});
+
+// Reset folder browser to default
+document.getElementById('btn-reset-dir').addEventListener('click', () => {
+  document.getElementById('settings-save-dir').value = '';
+});
+
+// Save settings handler
+document.getElementById('btn-save-settings').addEventListener('click', async () => {
+  const newSettings = {
+    downloadDir: document.getElementById('settings-save-dir').value,
+    defaultQuality: document.getElementById('settings-default-quality').value,
+    defaultSubLang: document.getElementById('settings-default-sublang').value,
+    accentColor: selectedAccent,
+    soundEnabled: document.getElementById('settings-sound-enabled').checked,
+    autoOpenFolder: document.getElementById('settings-auto-open').checked
+  };
+
+  const success = await window.electronAPI.saveSettings(newSettings);
+  if (success) {
+    currentSettings = newSettings;
+    
+    // Instantly update main panel options
+    if (document.getElementById('video-quality')) {
+      document.getElementById('video-quality').value = currentSettings.defaultQuality || '1080';
+    }
+    if (document.getElementById('subs-lang')) {
+      document.getElementById('subs-lang').value = currentSettings.defaultSubLang || 'en';
+    }
+
+    // Display nice animated visual feedback
+    const indicator = document.getElementById('settings-save-indicator');
+    indicator.style.display = 'inline-flex';
+    setTimeout(() => {
+      indicator.style.display = 'none';
+    }, 3000);
+  }
+});
+
+// Load settings on startup
+async function initSettingsUI() {
+  try {
+    currentSettings = await window.electronAPI.getSettings();
+    selectedAccent = currentSettings.accentColor || 'default';
+    
+    applyTheme(selectedAccent);
+    
+    document.getElementById('settings-save-dir').value = currentSettings.downloadDir || '';
+    document.getElementById('settings-default-quality').value = currentSettings.defaultQuality || '1080';
+    document.getElementById('settings-default-sublang').value = currentSettings.defaultSubLang || 'en';
+    document.getElementById('settings-sound-enabled').checked = !!currentSettings.soundEnabled;
+    document.getElementById('settings-auto-open').checked = !!currentSettings.autoOpenFolder;
+    
+    document.querySelectorAll('.theme-option').forEach(btn => {
+      if (btn.dataset.theme === selectedAccent) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    // Populate main panel dropdowns on startup
+    if (document.getElementById('video-quality')) {
+      document.getElementById('video-quality').value = currentSettings.defaultQuality || '1080';
+    }
+    if (document.getElementById('subs-lang')) {
+      document.getElementById('subs-lang').value = currentSettings.defaultSubLang || 'en';
+    }
+  } catch (err) {
+    console.error('Failed to init settings UI:', err);
+  }
+}
+
+// Run settings loader
+initSettingsUI();

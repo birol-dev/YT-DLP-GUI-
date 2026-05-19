@@ -31,6 +31,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Recents
         </button>
+        <button class="nav-btn" data-tab="settings-tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </button>
       </nav>
     </aside>
 
@@ -133,6 +137,135 @@
               <ul id="recents-list" class="recents-list">
                 <!-- Populated by JS -->
               </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- SETTINGS TAB -->
+        <section id="settings-tab" class="tab-content h-full">
+          <div class="card h-full flex-col">
+            <div class="card-header">
+              <h2 class="card-title">Application Settings</h2>
+              <p class="card-description">Customize downloads, theme styles, and notification behaviors.</p>
+            </div>
+            <div class="card-content flex-1 overflow-auto" style="padding-top: 0;">
+              <!-- Save Location Section -->
+              <div class="settings-section">
+                <h3 class="settings-section-title">Storage & Directory</h3>
+                
+                <div class="form-group">
+                  <label>Base Save Location</label>
+                  <div class="input-with-action">
+                    <input type="text" id="settings-save-dir" readonly placeholder="Default Downloads Folder" style="cursor: default;">
+                    <button id="btn-select-dir" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">Browse</button>
+                    <button id="btn-reset-dir" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">Reset</button>
+                  </div>
+                  <p class="settings-help">The base directory where downloads will be saved. Folders like <code class="code-badge">yt-videos</code>, <code class="code-badge">yt-audios</code>, and <code class="code-badge">yt-subs</code> will be created inside.</p>
+                </div>
+              </div>
+
+              <!-- Defaults Section -->
+              <div class="settings-section">
+                <h3 class="settings-section-title">Download Options</h3>
+                
+                <div class="settings-grid">
+                  <div class="form-group flex-1">
+                    <label for="settings-default-quality">Default Video Quality</label>
+                    <select id="settings-default-quality">
+                      <option value="2160">Highest (Up to 4K)</option>
+                      <option value="1080">1080p</option>
+                      <option value="720">720p</option>
+                      <option value="480">480p</option>
+                      <option value="360">360p</option>
+                    </select>
+                    <p class="settings-help">Default resolution pre-selected for new video downloads.</p>
+                  </div>
+
+                  <div class="form-group flex-1">
+                    <label for="settings-default-sublang">Default Subtitles Language</label>
+                    <select id="settings-default-sublang">
+                      <option value="en">English (en)</option>
+                      <option value="es">Spanish (es)</option>
+                      <option value="fr">French (fr)</option>
+                      <option value="de">German (de)</option>
+                      <option value="it">Italian (it)</option>
+                      <option value="pt">Portuguese (pt)</option>
+                      <option value="ru">Russian (ru)</option>
+                      <option value="ja">Japanese (ja)</option>
+                      <option value="ko">Korean (ko)</option>
+                      <option value="zh">Chinese (zh)</option>
+                      <option value="ar">Arabic (ar)</option>
+                      <option value="hi">Hindi (hi)</option>
+                      <option value="tr">Turkish (tr)</option>
+                    </select>
+                    <p class="settings-help">Default subtitle language pre-selected in the subtitle download pane.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Theme & Style Section -->
+              <div class="settings-section">
+                <h3 class="settings-section-title">UI Theme Customization</h3>
+                <div class="form-group">
+                  <label>Accent Color Palette</label>
+                  <div class="theme-picker-container">
+                    <button class="theme-option theme-default active" data-theme="default" title="Sleek Silver">
+                      <span class="theme-dot" style="background-color: #f8f9fa;"></span> Silver
+                    </button>
+                    <button class="theme-option theme-youtube" data-theme="youtube" title="YouTube Red">
+                      <span class="theme-dot" style="background-color: #ef4444;"></span> YouTube Red
+                    </button>
+                    <button class="theme-option theme-neon" data-theme="neon" title="Cyan Spark">
+                      <span class="theme-dot" style="background-color: #06b6d4;"></span> Cyan Spark
+                    </button>
+                    <button class="theme-option theme-emerald" data-theme="emerald" title="Emerald Green">
+                      <span class="theme-dot" style="background-color: #10b981;"></span> Emerald
+                    </button>
+                    <button class="theme-option theme-purple" data-theme="purple" title="Royal Purple">
+                      <span class="theme-dot" style="background-color: #8b5cf6;"></span> Velvet Purple
+                    </button>
+                    <button class="theme-option theme-amber" data-theme="amber" title="Amber Gold">
+                      <span class="theme-dot" style="background-color: #f59e0b;"></span> Gold Mine
+                    </button>
+                  </div>
+                  <p class="settings-help">Choose your color accent theme. Changes apply dynamically across the entire app window!</p>
+                </div>
+              </div>
+
+              <!-- Notifications & Behaviors -->
+              <div class="settings-section">
+                <h3 class="settings-section-title">Notifications & Actions</h3>
+                
+                <div class="checkbox-group">
+                  <label class="switch-container">
+                    <input type="checkbox" id="settings-sound-enabled">
+                    <span class="switch-slider"></span>
+                    <div class="switch-label-details">
+                      <span class="switch-title">Notification Sound</span>
+                      <span class="switch-description">Play a soft, premium chime when a download finishes successfully.</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="checkbox-group" style="margin-top: 1.25rem;">
+                  <label class="switch-container">
+                    <input type="checkbox" id="settings-auto-open">
+                    <span class="switch-slider"></span>
+                    <div class="switch-label-details">
+                      <span class="switch-title">Auto-Open File Location</span>
+                      <span class="switch-description">Automatically open the target download folder when download finishes.</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card-footer" style="border-top: 1px solid hsl(var(--border)); padding-top: 1.5rem; justify-content: flex-end; gap: 10px;">
+              <span id="settings-save-indicator" class="settings-save-indicator" style="display:none; color: #22c55e; font-weight: 500; font-size: 0.875rem; margin-right: auto; align-items: center; gap: 4px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Settings saved!
+              </span>
+              <button id="btn-save-settings" class="btn primary" style="width: 140px;">Save Changes</button>
             </div>
           </div>
         </section>
