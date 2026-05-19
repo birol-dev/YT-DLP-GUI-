@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor video and audio download routines to dynamically request and map container formats (WebM/MKV/MP4) and audio codecs (MP3/M4A/WAV/FLAC) in yt-dlp arguments, preserving strict H.264 MP4 and high VBR MP3 as editing-compatible defaults.
 - Refactor the main dashboard layout to make the status terminal panel more compact (default height of 160px with top-resize handle styling).
 - Hide the status terminal and progress bar elements from view entirely when transitioning to the settings tab to preserve a clean and premium setup aesthetic.
-- Refactor final file path matches in download streams to strictly exclude intermediate stream fragments (.fXXX) and .ytdl files, keeping all history thumbnail click folder reveal actions fully functional.
+- Refactor final file path matches in download streams to support direct WebM, uncompressed WAV, lossless FLAC, and standard M4A files while strictly excluding intermediate stream fragments (.fXXX) and .ytdl files, keeping all history thumbnail click folder reveal and highlight actions fully functional.
 - Add filesystem fallback checks to standard file opening methods, automatically opening containing directory folders in Windows Explorer if the downloaded media files themselves are deleted or renamed.
 
 ## [1.0.0] - 2026-05-19
