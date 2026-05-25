@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add responsive drag-to-resize panel support for the Status Terminal via a top resize drag-bar that allows manual height customization with precise limit bounds.
 - Add quick-access folder navigation buttons ("Open Videos Folder", "Open Audios Folder") to the Recents activity tab header, instantly revealing target save locations.
 - Add a premium, modern `README.md` with visual architecture diagrams and detailed system prerequisites.
-- Add local project-level auto-updater skill under `.skills/changelog-updater/SKILL.md` to guide AI agents in automatically recording future workspace changes.
+- Add local project-level auto-updater skill under `.skills/changelog-updater/SKILL.md` to guide automated tools in automatically recording future workspace changes.
 
 ### Changed
 - Refactor all download channels (Video, Audio, and Subtitles) to retrieve and apply the user's custom save location dynamically, falling back to the default OS Downloads directory.

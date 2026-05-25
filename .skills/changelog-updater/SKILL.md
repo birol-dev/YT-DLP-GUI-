@@ -5,7 +5,7 @@ description: "Automatically analyze, structure, and document all repository chan
 
 # Changelog and README Auto-Updater Skill
 
-This developer skill guides AI agents in conducting automated analysis of project modifications, structuring them into professional, human-readable descriptions, merging them into the root `CHANGELOG.md` file, and keeping the `README.md` perfectly in sync with the codebase.
+This developer skill guides automated tools in conducting automated analysis of project modifications, structuring them into professional, human-readable descriptions, merging them into the root `CHANGELOG.md` file, and keeping the `README.md` perfectly in sync with the codebase.
 
 ---
 
@@ -58,7 +58,7 @@ All changelog changes must be classified under one of these standard sections. D
 
 ## README Update Trigger Criteria
 
-An AI agent must update the root `README.md` if the codebase changes meet any of the following criteria:
+An automated tool must update the root `README.md` if the codebase changes meet any of the following criteria:
 
 1. **New Key Feature Introduced**: Any addition that alters the capabilities of the application (e.g., adding subtitle support, downloading playlists, customizable quality formats).
 2. **Prerequisites & Dependencies Changed**: Additions of external executable requirements (e.g., `ffmpeg`, python-libs) or new packages that need specific environmental configuration.
