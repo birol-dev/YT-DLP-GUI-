@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update Electron IPC bridge to stream dependency setup status, download progress percentages, extraction steps, and error details between processes.
 - Refactor all YouTube media download channels to target resolved local executables and specify the `--ffmpeg-location` parameter pointing to the local bin directory when appropriate.
 
+### Fixed
+- Fix Mermaid diagram syntax in `README.md` by quoting subgraph labels containing parentheses, preventing parse errors when rendering on GitHub.
+
 ## [1.1.1] - 2026-05-19
 
 ### Fixed

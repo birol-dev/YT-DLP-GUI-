@@ -61,15 +61,15 @@ The application strictly separates backend OS processes from the frontend render
 
 ```mermaid
 graph TD
-    subgraph Renderer [Renderer Process (Chromium)]
+    subgraph Renderer ["Renderer Process (Chromium)"]
         UI["HTML/CSS Dashboard"] <--> RenderJS["renderer.js"]
     end
 
-    subgraph Bridge [Bridge (Context Isolation)]
+    subgraph Bridge ["Bridge (Context Isolation)"]
         Preload["preload.js (contextBridge)"]
     end
 
-    subgraph Main [Main Process (Node.js)]
+    subgraph Main ["Main Process (Node.js)"]
         MainJS["main.js"] <--> YTDLP["yt-dlp child_process"]
         MainJS <--> FFmpeg["ffmpeg child_process"]
         MainJS <--> Shell["shell.showItemInFolder"]
