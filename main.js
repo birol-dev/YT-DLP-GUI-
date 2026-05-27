@@ -65,6 +65,44 @@ function saveSettingsInternal(newSettings) {
   }
 }
 
+function isTemporaryDownloadPath(filePath) {
+  const normalized = filePath.trim().replace(/^"|"$/g, '');
+  return normalized.endsWith('.part') ||
+    normalized.endsWith('.ytdl') ||
+    /\.f\d+\.[^.]+$/.test(normalized);
+}
+
+function findNewestCompletedFile(dirPath, startedAtMs) {
+  try {
+    if (!fs.existsSync(dirPath)) return '';
+
+    const minModifiedAt = startedAtMs - 2000;
+    const files = fs.readdirSync(dirPath, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => {
+        const filePath = path.join(dirPath, entry.name);
+        const stat = fs.statSync(filePath);
+        return { filePath, modifiedAt: stat.mtimeMs };
+      })
+      .filter((file) => file.modifiedAt >= minModifiedAt && !isTemporaryDownloadPath(file.filePath))
+      .sort((a, b) => b.modifiedAt - a.modifiedAt);
+
+    return files[0]?.filePath || '';
+  } catch (err) {
+    console.error('Failed to resolve newest completed file:', err);
+    return '';
+  }
+}
+
+function resolveFinalDownloadPath(candidatePath, downloadDir, startedAtMs) {
+  const cleanPath = (candidatePath || '').trim().replace(/^"|"$/g, '');
+  if (cleanPath && !isTemporaryDownloadPath(cleanPath) && fs.existsSync(cleanPath)) {
+    return cleanPath;
+  }
+
+  return findNewestCompletedFile(downloadDir, startedAtMs) || cleanPath;
+}
+
 function isCommandInPath(command) {
   return new Promise((resolve) => {
     const arg = command === 'ffmpeg' ? '-version' : '--version';
@@ -464,6 +502,7 @@ ipcMain.on('download-video', (event, { url, quality }) => {
   win.webContents.send('download-status', `[VIDEO] Starting download in ${videoFormat.toUpperCase()} format for ${url}...`);
   
   const ytDlpPath = getYtDlpPath();
+  const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, args);
   let finalPath = '';
 
@@ -490,6 +529,7 @@ ipcMain.on('download-video', (event, { url, quality }) => {
   ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
   ytProcess.on('close', (code) => {
     if (code === 0) {
+      finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: 'video', url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
         shell.showItemInFolder(finalPath);
@@ -536,6 +576,7 @@ ipcMain.on('download-audio', (event, { url }) => {
   win.webContents.send('download-status', `[AUDIO] Starting extraction to ${audioFormat.toUpperCase()} format for ${url}...`);
   
   const ytDlpPath = getYtDlpPath();
+  const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, args);
   let finalPath = '';
 
@@ -562,6 +603,7 @@ ipcMain.on('download-audio', (event, { url }) => {
   ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
   ytProcess.on('close', (code) => {
     if (code === 0) {
+      finalPath = resolveFinalDownloadPath(finalPath, audioDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: 'audio', url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
         shell.showItemInFolder(finalPath);
@@ -608,6 +650,7 @@ ipcMain.on('download-subtitles', (event, { url, lang }) => {
   win.webContents.send('download-status', `[SUBS] Starting download for ${url}...`);
   
   const ytDlpPath = getYtDlpPath();
+  const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, args);
   let finalPath = '';
 
@@ -625,6 +668,7 @@ ipcMain.on('download-subtitles', (event, { url, lang }) => {
   ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
   ytProcess.on('close', (code) => {
     if (code === 0) {
+      finalPath = resolveFinalDownloadPath(finalPath, subsDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: 'subtitles', url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
         shell.showItemInFolder(finalPath);
@@ -700,6 +744,7 @@ ipcMain.on('download-instagram', (event, { url, format }) => {
   win.webContents.send('download-status', `[INSTAGRAM ${label}] Starting download in ${format === 'audio' ? (settings.audioFormat || 'mp3').toUpperCase() : (settings.videoFormat || 'mp4').toUpperCase()} format for ${url}...`);
   
   const ytDlpPath = getYtDlpPath();
+  const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, args);
   let finalPath = '';
   
@@ -727,6 +772,7 @@ ipcMain.on('download-instagram', (event, { url, format }) => {
   ytProcess.on('close', (code) => {
     if (code === 0) {
       const type = format === 'audio' ? 'ig-audio' : 'ig-video';
+      finalPath = resolveFinalDownloadPath(finalPath, path.join(baseDir, subFolder), downloadStartedAt);
       win.webContents.send('download-complete', { type, url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
         shell.showItemInFolder(finalPath);
