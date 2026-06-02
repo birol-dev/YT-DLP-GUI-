@@ -818,3 +818,38 @@ option {
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Clipper Tab Styles */
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid hsl(var(--muted));
+  border-top-color: hsl(var(--primary));
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.clipper-slider-wrapper {
+  transition: background-color 0.2s ease;
+}
+
+.clipper-slider-wrapper:hover {
+  background-color: hsl(var(--muted) / 0.8) !important;
+}
+
+#clipper-slider-playhead {
+  transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+.clipper-slider-wrapper:hover #clipper-slider-playhead {
+  transform: translate(-50%, -50%) scale(1.25) !important;
+}
+
+#clipper-slider-range {
+  transition: left 0.1s ease, width 0.1s ease;
+}
+
+

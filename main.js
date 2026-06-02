@@ -785,3 +785,157 @@ ipcMain.on('download-instagram', (event, { url, format }) => {
 ipcMain.on('continue-anyway', (event) => {
   saveSettingsInternal({ firstRunComplete: true });
 });
+
+ipcMain.handle('fetch-video-info', async (event, url) => {
+  const ytDlpPath = getYtDlpPath();
+  
+  const runYtDlp = (args) => {
+    return new Promise((resolve) => {
+      const proc = spawn(ytDlpPath, args);
+      let stdout = '';
+      let stderr = '';
+      proc.stdout.on('data', (d) => stdout += d.toString());
+      proc.stderr.on('data', (d) => stderr += d.toString());
+      proc.on('close', (code) => {
+        resolve({ code, stdout, stderr });
+      });
+      proc.on('error', (err) => {
+        resolve({ code: -1, stdout: '', stderr: err.message });
+      });
+    });
+  };
+
+  // Try with mp4 format filter first for small info payload and direct stream URL
+  let result = await runYtDlp(['--dump-json', '-f', '18/best[ext=mp4]', url]);
+  
+  // If it fails (some non-YT sites don't have format 18), fallback to dump full json
+  if (result.code !== 0) {
+    result = await runYtDlp(['--dump-json', url]);
+  }
+
+  if (result.code === 0) {
+    try {
+      const parsed = JSON.parse(result.stdout);
+      let streamUrl = '';
+      
+      if (parsed.url) {
+        streamUrl = parsed.url;
+      } else if (parsed.formats) {
+        // Look for playable mp4 combined stream
+        const mp4Format = parsed.formats.find(f => 
+          f.ext === 'mp4' && 
+          f.vcodec !== 'none' && 
+          f.acodec !== 'none' && 
+          f.url && 
+          f.url.startsWith('http')
+        );
+        if (mp4Format) {
+          streamUrl = mp4Format.url;
+        } else {
+          // Look for any combined stream that is playable
+          const combined = parsed.formats.find(f => 
+            f.vcodec !== 'none' && 
+            f.acodec !== 'none' && 
+            f.url && 
+            f.url.startsWith('http')
+          );
+          if (combined) streamUrl = combined.url;
+        }
+      }
+
+      return {
+        success: true,
+        title: parsed.title || 'Unknown Video',
+        duration: parsed.duration || 0,
+        thumbnail: parsed.thumbnail || (parsed.thumbnails && parsed.thumbnails.length > 0 ? parsed.thumbnails[parsed.thumbnails.length - 1].url : ''),
+        streamUrl: streamUrl
+      };
+    } catch (e) {
+      return { success: false, error: 'JSON parse error: ' + e.message };
+    }
+  } else {
+    return { success: false, error: result.stderr || 'Failed to fetch video information.' };
+  }
+});
+
+ipcMain.on('download-clip', (event, { url, quality, startTime, endTime }) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const baseDir = settings.downloadDir || app.getPath('downloads');
+  const videoDir = path.join(baseDir, 'yt-videos');
+  
+  if (!fs.existsSync(videoDir)) fs.mkdirSync(videoDir, { recursive: true });
+
+  const outPath = path.join(videoDir, '%(title)s_clip_%(section_start)s_%(section_end)s.%(ext)s');
+  
+  const videoFormat = settings.videoFormat || 'mp4';
+  let formatStr = '';
+  let mergeFormat = '';
+
+  if (videoFormat === 'webm') {
+    formatStr = `bestvideo[ext=webm][height<=${quality}]+bestaudio[ext=webm]/best[ext=webm]/best`;
+    mergeFormat = 'webm';
+  } else if (videoFormat === 'mkv') {
+    formatStr = `bestvideo[height<=${quality}]+bestaudio/best`;
+    mergeFormat = 'mkv';
+  } else {
+    formatStr = `bestvideo[vcodec^=avc1][height<=${quality}]+bestaudio[ext=m4a]/best[ext=mp4]/best`;
+    mergeFormat = 'mp4';
+  }
+  
+  const sectionStr = `*${startTime}-${endTime}`;
+
+  const args = [
+    '-f', formatStr,
+    '--merge-output-format', mergeFormat,
+    '--download-sections', sectionStr,
+    '-o', outPath,
+    '--no-mtime',
+  ];
+
+  if (fs.existsSync(localFfmpeg)) {
+    args.push('--ffmpeg-location', localBinDir);
+  }
+
+  args.push(url);
+
+  win.webContents.send('download-status', `[CLIP] Starting download for section ${startTime}-${endTime} in ${videoFormat.toUpperCase()} format...`);
+  
+  const ytDlpPath = getYtDlpPath();
+  const downloadStartedAt = Date.now();
+  const ytProcess = spawn(ytDlpPath, args);
+  let finalPath = '';
+
+  ytProcess.stdout.on('data', (data) => {
+    const text = data.toString();
+    win.webContents.send('download-progress', text);
+    const lines = text.split('\n');
+    for (const line of lines) {
+      const destMatch = line.match(/Destination:\s*(.+)/);
+      if (destMatch) {
+        const filePath = destMatch[1].trim();
+        if (!filePath.endsWith('.part') && 
+            !filePath.endsWith('.ytdl') && 
+            !/\.f\d+\.[^.]+$/.test(filePath)) {
+          finalPath = filePath;
+        }
+      }
+      const mergeMatch = line.match(/Merging formats into "(.+)"/);
+      if (mergeMatch) finalPath = mergeMatch[1].trim();
+      const existMatch = line.match(/\[download\]\s+(.+)\s+has already been downloaded/);
+      if (existMatch) finalPath = existMatch[1].trim();
+    }
+  });
+  
+  ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
+  
+  ytProcess.on('close', (code) => {
+    if (code === 0) {
+      finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
+      win.webContents.send('download-complete', { type: 'clip', url, status: 'Success', filePath: finalPath });
+      if (settings.autoOpenFolder && finalPath) {
+        shell.showItemInFolder(finalPath);
+      }
+    }
+    else win.webContents.send('download-error', `[CLIP] Download failed with code ${code}`);
+  });
+});

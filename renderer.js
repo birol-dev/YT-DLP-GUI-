@@ -1,5 +1,6 @@
 // Global State Tracking
 let isDownloading = false;
+let isDownloadingClip = false;
 
 // Tab switching logic
 const navBtns = document.querySelectorAll('.nav-btn');
@@ -29,6 +30,12 @@ navBtns.forEach(btn => {
 
     btn.classList.add('active');
     document.getElementById(btn.dataset.tab).classList.add('active');
+    
+    // Pause video player if switching tabs
+    const player = document.getElementById('clipper-video-player');
+    if (player && typeof player.pause === 'function') {
+      player.pause();
+    }
     
     // Toggle terminal visibility
     updateTerminalVisibility(btn.dataset.tab);
@@ -180,6 +187,22 @@ window.electronAPI.onDownloadProgress((progress) => {
         statusText.textContent = 'Downloading media...';
       }
     }
+
+    // Clipper Tab Progress Sync
+    if (isDownloadingClip) {
+      const clipFill = document.getElementById('clipper-progress-fill');
+      const clipPercent = document.getElementById('clipper-progress-percent');
+      const clipStatus = document.getElementById('clipper-progress-status');
+      if (clipFill && clipPercent && clipStatus) {
+        clipFill.style.width = `${percentage}%`;
+        clipPercent.textContent = `${Math.round(percentage)}%`;
+        if (percentage === 100) {
+          clipStatus.textContent = 'Processing & finalizing clip...';
+        } else {
+          clipStatus.textContent = 'Downloading clip...';
+        }
+      }
+    }
   }
 });
 
@@ -194,6 +217,15 @@ window.electronAPI.onUpdateLog((log) => {
 window.electronAPI.onDownloadError((error) => {
   appendLog(error, 'log-error');
   stopDownloadIndicator();
+  
+  // Reset Clipper progress bar if active
+  if (isDownloadingClip) {
+    isDownloadingClip = false;
+    const clipProgressContainer = document.getElementById('clipper-progress-container');
+    const btnClipperDownload = document.getElementById('btn-clipper-download');
+    if (clipProgressContainer) clipProgressContainer.style.display = 'none';
+    if (btnClipperDownload) btnClipperDownload.style.display = 'block';
+  }
 });
 
 window.electronAPI.onDownloadComplete((data) => {
@@ -203,6 +235,15 @@ window.electronAPI.onDownloadComplete((data) => {
     playSuccessChime();
   }
   stopDownloadIndicator();
+
+  // Reset Clipper progress bar if active
+  if (isDownloadingClip) {
+    isDownloadingClip = false;
+    const clipProgressContainer = document.getElementById('clipper-progress-container');
+    const btnClipperDownload = document.getElementById('btn-clipper-download');
+    if (clipProgressContainer) clipProgressContainer.style.display = 'none';
+    if (btnClipperDownload) btnClipperDownload.style.display = 'block';
+  }
 });
 
 // Recents Logic
@@ -647,5 +688,378 @@ if (depModal) {
         alert(`Failed to configure dependencies:\n${data.message}\n\nPlease check your internet connection or install them manually.`);
         break;
     }
+  });
+}
+
+// Video Clipper State
+let clipperDuration = 0;
+let clipperStartVal = 0;
+let clipperEndVal = 0;
+let isPreviewingClip = false;
+
+// Time formatting helpers
+function secondsToHHMMSS(totalSeconds) {
+  if (isNaN(totalSeconds) || totalSeconds < 0) return '00:00:00';
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+}
+
+function hhmmssToSeconds(str) {
+  const parts = str.split(':');
+  let seconds = 0;
+  if (parts.length === 3) {
+    seconds += parseInt(parts[0], 10) * 3600;
+    seconds += parseInt(parts[1], 10) * 60;
+    seconds += parseFloat(parts[2]);
+  } else if (parts.length === 2) {
+    seconds += parseInt(parts[0], 10) * 60;
+    seconds += parseFloat(parts[1]);
+  } else if (parts.length === 1) {
+    seconds += parseFloat(parts[0]);
+  }
+  return isNaN(seconds) ? 0 : seconds;
+}
+
+// Elements
+const clipperUrlInput = document.getElementById('clipper-url');
+const clipperLoadBtn = document.getElementById('btn-clipper-load');
+const clipperLoading = document.getElementById('clipper-loading');
+const clipperWorkspace = document.getElementById('clipper-workspace');
+const clipperThumbnail = document.getElementById('clipper-video-thumbnail');
+const clipperTitle = document.getElementById('clipper-video-title');
+const clipperDurationBadge = document.getElementById('clipper-video-duration-badge');
+const clipperPlayer = document.getElementById('clipper-video-player');
+const clipperPlayerError = document.getElementById('clipper-player-error');
+const clipperSliderWrapper = document.querySelector('.clipper-slider-wrapper');
+const clipperSliderRange = document.getElementById('clipper-slider-range');
+const clipperSliderPlayhead = document.getElementById('clipper-slider-playhead');
+const clipperLabelCurrent = document.getElementById('clipper-label-current-time');
+const clipperLabelTotal = document.getElementById('clipper-label-total-time');
+
+const clipperStartInput = document.getElementById('clipper-start-time-str');
+const clipperEndInput = document.getElementById('clipper-end-time-str');
+
+const btnClipperSetStart = document.getElementById('btn-clipper-set-start');
+const btnClipperSetEnd = document.getElementById('btn-clipper-set-end');
+const btnClipperGoStart = document.getElementById('btn-clipper-go-start');
+const btnClipperGoEnd = document.getElementById('btn-clipper-go-end');
+const btnClipperPreview = document.getElementById('btn-clipper-preview-clip');
+const btnClipperDownload = document.getElementById('btn-clipper-download');
+
+const handleStart = document.getElementById('clipper-handle-start');
+const handleEnd = document.getElementById('clipper-handle-end');
+let activeDragHandle = null;
+
+// Throttled seeking queue for smooth streaming video scrubbing
+let lastTargetSeekTime = null;
+
+function seekVideoPlayer(time) {
+  if (!clipperPlayer || clipperPlayer.style.display === 'none') return;
+  if (!clipperPlayer.seeking) {
+    clipperPlayer.currentTime = time;
+    lastTargetSeekTime = null;
+  } else {
+    lastTargetSeekTime = time;
+  }
+}
+
+// Add seeked listener to process queued seeks
+if (clipperPlayer) {
+  clipperPlayer.addEventListener('seeked', () => {
+    if (lastTargetSeekTime !== null) {
+      clipperPlayer.currentTime = lastTargetSeekTime;
+      lastTargetSeekTime = null;
+    }
+  });
+}
+
+// Update custom range bar UI
+function updateClipperSliderUI() {
+  if (clipperDuration > 0) {
+    const startPct = (clipperStartVal / clipperDuration) * 100;
+    const endPct = (clipperEndVal / clipperDuration) * 100;
+    const widthPct = Math.max(0, endPct - startPct);
+    
+    clipperSliderRange.style.left = `${startPct}%`;
+    clipperSliderRange.style.width = `${widthPct}%`;
+    
+    if (handleStart) handleStart.style.left = `${startPct}%`;
+    if (handleEnd) handleEnd.style.left = `${endPct}%`;
+  }
+}
+
+// Dragging start/end handles
+function handleMouseDown(type) {
+  return function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    activeDragHandle = type;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }
+}
+
+if (handleStart) handleStart.addEventListener('mousedown', handleMouseDown('start'));
+if (handleEnd) handleEnd.addEventListener('mousedown', handleMouseDown('end'));
+
+function handleMouseMove(e) {
+  if (!activeDragHandle || clipperDuration <= 0) return;
+  
+  const rect = clipperSliderWrapper.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, clickX / rect.width));
+  const timeVal = pct * clipperDuration;
+  
+  // Instant visual feedback for playhead positioning during drag
+  clipperSliderPlayhead.style.left = `${pct * 100}%`;
+  clipperLabelCurrent.textContent = secondsToHHMMSS(timeVal);
+  
+  if (activeDragHandle === 'start') {
+    clipperStartVal = Math.min(timeVal, clipperEndVal);
+    clipperStartInput.value = secondsToHHMMSS(clipperStartVal);
+    seekVideoPlayer(clipperStartVal);
+  } else if (activeDragHandle === 'end') {
+    clipperEndVal = Math.max(timeVal, clipperStartVal);
+    clipperEndInput.value = secondsToHHMMSS(clipperEndVal);
+    seekVideoPlayer(clipperEndVal);
+  }
+  updateClipperSliderUI();
+}
+
+function handleMouseUp() {
+  activeDragHandle = null;
+  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('mouseup', handleMouseUp);
+}
+
+// Load Video Info Handler
+if (clipperLoadBtn) {
+  clipperLoadBtn.addEventListener('click', async () => {
+    const url = clipperUrlInput.value.trim();
+    if (!url) return;
+    
+    clipperLoadBtn.disabled = true;
+    clipperLoading.style.display = 'block';
+    clipperWorkspace.style.display = 'none';
+    clipperPlayerError.style.display = 'none';
+    clipperPlayer.style.display = 'block';
+    
+    // Pause existing preview
+    clipperPlayer.pause();
+    
+    try {
+      const res = await window.electronAPI.fetchVideoInfo(url);
+      clipperLoading.style.display = 'none';
+      clipperLoadBtn.disabled = false;
+      
+      if (res.success) {
+        clipperDuration = res.duration;
+        clipperStartVal = 0;
+        clipperEndVal = res.duration;
+        
+        clipperTitle.textContent = res.title;
+        clipperThumbnail.src = res.thumbnail;
+        clipperDurationBadge.textContent = secondsToHHMMSS(res.duration);
+        clipperLabelTotal.textContent = secondsToHHMMSS(res.duration);
+        clipperLabelCurrent.textContent = secondsToHHMMSS(0);
+        
+        clipperStartInput.value = secondsToHHMMSS(0);
+        clipperEndInput.value = secondsToHHMMSS(res.duration);
+        
+        if (res.streamUrl) {
+          clipperPlayer.src = res.streamUrl;
+          clipperPlayer.load();
+        } else {
+          clipperPlayer.style.display = 'none';
+          clipperPlayerError.style.display = 'flex';
+        }
+        
+        clipperWorkspace.style.display = 'flex';
+        updateClipperSliderUI();
+      } else {
+        alert('Failed to retrieve video details:\n' + res.error);
+      }
+    } catch (err) {
+      clipperLoading.style.display = 'none';
+      clipperLoadBtn.disabled = false;
+      alert('An error occurred while loading the video:\n' + err.message);
+    }
+  });
+}
+
+// Error handling for native player unsupported formats
+if (clipperPlayer) {
+  clipperPlayer.addEventListener('error', () => {
+    clipperPlayer.style.display = 'none';
+    clipperPlayerError.style.display = 'flex';
+  });
+  
+  // Track playhead and preview duration boundaries
+  clipperPlayer.addEventListener('timeupdate', () => {
+    if (clipperDuration > 0) {
+      const pct = (clipperPlayer.currentTime / clipperDuration) * 100;
+      clipperSliderPlayhead.style.left = `${pct}%`;
+      clipperLabelCurrent.textContent = secondsToHHMMSS(clipperPlayer.currentTime);
+      
+      if (isPreviewingClip) {
+        if (clipperPlayer.currentTime >= clipperEndVal) {
+          clipperPlayer.pause();
+          isPreviewingClip = false;
+          btnClipperPreview.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Preview Clip
+          `;
+        }
+      }
+    }
+  });
+
+  clipperPlayer.addEventListener('pause', () => {
+    isPreviewingClip = false;
+    btnClipperPreview.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Preview Clip
+    `;
+  });
+}
+
+// Timeline click-to-seek
+if (clipperSliderWrapper) {
+  clipperSliderWrapper.addEventListener('click', (e) => {
+    // Ignore track click if user clicked start/end handles directly
+    if (e.target === handleStart || e.target === handleEnd) return;
+    
+    if (clipperDuration > 0) {
+      const rect = clipperSliderWrapper.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / rect.width));
+      if (clipperPlayer.style.display !== 'none') {
+        clipperPlayer.currentTime = pct * clipperDuration;
+      } else {
+        // Fallback: manually place playhead if video can't play
+        clipperSliderPlayhead.style.left = `${pct * 100}%`;
+        clipperLabelCurrent.textContent = secondsToHHMMSS(pct * clipperDuration);
+      }
+    }
+  });
+}
+
+// Set In/Out Markers
+if (btnClipperSetStart) {
+  btnClipperSetStart.addEventListener('click', () => {
+    const curTime = (clipperPlayer && clipperPlayer.style.display !== 'none') ? clipperPlayer.currentTime : clipperStartVal;
+    clipperStartVal = Math.min(curTime, clipperEndVal);
+    clipperStartInput.value = secondsToHHMMSS(clipperStartVal);
+    updateClipperSliderUI();
+  });
+}
+
+if (btnClipperSetEnd) {
+  btnClipperSetEnd.addEventListener('click', () => {
+    const curTime = (clipperPlayer && clipperPlayer.style.display !== 'none') ? clipperPlayer.currentTime : clipperEndVal;
+    clipperEndVal = Math.max(curTime, clipperStartVal);
+    clipperEndInput.value = secondsToHHMMSS(clipperEndVal);
+    updateClipperSliderUI();
+  });
+}
+
+// Precise text input change handlers
+if (clipperStartInput) {
+  clipperStartInput.addEventListener('change', (e) => {
+    const val = hhmmssToSeconds(e.target.value);
+    clipperStartVal = Math.max(0, Math.min(val, clipperEndVal));
+    e.target.value = secondsToHHMMSS(clipperStartVal);
+    updateClipperSliderUI();
+  });
+}
+
+if (clipperEndInput) {
+  clipperEndInput.addEventListener('change', (e) => {
+    const val = hhmmssToSeconds(e.target.value);
+    clipperEndVal = Math.max(clipperStartVal, Math.min(val, clipperDuration));
+    e.target.value = secondsToHHMMSS(clipperEndVal);
+    updateClipperSliderUI();
+  });
+}
+
+// Playback Helpers
+if (btnClipperGoStart) {
+  btnClipperGoStart.addEventListener('click', () => {
+    if (clipperPlayer && clipperPlayer.style.display !== 'none') {
+      clipperPlayer.currentTime = clipperStartVal;
+    }
+  });
+}
+
+if (btnClipperGoEnd) {
+  btnClipperGoEnd.addEventListener('click', () => {
+    if (clipperPlayer && clipperPlayer.style.display !== 'none') {
+      clipperPlayer.currentTime = clipperEndVal;
+    }
+  });
+}
+
+// Preview Range Clip Playback
+if (btnClipperPreview) {
+  btnClipperPreview.addEventListener('click', () => {
+    if (clipperPlayer && clipperPlayer.style.display !== 'none') {
+      if (isPreviewingClip && !clipperPlayer.paused) {
+        clipperPlayer.pause();
+        isPreviewingClip = false;
+        btnClipperPreview.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Preview Clip
+        `;
+      } else {
+        clipperPlayer.currentTime = clipperStartVal;
+        isPreviewingClip = true;
+        clipperPlayer.play();
+        btnClipperPreview.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg>
+          Pause Preview
+        `;
+      }
+    }
+  });
+}
+
+// Start Clipper Download
+if (btnClipperDownload) {
+  btnClipperDownload.addEventListener('click', () => {
+    if (isDownloading) {
+      alert('A download is already in progress. Please wait for the current download to finish!');
+      appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
+      return;
+    }
+    
+    const url = clipperUrlInput.value.trim();
+    const quality = document.getElementById('clipper-quality').value;
+    
+    if (!url) return;
+    
+    const startStr = secondsToHHMMSS(clipperStartVal);
+    const endStr = secondsToHHMMSS(clipperEndVal);
+    
+    if (clipperPlayer && typeof clipperPlayer.pause === 'function') {
+      clipperPlayer.pause();
+    }
+
+    // Toggle local progress indicator inside tab
+    isDownloadingClip = true;
+    const clipProgressContainer = document.getElementById('clipper-progress-container');
+    const clipFill = document.getElementById('clipper-progress-fill');
+    const clipPercent = document.getElementById('clipper-progress-percent');
+    const clipStatus = document.getElementById('clipper-progress-status');
+    
+    if (clipProgressContainer) clipProgressContainer.style.display = 'flex';
+    if (clipFill) clipFill.style.width = '0%';
+    if (clipPercent) clipPercent.textContent = '0%';
+    if (clipStatus) clipStatus.textContent = 'Downloading clip...';
+    btnClipperDownload.style.display = 'none';
+    
+    startDownloadIndicator(`Downloading clip (${startStr} - ${endStr})...`);
+    window.electronAPI.downloadClip({ url, quality, startTime: startStr, endTime: endStr });
   });
 }

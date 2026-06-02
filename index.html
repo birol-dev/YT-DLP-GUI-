@@ -31,6 +31,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           Subtitles
         </button>
+        <button class="nav-btn" data-tab="clipper-tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.22 10.58a5 5 0 1 0 0-7.16 5 5 0 0 0 0 7.16Zm0 0L17 21m-9.78-10.42 2.56-2.56m0 0a5 5 0 1 0-7.16 0 5 5 0 0 0 7.16 0Zm0 0L17 3m-7.22 7.58 2.56 2.56"/></svg>
+          Video Clipper
+        </button>
         <button class="nav-btn" data-tab="recents-tab">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Recents
@@ -152,6 +156,142 @@
             <div class="card-footer form-group" style="display: flex; gap: 10px;">
               <button id="btn-download-subs" class="btn primary flex-1">Download Selected</button>
               <button id="btn-download-all-subs" class="btn flex-1" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Download All</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- CLIPPER TAB -->
+        <section id="clipper-tab" class="tab-content h-full">
+          <div class="card h-full flex-col">
+            <div class="card-header">
+              <h2 class="card-title">Video Clipper</h2>
+              <p class="card-description">Fetch video metadata, preview the stream, set start/end markers, and download only the selected portion.</p>
+            </div>
+            
+            <div class="card-content flex-1 overflow-auto flex-col" style="gap: 1.25rem; display: flex; padding-bottom: 2rem;">
+              <!-- URL Input Group -->
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="clipper-url">Video URL</label>
+                <div class="input-with-action">
+                  <input type="text" id="clipper-url" placeholder="https://www.youtube.com/watch?v=...">
+                  <button id="btn-clipper-load" class="btn primary" style="min-width: 110px;">Load Video</button>
+                </div>
+              </div>
+
+              <!-- Loading State -->
+              <div id="clipper-loading" style="display: none; text-align: center; padding: 2rem;">
+                <div class="loading-spinner" style="margin: 0 auto;"></div>
+                <p style="color: hsl(var(--muted-foreground)); margin-top: 0.75rem;">Fetching video details & preview stream...</p>
+              </div>
+
+              <!-- Clipper Workspace (Hidden until video is loaded) -->
+              <div id="clipper-workspace" class="flex-col flex-1" style="display: none; gap: 1.25rem; min-height: 0;">
+                
+                <!-- Video Title & Details -->
+                <div class="clipper-video-info" style="display: flex; gap: 1rem; align-items: center; background-color: hsl(var(--muted) / 0.2); padding: 0.75rem; border-radius: var(--radius); border: 1px solid hsl(var(--border)); flex-shrink: 0;">
+                  <img id="clipper-video-thumbnail" src="" alt="Thumbnail" style="width: 80px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid hsl(var(--border));">
+                  <div style="flex: 1; min-width: 0;">
+                    <h4 id="clipper-video-title" style="font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 2px;">Video Title</h4>
+                    <span id="clipper-video-duration-badge" class="badge">00:00</span>
+                  </div>
+                </div>
+
+                <!-- Video Player Container -->
+                <div class="clipper-player-container" style="position: relative; background-color: #000; border-radius: var(--radius); border: 1px solid hsl(var(--border)); display: flex; justify-content: center; align-items: center; aspect-ratio: 16/9; max-height: 280px; overflow: hidden; flex-shrink: 0;">
+                  <video id="clipper-video-player" style="width: 100%; height: 100%; max-height: 280px;" preload="auto" controls></video>
+                  <div id="clipper-player-error" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(20, 20, 20, 0.95); flex-direction: column; justify-content: center; align-items: center; padding: 1.5rem; text-align: center; z-index: 10;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: hsl(var(--muted-foreground)); margin-bottom: 0.5rem;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                    <span style="font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">Preview Unavailable</span>
+                    <span style="font-size: 0.75rem; color: hsl(var(--muted-foreground)); max-width: 320px;">This video codec is not supported by Chromium. You can still set in/out points manually below using the duration.</span>
+                  </div>
+                </div>
+
+                <!-- Interactive Selection Slider / Bar -->
+                <div class="clipper-slider-container flex-col" style="gap: 0.5rem; display: flex; flex-shrink: 0;">
+                  <div class="clipper-slider-wrapper" style="position: relative; width: 100%; height: 12px; background-color: hsl(var(--muted)); border-radius: 9999px; cursor: pointer; margin: 10px 0;">
+                    <!-- Highlighted clip range -->
+                    <div id="clipper-slider-range" style="position: absolute; height: 100%; background-color: hsl(var(--primary) / 0.3); border-radius: 9999px; left: 0%; width: 100%;"></div>
+                    <!-- Current playback position line/head -->
+                    <div id="clipper-slider-playhead" style="position: absolute; width: 4px; height: 20px; background-color: hsl(var(--primary)); border-radius: 2px; top: 50%; transform: translate(-50%, -50%); pointer-events: none; left: 0%; z-index: 3;"></div>
+                    <!-- Start handle (In point) -->
+                    <div id="clipper-handle-start" style="position: absolute; width: 16px; height: 16px; background-color: hsl(var(--primary)); border: 2px solid #fff; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; z-index: 4; left: 0%;"></div>
+                    <!-- End handle (Out point) -->
+                    <div id="clipper-handle-end" style="position: absolute; width: 16px; height: 16px; background-color: hsl(var(--primary)); border: 2px solid #fff; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; z-index: 4; left: 100%;"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: hsl(var(--muted-foreground));">
+                    <span id="clipper-label-current-time">00:00</span>
+                    <span id="clipper-label-total-time">00:00</span>
+                  </div>
+                </div>
+
+                <!-- Range Marker Inputs & Setter Buttons -->
+                <div style="display: flex; gap: 1rem; align-items: stretch; flex-shrink: 0;">
+                  <!-- Start Point (In) -->
+                  <div class="card flex-1" style="padding: 0.75rem; gap: 0.5rem; flex-direction: column;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+                      <span style="font-size: 0.75rem; font-weight: 600; color: hsl(var(--muted-foreground)); text-transform: uppercase;">In Point (Start)</span>
+                      <button id="btn-clipper-set-start" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 1.75rem; font-size: 0.75rem; padding: 0 0.5rem;">Set Current</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <input type="text" id="clipper-start-time-str" value="00:00:00" style="text-align: center; font-family: monospace; font-size: 0.9rem;">
+                    </div>
+                  </div>
+
+                  <!-- End Point (Out) -->
+                  <div class="card flex-1" style="padding: 0.75rem; gap: 0.5rem; flex-direction: column;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+                      <span style="font-size: 0.75rem; font-weight: 600; color: hsl(var(--muted-foreground)); text-transform: uppercase;">Out Point (End)</span>
+                      <button id="btn-clipper-set-end" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 1.75rem; font-size: 0.75rem; padding: 0 0.5rem;">Set Current</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <input type="text" id="clipper-end-time-str" value="00:00:00" style="text-align: center; font-family: monospace; font-size: 0.9rem;">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Preview Actions & Quality -->
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 0.25rem; flex-shrink: 0;">
+                  <div style="display: flex; gap: 0.5rem;">
+                    <button id="btn-clipper-go-start" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); font-size: 0.8rem; gap: 6px;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/></svg>
+                      Go to Start
+                    </button>
+                    <button id="btn-clipper-preview-clip" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); font-size: 0.8rem; gap: 6px;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                      Preview Clip
+                    </button>
+                    <button id="btn-clipper-go-end" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); font-size: 0.8rem; gap: 6px;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg>
+                      Go to End
+                    </button>
+                  </div>
+                  
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="clipper-quality" style="margin-bottom: 0; font-size: 0.8rem; white-space: nowrap;">Quality</label>
+                    <select id="clipper-quality" style="width: 120px; height: 2rem; padding: 0.25rem 0.5rem;">
+                      <option value="2160">Highest (Up to 4K)</option>
+                      <option value="1080">1080p</option>
+                      <option value="720">720p</option>
+                      <option value="480">480p</option>
+                      <option value="360">360p</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Dedicated Clipper Download Progress -->
+                <div id="clipper-progress-container" style="display: none; width: 100%; background-color: hsl(var(--muted) / 0.3); padding: 1rem; border-radius: var(--radius); border: 1px solid hsl(var(--border)); flex-shrink: 0; flex-direction: column; gap: 0.5rem;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: hsl(var(--muted-foreground)); font-weight: 500;">
+                    <span id="clipper-progress-status">Downloading clip...</span>
+                    <span id="clipper-progress-percent">0%</span>
+                  </div>
+                  <div style="width: 100%; height: 6px; background-color: hsl(var(--muted)); border-radius: 9999px; overflow: hidden; position: relative;">
+                    <div id="clipper-progress-fill" style="width: 0%; height: 100%; background-color: hsl(var(--primary)); border-radius: 9999px; transition: width 0.15s ease;"></div>
+                  </div>
+                </div>
+
+                <button id="btn-clipper-download" class="btn primary w-full" style="margin-top: 0.5rem; height: 2.75rem; font-size: 0.95rem; font-weight: 600; flex-shrink: 0;">Start Clip Download</button>
+
+              </div>
             </div>
           </div>
         </section>
