@@ -222,9 +222,8 @@ window.electronAPI.onDownloadError((error) => {
   if (isDownloadingClip) {
     isDownloadingClip = false;
     const clipProgressContainer = document.getElementById('clipper-progress-container');
-    const btnClipperDownload = document.getElementById('btn-clipper-download');
     if (clipProgressContainer) clipProgressContainer.style.display = 'none';
-    if (btnClipperDownload) btnClipperDownload.style.display = 'block';
+    if (clipperDownloadActionsRow) clipperDownloadActionsRow.style.display = 'flex';
   }
 });
 
@@ -240,9 +239,8 @@ window.electronAPI.onDownloadComplete((data) => {
   if (isDownloadingClip) {
     isDownloadingClip = false;
     const clipProgressContainer = document.getElementById('clipper-progress-container');
-    const btnClipperDownload = document.getElementById('btn-clipper-download');
     if (clipProgressContainer) clipProgressContainer.style.display = 'none';
-    if (btnClipperDownload) btnClipperDownload.style.display = 'block';
+    if (clipperDownloadActionsRow) clipperDownloadActionsRow.style.display = 'flex';
   }
 });
 
@@ -747,6 +745,8 @@ const btnClipperGoStart = document.getElementById('btn-clipper-go-start');
 const btnClipperGoEnd = document.getElementById('btn-clipper-go-end');
 const btnClipperPreview = document.getElementById('btn-clipper-preview-clip');
 const btnClipperDownload = document.getElementById('btn-clipper-download');
+const btnClipperDownloadAudio = document.getElementById('btn-clipper-download-audio');
+const clipperDownloadActionsRow = document.getElementById('clipper-download-actions-row');
 
 const handleStart = document.getElementById('clipper-handle-start');
 const handleEnd = document.getElementById('clipper-handle-end');
@@ -1025,41 +1025,51 @@ if (btnClipperPreview) {
   });
 }
 
-// Start Clipper Download
+// Start Clipper Download Helpers
+function startClipperDownload(format) {
+  if (isDownloading) {
+    alert('A download is already in progress. Please wait for the current download to finish!');
+    appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
+    return;
+  }
+  
+  const url = clipperUrlInput.value.trim();
+  const quality = document.getElementById('clipper-quality').value;
+  
+  if (!url) return;
+  
+  const startStr = secondsToHHMMSS(clipperStartVal);
+  const endStr = secondsToHHMMSS(clipperEndVal);
+  
+  if (clipperPlayer && typeof clipperPlayer.pause === 'function') {
+    clipperPlayer.pause();
+  }
+
+  // Toggle local progress indicator inside tab
+  isDownloadingClip = true;
+  const clipProgressContainer = document.getElementById('clipper-progress-container');
+  const clipFill = document.getElementById('clipper-progress-fill');
+  const clipPercent = document.getElementById('clipper-progress-percent');
+  const clipStatus = document.getElementById('clipper-progress-status');
+  
+  if (clipProgressContainer) clipProgressContainer.style.display = 'flex';
+  if (clipFill) clipFill.style.width = '0%';
+  if (clipPercent) clipPercent.textContent = '0%';
+  if (clipStatus) clipStatus.textContent = `Downloading clip as ${format}...`;
+  if (clipperDownloadActionsRow) clipperDownloadActionsRow.style.display = 'none';
+  
+  startDownloadIndicator(`Downloading clip as ${format} (${startStr} - ${endStr})...`);
+  window.electronAPI.downloadClip({ url, quality, startTime: startStr, endTime: endStr, format });
+}
+
 if (btnClipperDownload) {
   btnClipperDownload.addEventListener('click', () => {
-    if (isDownloading) {
-      alert('A download is already in progress. Please wait for the current download to finish!');
-      appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
-      return;
-    }
-    
-    const url = clipperUrlInput.value.trim();
-    const quality = document.getElementById('clipper-quality').value;
-    
-    if (!url) return;
-    
-    const startStr = secondsToHHMMSS(clipperStartVal);
-    const endStr = secondsToHHMMSS(clipperEndVal);
-    
-    if (clipperPlayer && typeof clipperPlayer.pause === 'function') {
-      clipperPlayer.pause();
-    }
+    startClipperDownload('video');
+  });
+}
 
-    // Toggle local progress indicator inside tab
-    isDownloadingClip = true;
-    const clipProgressContainer = document.getElementById('clipper-progress-container');
-    const clipFill = document.getElementById('clipper-progress-fill');
-    const clipPercent = document.getElementById('clipper-progress-percent');
-    const clipStatus = document.getElementById('clipper-progress-status');
-    
-    if (clipProgressContainer) clipProgressContainer.style.display = 'flex';
-    if (clipFill) clipFill.style.width = '0%';
-    if (clipPercent) clipPercent.textContent = '0%';
-    if (clipStatus) clipStatus.textContent = 'Downloading clip...';
-    btnClipperDownload.style.display = 'none';
-    
-    startDownloadIndicator(`Downloading clip (${startStr} - ${endStr})...`);
-    window.electronAPI.downloadClip({ url, quality, startTime: startStr, endTime: endStr });
+if (btnClipperDownloadAudio) {
+  btnClipperDownloadAudio.addEventListener('click', () => {
+    startClipperDownload('audio');
   });
 }

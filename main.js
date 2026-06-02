@@ -858,39 +858,60 @@ ipcMain.handle('fetch-video-info', async (event, url) => {
   }
 });
 
-ipcMain.on('download-clip', (event, { url, quality, startTime, endTime }) => {
+ipcMain.on('download-clip', (event, { url, quality, startTime, endTime, format }) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const baseDir = settings.downloadDir || app.getPath('downloads');
-  const videoDir = path.join(baseDir, 'yt-videos');
+  const isAudio = format === 'audio';
+  const subDir = isAudio ? 'yt-audios' : 'yt-videos';
+  const videoDir = path.join(baseDir, subDir);
   
   if (!fs.existsSync(videoDir)) fs.mkdirSync(videoDir, { recursive: true });
 
   const outPath = path.join(videoDir, '%(title)s_clip_%(section_start)s_%(section_end)s.%(ext)s');
-  
-  const videoFormat = settings.videoFormat || 'mp4';
-  let formatStr = '';
-  let mergeFormat = '';
-
-  if (videoFormat === 'webm') {
-    formatStr = `bestvideo[ext=webm][height<=${quality}]+bestaudio[ext=webm]/best[ext=webm]/best`;
-    mergeFormat = 'webm';
-  } else if (videoFormat === 'mkv') {
-    formatStr = `bestvideo[height<=${quality}]+bestaudio/best`;
-    mergeFormat = 'mkv';
-  } else {
-    formatStr = `bestvideo[vcodec^=avc1][height<=${quality}]+bestaudio[ext=m4a]/best[ext=mp4]/best`;
-    mergeFormat = 'mp4';
-  }
-  
   const sectionStr = `*${startTime}-${endTime}`;
+  
+  let args = [];
+  let formatLabel = '';
 
-  const args = [
-    '-f', formatStr,
-    '--merge-output-format', mergeFormat,
+  if (isAudio) {
+    const audioFormat = settings.audioFormat || 'mp3';
+    formatLabel = audioFormat.toUpperCase();
+    args = [
+      '-f', 'bestaudio',
+      '-x',
+      '--audio-format', audioFormat,
+    ];
+    if (audioFormat === 'mp3') {
+      args.push('--audio-quality', '0');
+    }
+  } else {
+    const videoFormat = settings.videoFormat || 'mp4';
+    formatLabel = videoFormat.toUpperCase();
+    let formatStr = '';
+    let mergeFormat = '';
+
+    if (videoFormat === 'webm') {
+      formatStr = `bestvideo[ext=webm][height<=${quality}]+bestaudio[ext=webm]/best[ext=webm]/best`;
+      mergeFormat = 'webm';
+    } else if (videoFormat === 'mkv') {
+      formatStr = `bestvideo[height<=${quality}]+bestaudio/best`;
+      mergeFormat = 'mkv';
+    } else {
+      formatStr = `bestvideo[vcodec^=avc1][height<=${quality}]+bestaudio[ext=m4a]/best[ext=mp4]/best`;
+      mergeFormat = 'mp4';
+    }
+    
+    args = [
+      '-f', formatStr,
+      '--merge-output-format', mergeFormat,
+    ];
+  }
+
+  args.push(
     '--download-sections', sectionStr,
     '-o', outPath,
-    '--no-mtime',
-  ];
+    '--no-mtime'
+  );
 
   if (fs.existsSync(localFfmpeg)) {
     args.push('--ffmpeg-location', localBinDir);
@@ -898,7 +919,7 @@ ipcMain.on('download-clip', (event, { url, quality, startTime, endTime }) => {
 
   args.push(url);
 
-  win.webContents.send('download-status', `[CLIP] Starting download for section ${startTime}-${endTime} in ${videoFormat.toUpperCase()} format...`);
+  win.webContents.send('download-status', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Starting download for section ${startTime}-${endTime} in ${formatLabel} format...`);
   
   const ytDlpPath = getYtDlpPath();
   const downloadStartedAt = Date.now();
@@ -931,11 +952,11 @@ ipcMain.on('download-clip', (event, { url, quality, startTime, endTime }) => {
   ytProcess.on('close', (code) => {
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
-      win.webContents.send('download-complete', { type: 'clip', url, status: 'Success', filePath: finalPath });
+      win.webContents.send('download-complete', { type: isAudio ? 'clip-audio' : 'clip', url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
         shell.showItemInFolder(finalPath);
       }
     }
-    else win.webContents.send('download-error', `[CLIP] Download failed with code ${code}`);
+    else win.webContents.send('download-error', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Download failed with code ${code}`);
   });
 });

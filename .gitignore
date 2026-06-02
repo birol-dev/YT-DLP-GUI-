@@ -146,3 +146,5 @@ build/
 yt-dlp.exe
 ffmpeg.exe
 ffprobe.exe
+.agents
+skills-lock.json
