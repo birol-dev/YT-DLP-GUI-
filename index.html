@@ -50,6 +50,19 @@
       <div class="content-wrapper">
         <!-- VIDEO TAB -->
         <section id="video-tab" class="tab-content active">
+          <div class="tab-header-greeting">
+            <div class="greeting-left">
+              <h1 class="greeting-title">Welcome back!</h1>
+              <p class="greeting-subtitle">What are we downloading today?</p>
+            </div>
+            <div class="weather-widget weather-card">
+              <div class="weather-loading">
+                <div class="loading-spinner small"></div>
+                <span>Loading weather...</span>
+              </div>
+            </div>
+          </div>
+          
           <div class="card">
             <div class="card-header">
               <h2 class="card-title">Download Video</h2>
@@ -79,6 +92,18 @@
 
         <!-- AUDIO TAB -->
         <section id="audio-tab" class="tab-content">
+          <div class="tab-header-greeting">
+            <div class="greeting-left">
+              <h1 class="greeting-title">Welcome back!</h1>
+              <p class="greeting-subtitle">What are we downloading today?</p>
+            </div>
+            <div class="weather-widget weather-card">
+              <div class="weather-loading">
+                <div class="loading-spinner small"></div>
+                <span>Loading weather...</span>
+              </div>
+            </div>
+          </div>
           <div class="card">
             <div class="card-header">
               <h2 class="card-title">Download Audio</h2>
@@ -98,6 +123,18 @@
 
         <!-- INSTAGRAM TAB -->
         <section id="instagram-tab" class="tab-content">
+          <div class="tab-header-greeting">
+            <div class="greeting-left">
+              <h1 class="greeting-title">Welcome back!</h1>
+              <p class="greeting-subtitle">What are we downloading today?</p>
+            </div>
+            <div class="weather-widget weather-card">
+              <div class="weather-loading">
+                <div class="loading-spinner small"></div>
+                <span>Loading weather...</span>
+              </div>
+            </div>
+          </div>
           <div class="card">
             <div class="card-header">
               <h2 class="card-title">Download Instagram Media</h2>
@@ -278,17 +315,6 @@
                   </div>
                 </div>
 
-                <!-- Dedicated Clipper Download Progress -->
-                <div id="clipper-progress-container" style="display: none; width: 100%; background-color: hsl(var(--muted) / 0.3); padding: 1rem; border-radius: var(--radius); border: 1px solid hsl(var(--border)); flex-shrink: 0; flex-direction: column; gap: 0.5rem;">
-                  <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: hsl(var(--muted-foreground)); font-weight: 500;">
-                    <span id="clipper-progress-status">Downloading clip...</span>
-                    <span id="clipper-progress-percent">0%</span>
-                  </div>
-                  <div style="width: 100%; height: 6px; background-color: hsl(var(--muted)); border-radius: 9999px; overflow: hidden; position: relative;">
-                    <div id="clipper-progress-fill" style="width: 0%; height: 100%; background-color: hsl(var(--primary)); border-radius: 9999px; transition: width 0.15s ease;"></div>
-                  </div>
-                </div>
-
                 <div id="clipper-download-actions-row" style="display: flex; gap: 10px; margin-top: 0.5rem; flex-shrink: 0; width: 100%;">
                   <button id="btn-clipper-download" class="btn primary flex-1" style="height: 2.75rem; font-size: 0.95rem; font-weight: 600;">Download Video</button>
                   <button id="btn-clipper-download-audio" class="btn flex-1" style="height: 2.75rem; font-size: 0.95rem; font-weight: 600; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Download Audio</button>
@@ -350,6 +376,35 @@
                     <button id="btn-reset-dir" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">Reset</button>
                   </div>
                   <p class="settings-help">The base directory where downloads will be saved. Folders like <code class="code-badge">yt-videos</code>, <code class="code-badge">yt-audios</code>, and <code class="code-badge">yt-subs</code> will be created inside.</p>
+                </div>
+              </div>
+
+              <!-- User Profile & Location Section -->
+              <div class="settings-section">
+                <h3 class="settings-section-title">User Profile & Weather</h3>
+                
+                <div class="settings-grid">
+                  <div class="form-group flex-1">
+                    <label for="settings-user-name">Your Name</label>
+                    <input type="text" id="settings-user-name" placeholder="Enter your name">
+                    <p class="settings-help">Custom name used for greets. Leave blank to use system username.</p>
+                  </div>
+                  
+                  <div class="form-group flex-1" style="position: relative;">
+                    <label for="settings-weather-city">Weather Location</label>
+                    <input type="text" id="settings-weather-city" placeholder="Search and select city" autocomplete="off">
+                    <ul id="settings-city-results" class="city-search-results" style="display: none;"></ul>
+                    <p class="settings-help">City name displayed in the weather widget. Leave blank to estimate.</p>
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1rem;">
+                  <label for="settings-temp-format">Temperature Format</label>
+                  <select id="settings-temp-format" style="width: 50%;">
+                    <option value="fahrenheit">Fahrenheit (°F)</option>
+                    <option value="celsius">Celsius (°C)</option>
+                  </select>
+                  <p class="settings-help">Unit system to display the weather temperature.</p>
                 </div>
               </div>
 
@@ -540,6 +595,45 @@
       </div>
       
       <button id="btn-dep-continue" class="btn" style="margin-top: 1.5rem; width: 100%; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Continue Anyway</button>
+    </div>
+  </div>
+
+  <!-- ONBOARDING MODAL -->
+  <div id="onboarding-modal" class="onboarding-modal">
+    <div class="onboarding-card">
+      <div class="onboarding-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-youtube"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+      </div>
+      <h2 class="onboarding-title">Welcome to YT-DLP GUI</h2>
+      <p class="onboarding-subtitle">Your premium, high-speed media downloader optimized for video editing, clipper tools, and subtitle extraction.</p>
+      
+      <div class="onboarding-form">
+        <div class="form-group text-left">
+          <label for="onboarding-name">What should we call you?</label>
+          <input type="text" id="onboarding-name" placeholder="Enter your name (optional)">
+          <p class="settings-help">If left blank, we'll use your computer's username.</p>
+        </div>
+        
+        <div class="form-group text-left" style="position: relative; margin-top: 1rem;">
+          <label for="onboarding-city">Where are you located?</label>
+          <input type="text" id="onboarding-city" placeholder="Search and select city (optional)" autocomplete="off">
+          <ul id="onboarding-city-results" class="city-search-results" style="display: none;"></ul>
+          <p class="settings-help">Used to fetch local weather info. If blank, we will estimate your city automatically.</p>
+        </div>
+
+        <div class="form-group text-left" style="margin-top: 1rem;">
+          <label for="onboarding-temp-format">Preferred Temperature Unit</label>
+          <select id="onboarding-temp-format">
+            <option value="fahrenheit">Fahrenheit (°F)</option>
+            <option value="celsius">Celsius (°C)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="onboarding-actions" style="margin-top: 2rem; width: 100%; display: flex; gap: 10px;">
+        <button id="btn-onboarding-skip" class="btn" style="flex: 1; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Skip & Setup Later</button>
+        <button id="btn-onboarding-start" class="btn primary" style="flex: 1;">Get Started</button>
+      </div>
     </div>
   </div>
 

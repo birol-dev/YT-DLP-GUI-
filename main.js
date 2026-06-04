@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn, exec } = require('child_process');
 const fs = require('fs');
 const https = require('https');
+const os = require('os');
 
 // Local binary path definitions
 const localBinDir = path.join(app.getPath('userData'), 'bin');
@@ -39,7 +40,13 @@ function initSettings() {
     autoOpenFolder: false,
     videoFormat: 'mp4',
     audioFormat: 'mp3',
-    firstRunComplete: false
+    firstRunComplete: false,
+    onboardingComplete: false,
+    userName: '',
+    weatherCity: '',
+    weatherLat: null,
+    weatherLon: null,
+    tempFormat: 'fahrenheit'
   };
   
   settings = { ...defaultSettings };
@@ -349,10 +356,12 @@ function createWindow() {
   win.loadFile('index.html');
   
   win.webContents.once('did-finish-load', () => {
-    if (!settings.firstRunComplete) {
-      setupDependencies(win);
-    } else {
-      checkUpdates(win);
+    if (settings.onboardingComplete) {
+      if (!settings.firstRunComplete) {
+        setupDependencies(win);
+      } else {
+        checkUpdates(win);
+      }
     }
   });
 }
@@ -446,6 +455,37 @@ ipcMain.handle('get-settings', () => {
 
 ipcMain.handle('save-settings', (event, newSettings) => {
   return saveSettingsInternal(newSettings);
+});
+
+ipcMain.handle('get-system-info', () => {
+  try {
+    return {
+      username: os.userInfo().username || os.hostname() || 'user'
+    };
+  } catch (e) {
+    return { username: 'user' };
+  }
+});
+
+ipcMain.handle('finish-onboarding', (event, onboardingData) => {
+  const updated = saveSettingsInternal({
+    onboardingComplete: true,
+    userName: onboardingData.userName,
+    weatherCity: onboardingData.weatherCity,
+    weatherLat: onboardingData.weatherLat,
+    weatherLon: onboardingData.weatherLon,
+    tempFormat: onboardingData.tempFormat
+  });
+  
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    if (!settings.firstRunComplete) {
+      setupDependencies(win);
+    } else {
+      checkUpdates(win);
+    }
+  }
+  return updated;
 });
 
 ipcMain.handle('select-folder', async (event) => {

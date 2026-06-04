@@ -19,4 +19,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   fetchVideoInfo: (url) => ipcRenderer.invoke('fetch-video-info', url),
   downloadClip: (data) => ipcRenderer.send('download-clip', data),
+  getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
+  finishOnboarding: (data) => ipcRenderer.invoke('finish-onboarding', data),
 });
