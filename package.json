@@ -24,12 +24,12 @@
     }
   },
   "keywords": [],
-  "author": "Antigravity",
+  "author": "birol",
   "license": "MIT",
   "description": "YouTube Downloader GUI",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eact6/youtube-downloader.git"
+    "url": "git+https://github.com/birol-dev/YT-DLP-GUI-"
   },
   "devDependencies": {
     "electron": "^41.2.0",
