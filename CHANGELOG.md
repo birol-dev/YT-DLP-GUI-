@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-06-05
+
+### Fixed
+- Fix weather widget city estimation to fetch and display local weather dynamically using `ipapi.co` IP geolocation when the weather location input is left blank in Settings.
+- Fix settings save handler to geocode manually typed weather location names via the Open-Meteo Geocoding API if they are saved without selecting an autocomplete dropdown item.
+- Fix weather widget SVG gradient rendering bug on hidden tabs (Audio and Instagram) by assigning unique gradient IDs to each widget instance.
+
 ## [1.2.2] - 2026-05-27
 
 ### Fixed
