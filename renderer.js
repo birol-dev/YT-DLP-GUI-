@@ -491,6 +491,22 @@ function updateTabDescriptions(settings) {
   }
 }
 
+// Listen for format changes in settings to update the panel descriptions in real-time
+document.getElementById('settings-video-format').addEventListener('change', (e) => {
+  updateTabDescriptions({
+    videoFormat: e.target.value,
+    audioFormat: document.getElementById('settings-audio-format').value
+  });
+});
+
+document.getElementById('settings-audio-format').addEventListener('change', (e) => {
+  updateTabDescriptions({
+    videoFormat: document.getElementById('settings-video-format').value,
+    audioFormat: e.target.value
+  });
+});
+
+
 // Load settings on startup
 async function initSettingsUI() {
   try {
