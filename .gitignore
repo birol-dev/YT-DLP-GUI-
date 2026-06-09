@@ -120,6 +120,34 @@ dist
 
 # Mac OS X hidden files
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editors and local IDE
+.cursor/
+*.code-workspace
+*.suo
+*.user
+*.swp
+*.swo
+*~
+
+# Empty directory placeholders
+.gitkeep
+
+# Local env / secrets
+.env.*
+!.env.example
+
+# Static site local preview caches
+.vercel/
+.netlify/
 
 # Electron builder specific output
 dist/

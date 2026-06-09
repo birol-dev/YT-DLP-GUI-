@@ -1,0 +1,39 @@
+# YT-DLP GUI
+
+> Free, open-source desktop app that wraps yt-dlp and ffmpeg in a premium Electron GUI for YouTube and Instagram downloads.
+
+## What it is
+
+YT-DLP GUI is an MIT-licensed Windows/macOS/Linux desktop application for downloading YouTube videos, audio, subtitles, and Instagram media without using the command line. Default output is H.264/AAC MP4 optimized for Adobe Premiere Pro and After Effects.
+
+## Who it's for
+
+- Video editors who need Premiere-ready MP4, WAV, or SRT/VTT subtitles
+- Content creators downloading YouTube and Instagram reference clips
+- Power users who want yt-dlp reliability with a GUI, live terminal output, and auto-installed dependencies
+
+## Key features
+
+- Video downloads up to 4K (MP4, MKV, WebM)
+- Audio extraction: MP3 320kbps, M4A, WAV 24-bit, FLAC
+- Built-in video clipper with in/out markers
+- Subtitle download in 13 languages (VTT/SRT)
+- Instagram Reels, posts, and IGTV support
+- Auto-installs yt-dlp and ffmpeg on first launch
+- No ads, no telemetry, no account required — downloads run locally
+
+## Pricing
+
+Free. MIT License. No subscription. See pricing.md for details.
+
+## Links
+
+- Website: https://ytdlpgui.birol.tech/
+- Source code: https://github.com/birol-dev/YT-DLP-GUI-
+- Releases (Windows installer): https://github.com/birol-dev/YT-DLP-GUI-/releases
+- License: https://github.com/birol-dev/YT-DLP-GUI-/blob/main/LICENSE
+- Changelog: https://github.com/birol-dev/YT-DLP-GUI-/blob/main/CHANGELOG.md
+
+## Version
+
+1.3.3 (as of June 2026)

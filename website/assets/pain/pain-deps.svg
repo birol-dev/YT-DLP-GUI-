@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 200" fill="none">
+  <circle cx="165" cy="88" r="32" stroke="#ef4444" stroke-opacity="0.5" stroke-width="2" fill="#1a0a0a"/>
+  <circle cx="165" cy="88" r="11" fill="#ef4444" fill-opacity="0.25"/>
+  <rect x="158" y="44" width="14" height="14" rx="2" fill="#ef4444" fill-opacity="0.45"/>
+  <rect x="158" y="118" width="14" height="14" rx="2" fill="#ef4444" fill-opacity="0.45"/>
+  <rect x="126" y="81" width="14" height="14" rx="2" fill="#ef4444" fill-opacity="0.45"/>
+  <rect x="190" y="81" width="14" height="14" rx="2" fill="#ef4444" fill-opacity="0.35"/>
+  <circle cx="218" cy="128" r="24" stroke="#ef4444" stroke-opacity="0.4" stroke-width="2" fill="#140808"/>
+  <line x1="188" y1="106" x2="202" y2="118" stroke="#ef4444" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="4 3"/>
+  <line x1="208" y1="120" x2="228" y2="136" stroke="#ef4444" stroke-opacity="0.75" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="228" y1="120" x2="208" y2="136" stroke="#ef4444" stroke-opacity="0.75" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M40 148 Q72 128 104 148 T168 148" stroke="#ef4444" stroke-opacity="0.35" stroke-width="2" fill="none"/>
+  <circle cx="72" cy="146" r="5" fill="#ef4444" fill-opacity="0.35"/>
+  <circle cx="104" cy="146" r="5" fill="#ef4444" fill-opacity="0.25"/>
+  <line x1="88" y1="146" x2="98" y2="134" stroke="#ef4444" stroke-opacity="0.6" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="28" y="162" width="130" height="22" rx="4" fill="#140808" stroke="#ef4444" stroke-opacity="0.3"/>
+  <text x="36" y="177" font-family="monospace" font-size="9" fill="#ef4444" fill-opacity="0.55">ffmpeg: not found</text>
+  <text x="36" y="192" font-family="monospace" font-size="8" fill="#ef4444" fill-opacity="0.4">PATH error</text>
+</svg>

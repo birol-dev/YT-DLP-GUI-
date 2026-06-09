@@ -1,0 +1,25 @@
+# YT-DLP GUI marketing site
+# Allow all crawlers including AI search bots (GPTBot, PerplexityBot, ClaudeBot, Google-Extended)
+
+User-agent: *
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://ytdlpgui.birol.tech/sitemap.xml

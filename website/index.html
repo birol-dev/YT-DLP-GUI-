@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YT-DLP GUI — Free Open-Source YouTube Downloader for Editors</title>
+  <meta name="description" content="YT-DLP GUI is a free, MIT-licensed desktop app for YouTube &amp; Instagram downloads. Premiere-ready H.264 MP4, video clipper, subtitles — no command line.">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <meta name="author" content="birol-dev">
+  <meta name="keywords" content="yt-dlp gui, youtube downloader, open source youtube downloader, premiere compatible mp4, video clipper, instagram downloader, ffmpeg gui">
+  <link rel="canonical" href="https://ytdlpgui.birol.tech/">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta property="og:site_name" content="YT-DLP GUI">
+  <meta property="og:title" content="YT-DLP GUI — Free Open-Source YouTube Downloader for Editors">
+  <meta property="og:description" content="Download YouTube &amp; Instagram media locally with a premium GUI. Premiere-ready MP4, built-in clipper, subtitles. MIT licensed, no ads.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://ytdlpgui.birol.tech/">
+  <meta property="og:image" content="https://ytdlpgui.birol.tech/assets/icon.png">
+  <meta property="og:image:alt" content="YT-DLP GUI application icon">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="YT-DLP GUI — Free Open-Source YouTube Downloader">
+  <meta name="twitter:description" content="Free desktop app for YouTube &amp; Instagram downloads. Premiere-ready MP4, clipper, subtitles. No CLI. MIT licensed.">
+  <meta name="twitter:image" content="https://ytdlpgui.birol.tech/assets/icon.png">
+  <link rel="icon" href="assets/icon.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="sitemap.xml">
+  <link rel="alternate" type="text/plain" title="LLMs" href="llms.txt">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Navigation -->
+  <header class="site-nav" role="banner">
+    <div class="container nav-inner">
+      <a href="#hero" class="nav-logo" aria-label="YT-DLP GUI home">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+        YT-DLP GUI
+      </a>
+
+      <nav aria-label="Primary">
+        <ul class="nav-links" id="nav-links">
+          <li><a href="#what-is">Overview</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#personas">For You</a></li>
+          <li><a href="#opensource">Open Source</a></li>
+          <li><a href="#compare">Compare</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <div class="nav-theme-dots" aria-label="Theme picker">
+          <button class="theme-dot active" data-theme="default" title="Sleek Silver" aria-label="Sleek Silver"></button>
+          <button class="theme-dot" data-theme="youtube" title="YouTube Red" aria-label="YouTube Red"></button>
+          <button class="theme-dot" data-theme="neon" title="Cyan Spark" aria-label="Cyan Spark"></button>
+          <button class="theme-dot" data-theme="emerald" title="Emerald Green" aria-label="Emerald Green"></button>
+          <button class="theme-dot" data-theme="purple" title="Velvet Purple" aria-label="Velvet Purple"></button>
+          <button class="theme-dot" data-theme="amber" title="Amber Gold" aria-label="Amber Gold"></button>
+        </div>
+        <a href="https://github.com/birol-dev/YT-DLP-GUI-/releases" class="btn primary" id="download">Download</a>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content">
+
+    <!-- Hero -->
+    <section class="hero section" id="hero">
+      <div class="container hero-grid">
+        <div class="hero-content reveal">
+          <div class="hero-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+          </div>
+          <h1>Download media like a pro. Without the command line.</h1>
+          <p class="hero-lead">YT-DLP GUI is a free, open-source desktop app that wraps yt-dlp and ffmpeg in a premium interface — built for editors who need Premiere-ready files, not another sketchy web converter.</p>
+          <div class="hero-ctas">
+            <a href="https://github.com/birol-dev/YT-DLP-GUI-/releases" class="btn primary btn-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+              Download for Windows
+            </a>
+            <a href="https://github.com/birol-dev/YT-DLP-GUI-" class="btn secondary btn-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+              View source on GitHub
+            </a>
+          </div>
+          <div class="trust-chips">
+            <span class="trust-chip">MIT License</span>
+            <span class="trust-chip">No ads</span>
+            <span class="trust-chip">Auto-installs yt-dlp + ffmpeg</span>
+            <span class="trust-chip">v1.3.3</span>
+          </div>
+        </div>
+
+        <div class="hero-visual reveal">
+          <div class="app-mockup">
+            <div class="mockup-body">
+              <aside class="mockup-sidebar">
+                <div class="mockup-logo">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+                  YT-DLP GUI
+                </div>
+                <div class="mockup-nav-item active">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>
+                  Video
+                </div>
+                <div class="mockup-nav-item">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                  Audio
+                </div>
+                <div class="mockup-nav-item">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="20" x="2" y="2" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></svg>
+                  Instagram
+                </div>
+                <div class="mockup-nav-item">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Subtitles
+                </div>
+                <div class="mockup-nav-item">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7.22 10.58a5 5 0 1 0 0-7.16 5 5 0 0 0 0 7.16Z"/></svg>
+                  Clipper
+                </div>
+              </aside>
+              <div class="mockup-main">
+                <div class="mockup-greeting">
+                  <h3>Welcome back!</h3>
+                  <p>What are we downloading today?</p>
+                </div>
+                <div class="mockup-card">
+                  <h4>Download Video</h4>
+                  <p class="desc">Downloads H.264 MP4 format specifically for AE compatibility.</p>
+                  <div class="mockup-input">https://www.youtube.com/watch?v=...</div>
+                  <div class="mockup-btn">Start Download</div>
+                </div>
+                <div class="mockup-progress">
+                  <div class="mockup-progress-labels">
+                    <span>Downloading...</span>
+                    <span>73%</span>
+                  </div>
+                  <div class="mockup-progress-track">
+                    <div class="mockup-progress-fill"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What is YT-DLP GUI (AI-extractable definition) -->
+    <section class="section extract-section" id="what-is" aria-labelledby="what-is-heading">
+      <div class="container reveal">
+        <span class="section-label">Overview</span>
+        <h2 class="section-title" id="what-is-heading">What is YT-DLP GUI?</h2>
+        <p class="definition-lead"><strong>YT-DLP GUI</strong> is a free, MIT-licensed desktop application that wraps the <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> downloader and <a href="https://ffmpeg.org/">ffmpeg</a> in a graphical interface. It downloads YouTube and Instagram media locally on your computer — no command line, no web converter, and no account required.</p>
+
+        <div class="extract-grid">
+          <article class="extract-card card">
+            <h3>Best for video editors</h3>
+            <p>Default H.264/AAC MP4 imports directly into Adobe Premiere Pro and After Effects. Extract WAV 24-bit audio, download SRT/VTT subtitles, or clip a specific section without grabbing the full file.</p>
+          </article>
+          <article class="extract-card card">
+            <h3>YT-DLP GUI vs web downloaders</h3>
+            <p>Web converters send your URL to a third-party server and often cap quality. YT-DLP GUI runs entirely on your machine with full yt-dlp quality control, editor-ready defaults, and zero ads.</p>
+          </article>
+          <article class="extract-card card">
+            <h3>YT-DLP GUI vs yt-dlp CLI</h3>
+            <p>The CLI offers maximum scripting flexibility. YT-DLP GUI adds a visual interface, auto-installs dependencies, Premiere-ready presets, a video clipper, Instagram tab, and recents history — without memorizing flags.</p>
+          </article>
+        </div>
+
+        <p class="last-updated" id="page-updated">Last updated: <time datetime="2026-06-09">June 9, 2026</time> · Version 1.3.3</p>
+      </div>
+    </section>
+
+    <!-- Pain Grid -->
+    <section class="section" id="pain" aria-labelledby="pain-heading">
+      <div class="container reveal">
+        <span class="section-label">The problem</span>
+        <h2 class="section-title" id="pain-heading">Sound familiar?</h2>
+        <p class="section-subtitle">If you've ever tried to grab media for editing, you've hit at least one of these walls.</p>
+
+        <div class="pain-grid">
+          <article class="pain-card">
+            <img class="pain-card-art" src="assets/pain/pain-cli.svg" alt="" width="280" height="200" loading="lazy" decoding="async">
+            <div class="pain-card-body">
+              <div class="pain-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+              </div>
+              <h3>CLI intimidation</h3>
+              <p>You know yt-dlp is powerful. You don't want to memorize flags at 2am.</p>
+            </div>
+          </article>
+          <article class="pain-card">
+            <img class="pain-card-art" src="assets/pain/pain-web.svg" alt="" width="280" height="200" loading="lazy" decoding="async">
+            <div class="pain-card-body">
+              <div class="pain-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+              </div>
+              <h3>Web converter roulette</h3>
+              <p>Random sites. Pop-ups. Quality caps. Your URL on someone else's server.</p>
+            </div>
+          </article>
+          <article class="pain-card">
+            <img class="pain-card-art" src="assets/pain/pain-codec.svg" alt="" width="280" height="200" loading="lazy" decoding="async">
+            <div class="pain-card-body">
+              <div class="pain-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16V4a2 2 0 0 1 2-2h12"/><line x1="9" x2="15" y1="9" y2="15"/><line x1="15" x2="9" y1="9" y2="15"/></svg>
+              </div>
+              <h3>Wrong codec, broken timeline</h3>
+              <p>Downloaded a WebM. Premiere won't touch it. Project stalled.</p>
+            </div>
+          </article>
+          <article class="pain-card">
+            <img class="pain-card-art" src="assets/pain/pain-waste.svg" alt="" width="280" height="200" loading="lazy" decoding="async">
+            <div class="pain-card-body">
+              <div class="pain-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <h3>Full-video waste</h3>
+              <p>You need 45 seconds for a reaction clip. You downloaded 47 minutes.</p>
+            </div>
+          </article>
+          <article class="pain-card">
+            <img class="pain-card-art" src="assets/pain/pain-subtitles.svg" alt="" width="280" height="200" loading="lazy" decoding="async">
+            <div class="pain-card-body">
+              <div class="pain-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h.01"/><path d="M12 10h.01"/><path d="M16 10h.01"/></svg>
+              </div>
+              <h3>Subtitle scavenger hunt</h3>
+              <p>Captions live somewhere else. Another tool, another tab, another format.</p>
+            </div>
+          </article>
+          <article class="pain-card">
+            <img class="pain-card-art" src="assets/pain/pain-deps.svg" alt="" width="280" height="200" loading="lazy" decoding="async">
+            <div class="pain-card-body">
+              <div class="pain-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+              </div>
+              <h3>Dependency hell</h3>
+              <p>yt-dlp updated. ffmpeg missing. Nothing works until you fix PATH.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Solution Bridge -->
+    <section class="solution-bridge" aria-label="Solution summary">
+      <div class="container reveal">
+        <h2>One desktop app. Every format you need. Zero terminal.</h2>
+        <p>YT-DLP GUI wraps the industry's most reliable downloader in a Shadcn-inspired interface — so content creators, video editors, and power users get high-quality, reliable media downloads without touching a command prompt.</p>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+      <div class="container">
+        <div class="reveal" style="margin-bottom: 4rem;">
+          <span class="section-label">Features</span>
+          <h2 class="section-title">Everything you need. Nothing you don't.</h2>
+          <p class="section-subtitle">Six dedicated workflows — each one maps to a tab in the app you already know how to use.</p>
+        </div>
+
+        <!-- Video -->
+        <div class="feature-row reveal">
+          <div class="feature-copy">
+            <div class="feature-tag">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>
+              Video
+            </div>
+            <h3>Premiere-ready video, up to 4K</h3>
+            <p>Default H.264 MP4 with AAC audio — the format Adobe Premiere Pro and After Effects expect. No transcoding step between download and timeline.</p>
+            <ul class="feature-list">
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> MP4, MKV, and WebM containers</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Quality presets from 360p to 4K</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Real-time progress bar from yt-dlp stdout</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Download Video</div>
+                <div class="card-description">Downloads H.264 MP4 format specifically for AE compatibility.</div>
+              </div>
+              <div class="card-content">
+                <div class="mockup-input" style="margin-bottom: 0.75rem;">https://www.youtube.com/watch?v=dQw4w9WgXcQ</div>
+                <div style="font-size: 0.8rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.5rem;">Max Quality: Highest (Up to 4K)</div>
+                <div class="mockup-btn">Start Download</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audio -->
+        <div class="feature-row reverse reveal">
+          <div class="feature-copy">
+            <div class="feature-tag">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              Audio
+            </div>
+            <h3>Studio-grade audio extraction</h3>
+            <p>Pull the audio track without downloading the full video. Choose the format that fits your workflow — from portable MP3 to lossless WAV for sound editing.</p>
+            <ul class="feature-list">
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> MP3 at 320kbps Level 0 VBR</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> WAV 24-bit PCM at 48kHz</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> FLAC lossless compressed</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Download Audio</div>
+                <div class="card-description">Extracts best quality audio as MP3, M4A, WAV, or FLAC.</div>
+              </div>
+              <div class="card-content">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.8rem;">
+                  <div style="padding: 0.75rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius); text-align: center;">
+                    <div style="font-weight: 600; margin-bottom: 0.25rem;">MP3</div>
+                    <div style="color: hsl(var(--muted-foreground)); font-size: 0.7rem;">320kbps VBR</div>
+                  </div>
+                  <div style="padding: 0.75rem; border: 1px solid hsl(var(--primary) / 0.3); border-radius: var(--radius); text-align: center; background: hsl(var(--primary) / 0.06);">
+                    <div style="font-weight: 600; margin-bottom: 0.25rem; color: hsl(var(--primary));">WAV</div>
+                    <div style="color: hsl(var(--muted-foreground)); font-size: 0.7rem;">24-bit PCM</div>
+                  </div>
+                  <div style="padding: 0.75rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius); text-align: center;">
+                    <div style="font-weight: 600; margin-bottom: 0.25rem;">M4A</div>
+                    <div style="color: hsl(var(--muted-foreground)); font-size: 0.7rem;">AAC codec</div>
+                  </div>
+                  <div style="padding: 0.75rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius); text-align: center;">
+                    <div style="font-weight: 600; margin-bottom: 0.25rem;">FLAC</div>
+                    <div style="color: hsl(var(--muted-foreground)); font-size: 0.7rem;">Lossless</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instagram -->
+        <div class="feature-row reveal">
+          <div class="feature-copy">
+            <div class="feature-tag">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="20" x="2" y="2" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></svg>
+              Instagram
+            </div>
+            <h3>Reels, posts, and IGTV — one tab</h3>
+            <p>Stop juggling separate tools for YouTube and Instagram. Paste a Reel or post URL and download as MP4 video or extract the audio as MP3.</p>
+            <ul class="feature-list">
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Reels, posts, and IGTV support</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> MP4 or MP3 output</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Same interface as YouTube downloads</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Download Instagram Media</div>
+                <div class="card-description">Downloads Reels, Posts, and IGTV videos as MP4 or extracts audio as MP3.</div>
+              </div>
+              <div class="card-content">
+                <div class="mockup-input" style="margin-bottom: 0.75rem;">https://www.instagram.com/reel/...</div>
+                <div style="font-size: 0.8rem; color: hsl(var(--muted-foreground));">Format: MP4 Video</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtitles -->
+        <div class="feature-row reverse reveal">
+          <div class="feature-copy">
+            <div class="feature-tag">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Subtitles
+            </div>
+            <h3>Captions without the full download</h3>
+            <p>Grab closed captions and standard subtitles in 13 languages. Export as VTT or SRT — ready for your editing software or translation workflow.</p>
+            <ul class="feature-list">
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Download single language or all available</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> VTT and SRT formats</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> No video file required</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Download Subtitles</div>
+                <div class="card-description">Extract closed captions without downloading the video.</div>
+              </div>
+              <div class="card-content">
+                <div style="font-size: 0.8rem; font-family: monospace; color: hsl(var(--muted-foreground)); line-height: 1.8; padding: 0.75rem; background: hsl(var(--secondary)); border-radius: var(--radius);">
+                  00:00:01.000 --> 00:00:04.000<br>
+                  Welcome to the tutorial.<br><br>
+                  00:00:04.500 --> 00:00:08.000<br>
+                  Today we'll cover the basics.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clipper -->
+        <div class="feature-row reveal">
+          <div class="feature-copy">
+            <div class="feature-tag">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7.22 10.58a5 5 0 1 0 0-7.16 5 5 0 0 0 0 7.16Z"/></svg>
+              Video Clipper
+            </div>
+            <h3>Download only the part you need</h3>
+            <p>Preview the stream, set in and out markers, and download just that section. No more grabbing a 47-minute file when you need 45 seconds.</p>
+            <ul class="feature-list">
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> In-browser video preview</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Drag handles for start/end points</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Powered by yt-dlp --download-sections</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="clipper-mock">
+              <div class="clipper-video-box">
+                <iframe
+                  src="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0"
+                  title="Rick Astley - Never Gonna Give You Up"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allowfullscreen
+                ></iframe>
+              </div>
+              <p class="clipper-hint">Drag the handles to set your clip</p>
+              <div class="clipper-range" id="clipper-demo-track">
+                <div class="clipper-range-fill" id="clipper-demo-fill"></div>
+                <div class="clipper-handle start" id="clipper-handle-start" role="slider" aria-label="Start time" tabindex="0"></div>
+                <div class="clipper-handle end" id="clipper-handle-end" role="slider" aria-label="End time" tabindex="0"></div>
+              </div>
+              <div class="clipper-times">
+                <span><span class="clipper-time-label">In</span> <span id="clipper-time-start">0:45</span></span>
+                <span class="clipper-duration-badge" id="clipper-clip-duration">Clip: 0:45</span>
+                <span><span class="clipper-time-label">Out</span> <span id="clipper-time-end">1:30</span></span>
+                <span><span class="clipper-time-label">Total</span> <span id="clipper-time-total">3:33</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recents + Settings -->
+        <div class="feature-row reverse reveal">
+          <div class="feature-copy">
+            <div class="feature-tag">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Recents &amp; Settings
+            </div>
+            <h3>Your workflow, remembered</h3>
+            <p>Thumbnail history with one-click folder reveal. Custom save paths, six accent themes, completion chimes, and auto-open on finish — all persisted locally.</p>
+            <ul class="feature-list">
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Recents with YouTube thumbnails</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Custom download folders</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> 6 curated accent themes</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="settings-recents-mock">
+              <div class="sr-mock-tabs">
+                <button type="button" class="sr-mock-tab active" data-sr-panel="recents">Recents</button>
+                <button type="button" class="sr-mock-tab" data-sr-panel="settings">Settings</button>
+              </div>
+
+              <div class="sr-mock-panel active" id="sr-panel-recents">
+                <div class="sr-mock-header">
+                  <div>
+                    <h4 class="sr-mock-title">Recent Downloads</h4>
+                    <p class="sr-mock-desc">Your past downloading activity.</p>
+                  </div>
+                  <span class="sr-mock-count">3 items</span>
+                </div>
+                <ul class="sr-recents-list">
+                  <li class="sr-recent-item">
+                    <img class="sr-recent-thumb" src="https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg" alt="Thumbnail for Never Gonna Give You Up video download" width="120" height="68" loading="lazy">
+                    <div class="sr-recent-info">
+                      <span class="sr-recent-title">Never Gonna Give You Up</span>
+                      <span class="sr-recent-meta"><span class="sr-format-badge">MP4</span> 1080p · 2 min ago</span>
+                    </div>
+                    <span class="sr-recent-action" title="Reveal in folder">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    </span>
+                  </li>
+                  <li class="sr-recent-item">
+                    <img class="sr-recent-thumb" src="https://img.youtube.com/vi/9bZkp7q19f0/mqdefault.jpg" alt="Thumbnail for PSY Gangnam Style audio download" width="120" height="68" loading="lazy">
+                    <div class="sr-recent-info">
+                      <span class="sr-recent-title">PSY - GANGNAM STYLE</span>
+                      <span class="sr-recent-meta"><span class="sr-format-badge">MP3</span> 320kbps · 1 hr ago</span>
+                    </div>
+                    <span class="sr-recent-action" title="Reveal in folder">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    </span>
+                  </li>
+                  <li class="sr-recent-item">
+                    <img class="sr-recent-thumb" src="https://img.youtube.com/vi/kJQP7kiw5Fk/mqdefault.jpg" alt="Thumbnail for Despacito subtitle download" width="120" height="68" loading="lazy">
+                    <div class="sr-recent-info">
+                      <span class="sr-recent-title">Despacito · Luis Fonsi</span>
+                      <span class="sr-recent-meta"><span class="sr-format-badge">VTT</span> Subtitles · Yesterday</span>
+                    </div>
+                    <span class="sr-recent-action" title="Reveal in folder">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="sr-mock-panel" id="sr-panel-settings">
+                <div class="sr-mock-header">
+                  <div>
+                    <h4 class="sr-mock-title">Settings</h4>
+                    <p class="sr-mock-desc">Customize your download experience.</p>
+                  </div>
+                </div>
+
+                <div class="sr-settings-block">
+                  <label class="sr-settings-label">Base Save Location</label>
+                  <div class="sr-path-field">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    <span>~/Downloads/YT-DLP GUI</span>
+                  </div>
+
+                  <label class="sr-settings-label">Accent Color Palette</label>
+                  <div class="sr-theme-picker">
+                    <button type="button" class="sr-theme-btn mock-theme-btn active" data-theme="default"><span class="sr-theme-dot" style="background:#f8f9fa"></span> Silver</button>
+                    <button type="button" class="sr-theme-btn mock-theme-btn" data-theme="youtube"><span class="sr-theme-dot" style="background:#ef4444"></span> YouTube Red</button>
+                    <button type="button" class="sr-theme-btn mock-theme-btn" data-theme="neon"><span class="sr-theme-dot" style="background:#06b6d4"></span> Cyan Spark</button>
+                    <button type="button" class="sr-theme-btn mock-theme-btn" data-theme="emerald"><span class="sr-theme-dot" style="background:#10b981"></span> Emerald</button>
+                    <button type="button" class="sr-theme-btn mock-theme-btn" data-theme="purple"><span class="sr-theme-dot" style="background:#8b5cf6"></span> Velvet Purple</button>
+                    <button type="button" class="sr-theme-btn mock-theme-btn" data-theme="amber"><span class="sr-theme-dot" style="background:#f59e0b"></span> Gold Mine</button>
+                  </div>
+
+                  <div class="sr-toggles">
+                    <div class="sr-toggle-row">
+                      <div>
+                        <span class="sr-toggle-title">Notification Sound</span>
+                        <span class="sr-toggle-desc">Chime on successful download</span>
+                      </div>
+                      <div class="sr-switch on" aria-hidden="true"><span class="sr-switch-knob"></span></div>
+                    </div>
+                    <div class="sr-toggle-row">
+                      <div>
+                        <span class="sr-toggle-title">Auto-Open File Location</span>
+                        <span class="sr-toggle-desc">Reveal file in Explorer when done</span>
+                      </div>
+                      <div class="sr-switch on" aria-hidden="true"><span class="sr-switch-knob"></span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Personas -->
+    <section class="section" id="personas">
+      <div class="container reveal">
+        <span class="section-label">Built for you</span>
+        <h2 class="section-title">One app, three workflows</h2>
+        <p class="section-subtitle">Whether you edit in Premiere, post to Instagram, or live in the terminal — YT-DLP GUI meets you where you are.</p>
+
+        <div style="margin-top: 2.5rem;">
+          <div class="persona-band">
+            <h3>For video editors: From URL to timeline in minutes</h3>
+            <p>H.264 MP4 drops straight into Premiere Pro and After Effects. Clip only what you need. Pull lossless WAV for sound design. No codec roulette, no transcoding detour.</p>
+            <div class="persona-tags">
+              <span class="persona-tag">H.264 / AAC MP4</span>
+              <span class="persona-tag">Video Clipper</span>
+              <span class="persona-tag">WAV 24-bit</span>
+              <span class="persona-tag">Subtitles SRT/VTT</span>
+            </div>
+          </div>
+          <div class="persona-band">
+            <h3>For creators: YouTube and Instagram. One app.</h3>
+            <p>Download reference clips, save Reels for inspiration, and keep everything organized in Recents with thumbnails. Quality presets mean you never over-download.</p>
+            <div class="persona-tags">
+              <span class="persona-tag">Instagram Reels</span>
+              <span class="persona-tag">Recents history</span>
+              <span class="persona-tag">Up to 4K</span>
+              <span class="persona-tag">Auto-open folder</span>
+            </div>
+          </div>
+          <div class="persona-band">
+            <h3>For power users: yt-dlp strength. GUI sanity.</h3>
+            <p>Full terminal output visible while downloading. Concurrent download lockout prevents corruption. yt-dlp and ffmpeg auto-installed on first launch. Read the source — it's all there.</p>
+            <div class="persona-tags">
+              <span class="persona-tag">Live terminal</span>
+              <span class="persona-tag">Auto dependencies</span>
+              <span class="persona-tag">MIT License</span>
+              <span class="persona-tag">Secure IPC</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Open Source -->
+    <section class="section opensource-section" id="opensource">
+      <div class="container reveal">
+        <span class="section-label">Open source</span>
+        <h2 class="section-title">Open source. Inspect everything.</h2>
+        <p class="section-subtitle">No black boxes. No accounts. No upload step. Your downloads run locally on your machine — and the code is yours to read, fork, and improve.</p>
+
+        <div class="opensource-grid">
+          <div class="opensource-points">
+            <div class="os-point">
+              <div class="os-point-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <div>
+                <h4>MIT License</h4>
+                <p>Use, modify, and distribute freely — for personal projects or commercial work. No subscription, no paywall, no ads.</p>
+              </div>
+            </div>
+            <div class="os-point">
+              <div class="os-point-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+              </div>
+              <div>
+                <h4>Full source on GitHub</h4>
+                <p>Every line of the Electron app is public. Issues, pull requests, and forks welcome. Built on yt-dlp and ffmpeg — industry-standard tools, not proprietary backends.</p>
+              </div>
+            </div>
+            <div class="os-point">
+              <div class="os-point-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div>
+                <h4>Privacy by design</h4>
+                <p>Downloads never leave your machine. No cloud upload step. No account required. Your URLs stay on your desktop.</p>
+              </div>
+            </div>
+            <div class="os-point">
+              <div class="os-point-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <div>
+                <h4>Community-driven</h4>
+                <p>Built in the open with semantic versioning, a public changelog, and GitHub Actions for reproducible builds. You can verify every release.</p>
+              </div>
+            </div>
+            <div class="opensource-ctas">
+              <a href="https://github.com/birol-dev/YT-DLP-GUI-" class="btn primary btn-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                Star on GitHub
+              </a>
+              <a href="https://github.com/birol-dev/YT-DLP-GUI-/blob/main/LICENSE" class="btn secondary btn-lg">Read the MIT License</a>
+            </div>
+          </div>
+
+          <div class="arch-diagram">
+            <h4 style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: hsl(var(--muted-foreground)); margin-bottom: 1.25rem; text-align: center;">Secure Architecture</h4>
+            <div class="arch-flow">
+              <div class="arch-box highlight">Renderer — HTML/CSS Dashboard</div>
+              <div class="arch-arrow">↕ secure API calls</div>
+              <div class="arch-box">Preload — contextBridge (isolated)</div>
+              <div class="arch-arrow">↕ IPC channels</div>
+              <div class="arch-box highlight">Main Process — Node.js</div>
+              <div class="arch-row">
+                <div class="arch-box">yt-dlp child_process</div>
+                <div class="arch-bridge">local</div>
+                <div class="arch-box">ffmpeg child_process</div>
+              </div>
+            </div>
+            <p style="font-size: 0.8rem; color: hsl(var(--muted-foreground)); margin-top: 1.25rem; text-align: center; line-height: 1.6;">Context isolation keeps Node.js out of the renderer. Only safe IPC methods are exposed.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Compare -->
+    <section class="section" id="compare">
+      <div class="container reveal">
+        <span class="section-label">Compare</span>
+        <h2 class="section-title">Why not just use a website?</h2>
+        <p class="section-subtitle">Honest comparison across the three options most people try first.</p>
+
+        <div class="compare-wrapper">
+          <table class="compare-table" aria-label="Comparison of web converters, yt-dlp CLI, and YT-DLP GUI">
+            <caption class="sr-only">Feature comparison: web converters vs yt-dlp command line vs YT-DLP GUI desktop app</caption>
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Web converters</th>
+                <th>yt-dlp CLI</th>
+                <th class="highlight-col">YT-DLP GUI</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Ease of use</td>
+                <td><span class="check">Easy</span></td>
+                <td><span class="cross">Steep</span></td>
+                <td class="highlight-col"><span class="check">Easy</span></td>
+              </tr>
+              <tr>
+                <td>Quality control</td>
+                <td><span class="cross">Limited</span></td>
+                <td><span class="check">Full</span></td>
+                <td class="highlight-col"><span class="check">Full</span></td>
+              </tr>
+              <tr>
+                <td>Premiere-ready defaults</td>
+                <td><span class="cross">Rare</span></td>
+                <td><span class="partial">Manual flags</span></td>
+                <td class="highlight-col"><span class="check">Built-in</span></td>
+              </tr>
+              <tr>
+                <td>Video clipper</td>
+                <td><span class="cross">No</span></td>
+                <td><span class="partial">Flags required</span></td>
+                <td class="highlight-col"><span class="check">Visual UI</span></td>
+              </tr>
+              <tr>
+                <td>Instagram support</td>
+                <td><span class="partial">Varies</span></td>
+                <td><span class="check">Yes</span></td>
+                <td class="highlight-col"><span class="check">Dedicated tab</span></td>
+              </tr>
+              <tr>
+                <td>Subtitle extraction</td>
+                <td><span class="cross">Rare</span></td>
+                <td><span class="check">Yes</span></td>
+                <td class="highlight-col"><span class="check">Dedicated tab</span></td>
+              </tr>
+              <tr>
+                <td>Privacy (local download)</td>
+                <td><span class="cross">URL sent to server</span></td>
+                <td><span class="check">Local</span></td>
+                <td class="highlight-col"><span class="check">Local</span></td>
+              </tr>
+              <tr>
+                <td>Cost</td>
+                <td><span class="partial">Free + ads</span></td>
+                <td><span class="check">Free</span></td>
+                <td class="highlight-col"><span class="check">Free (MIT)</span></td>
+              </tr>
+              <tr>
+                <td>Open source</td>
+                <td><span class="cross">No</span></td>
+                <td><span class="check">Yes</span></td>
+                <td class="highlight-col"><span class="check">Yes</span></td>
+              </tr>
+              <tr>
+                <td>Auto dependency setup</td>
+                <td><span class="check">N/A</span></td>
+                <td><span class="cross">Manual</span></td>
+                <td class="highlight-col"><span class="check">First-launch installer</span></td>
+              </tr>
+              <tr>
+                <td>Scripting / automation</td>
+                <td><span class="cross">No</span></td>
+                <td><span class="check">Excellent</span></td>
+                <td class="highlight-col"><span class="partial">GUI-focused</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Format Matrix -->
+    <section class="section" id="formats">
+      <div class="container reveal">
+        <span class="section-label">Formats</span>
+        <h2 class="section-title">Pick the right format. Not guesswork.</h2>
+        <p class="section-subtitle">Every output format is pre-configured with a clear use case — so you never download a WebM when Premiere needs MP4.</p>
+
+        <table class="format-table" aria-label="Supported download formats and use cases">
+          <caption class="sr-only">Output formats: MP4, MKV, WebM, MP3, M4A, WAV, FLAC with editor compatibility notes</caption>
+          <thead>
+            <tr>
+              <th>Format</th>
+              <th>Type</th>
+              <th>Use Case</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>MP4</code></td>
+              <td>Video</td>
+              <td>H.264 / AAC — instant import in Adobe Premiere Pro and After Effects</td>
+            </tr>
+            <tr>
+              <td><code>MKV</code></td>
+              <td>Video</td>
+              <td>High-quality archiving with rich subtitle layers and multiple audio streams</td>
+            </tr>
+            <tr>
+              <td><code>WebM</code></td>
+              <td>Video</td>
+              <td>VP9/AV1 + Opus — high compression for web delivery</td>
+            </tr>
+            <tr>
+              <td><code>MP3</code></td>
+              <td>Audio</td>
+              <td>320kbps Level 0 VBR — maximum compatibility</td>
+            </tr>
+            <tr>
+              <td><code>M4A</code></td>
+              <td>Audio</td>
+              <td>AAC codec — efficient web-standard audio</td>
+            </tr>
+            <tr>
+              <td><code>WAV</code></td>
+              <td>Audio</td>
+              <td>24-bit PCM uncompressed — studio-grade sound editing</td>
+            </tr>
+            <tr>
+              <td><code>FLAC</code></td>
+              <td>Audio</td>
+              <td>Lossless compressed — high fidelity, smaller file size</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Theme Showcase -->
+    <section class="section theme-showcase" id="themes">
+      <div class="container reveal">
+        <span class="section-label">Themes</span>
+        <h2 class="section-title">Six accents. Your vibe.</h2>
+        <p class="section-subtitle">Re-theme the entire app instantly — and try it right here. Same palettes available in Settings.</p>
+
+        <div class="theme-picker-large" id="theme-picker-large">
+          <button class="theme-option active" data-theme="default">
+            <div class="theme-swatch" style="background: #f8f9fa;"></div>
+            <span>Sleek Silver</span>
+          </button>
+          <button class="theme-option" data-theme="youtube">
+            <div class="theme-swatch" style="background: #ef4444;"></div>
+            <span>YouTube Red</span>
+          </button>
+          <button class="theme-option" data-theme="neon">
+            <div class="theme-swatch" style="background: #06b6d4;"></div>
+            <span>Cyan Spark</span>
+          </button>
+          <button class="theme-option" data-theme="emerald">
+            <div class="theme-swatch" style="background: #10b981;"></div>
+            <span>Emerald Green</span>
+          </button>
+          <button class="theme-option" data-theme="purple">
+            <div class="theme-swatch" style="background: #8b5cf6;"></div>
+            <span>Velvet Purple</span>
+          </button>
+          <button class="theme-option" data-theme="amber">
+            <div class="theme-swatch" style="background: #f59e0b;"></div>
+            <span>Amber Gold</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="section" id="how-it-works">
+      <div class="container reveal">
+        <span class="section-label">How it works</span>
+        <h2 class="section-title">Three steps. You're downloading.</h2>
+        <p class="section-subtitle">From install to finished file — no terminal, no dependency hunting.</p>
+
+        <div class="steps-grid">
+          <div class="card step-card">
+            <div class="step-number">1</div>
+            <h3>Download &amp; launch</h3>
+            <p>Grab the Windows installer from GitHub Releases. On first launch, the app auto-downloads and configures yt-dlp and ffmpeg for you.</p>
+          </div>
+          <div class="card step-card">
+            <div class="step-number">2</div>
+            <h3>Paste URL, pick format</h3>
+            <p>Choose your tab — video, audio, subtitles, clipper, or Instagram. Paste the URL, select quality and format, hit download.</p>
+          </div>
+          <div class="card step-card">
+            <div class="step-number">3</div>
+            <h3>File lands where you want</h3>
+            <p>Track progress in real time. Optionally auto-open the folder when done. Find it again anytime in Recents.</p>
+          </div>
+        </div>
+
+        <div class="how-mock">
+          <div class="terminal-mock">
+            <div class="terminal-mock-header">Terminal Output</div>
+            <div class="terminal-mock-body">
+              <div><span class="log-info">Info:</span> Verifying yt-dlp... OK (2024.12.13)</div>
+              <div><span class="log-info">Info:</span> Verifying ffmpeg... OK</div>
+              <div><span class="log-warn">Download:</span> [youtube] Extracting URL...</div>
+              <div><span class="log-warn">Download:</span> [download]  73.2% of 142.50MiB at 8.42MiB/s</div>
+              <div><span class="log-success">Success:</span> Download complete. File saved.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="section" id="architecture">
+      <div class="container reveal">
+        <span class="section-label">For developers</span>
+        <h2 class="section-title">Built on solid foundations</h2>
+        <p class="section-subtitle">Electron with strict process separation — the same architecture pattern used by VS Code and Slack.</p>
+
+        <div class="dev-grid" style="margin-top: 2.5rem;">
+          <div class="card" style="padding: 1.5rem;">
+            <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Context isolation</h4>
+            <p style="font-size: 0.875rem; color: hsl(var(--muted-foreground)); line-height: 1.6;">The renderer never gets direct Node.js access. Only whitelisted IPC methods pass through the preload bridge.</p>
+          </div>
+          <div class="card" style="padding: 1.5rem;">
+            <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Local child processes</h4>
+            <p style="font-size: 0.875rem; color: hsl(var(--muted-foreground)); line-height: 1.6;">yt-dlp and ffmpeg run as local child processes. stdout streams back to the UI for real-time progress parsing.</p>
+          </div>
+          <div class="card" style="padding: 1.5rem;">
+            <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Cross-platform deps</h4>
+            <p style="font-size: 0.875rem; color: hsl(var(--muted-foreground)); line-height: 1.6;">Auto-installer supports Windows, macOS, and Linux using official GitHub and ffbinaries static builds.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+      <div class="container reveal">
+        <span class="section-label">FAQ</span>
+        <h2 class="section-title">Common questions</h2>
+        <p class="section-subtitle">Everything you need to know before your first download.</p>
+
+        <div class="faq-list">
+          <div class="faq-item">
+            <button class="faq-question">
+              Is this legal to use?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">YT-DLP GUI is a tool. How you use it is your responsibility. Only download content you have the right to access — respect copyright, creator rights, and each platform's terms of service.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Does it work on Mac and Linux?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">Yes. The dependency installer supports Windows, macOS, and Linux. Pre-built Windows installers are available on GitHub Releases. Mac and Linux users can clone the repo and run <code>npm install && npm start</code>.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Do I need to install ffmpeg separately?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">No. On first launch, the app automatically downloads and configures both yt-dlp and ffmpeg in your user data directory. If you already have them in your system PATH, the app detects and uses those instead.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              How is this different from youtube-dl?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">YT-DLP GUI is built on yt-dlp — the actively maintained fork of youtube-dl with broader site support and faster updates. This app adds a GUI, editor-ready defaults, clipper, Instagram tab, and auto dependency management on top.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Is it really free?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">Yes. MIT licensed — free for personal and commercial use. No subscription, no in-app purchases, no ads.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Can I contribute to the project?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">Absolutely. Fork the repo, open issues, submit pull requests. The full source is on <a href="https://github.com/birol-dev/YT-DLP-GUI-" style="color: hsl(var(--primary));">GitHub</a>.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Why not just use a download website?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">Web converters send your URL to a third-party server, often cap quality, inject ads, and give you formats editors can't use. YT-DLP GUI runs locally — your URLs stay on your machine, and you get full quality control with Premiere-ready defaults.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Will files work in Adobe Premiere?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">Yes. The default MP4 output uses H.264 video and AAC audio — the format Premiere Pro and After Effects expect. No transcoding step needed.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Can I run multiple downloads at once?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">The app intentionally locks concurrent downloads to prevent yt-dlp IP throttling and file corruption. Wait for the current download to finish before starting another — it's a feature, not a limitation.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Where are downloaded files saved?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">By default, files go to your OS Downloads folder. You can set a custom base save location in Settings, with separate folders for videos and audio. Enable auto-open to jump straight to the file when a download completes.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question">
+              Does the app collect any data?
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer">
+              <div class="faq-answer-inner">No telemetry or analytics. Recents history is stored locally in your browser's localStorage. The optional weather widget uses Open-Meteo and ipapi.co for location — only if you configure it in onboarding or Settings.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section class="final-cta" id="download-section">
+      <div class="container reveal">
+        <h2>Ready to ditch the command line?</h2>
+        <p>Free, open-source, and built for editors who care about quality. Download YT-DLP GUI and get your first Premiere-ready file in minutes.</p>
+        <div class="final-cta-actions">
+          <a href="https://github.com/birol-dev/YT-DLP-GUI-/releases" class="btn primary btn-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            Download for Windows
+          </a>
+          <a href="https://github.com/birol-dev/YT-DLP-GUI-" class="btn secondary btn-lg">View on GitHub</a>
+        </div>
+        <div class="code-snippet">git clone https://github.com/birol-dev/YT-DLP-GUI-.git &amp;&amp; npm install &amp;&amp; npm start</div>
+      </div>
+    </section>
+
+  </main>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://ytdlpgui.birol.tech/#website",
+        "url": "https://ytdlpgui.birol.tech/",
+        "name": "YT-DLP GUI",
+        "description": "Free, open-source desktop YouTube and Instagram downloader with Premiere-ready MP4 output.",
+        "inLanguage": "en-US",
+        "publisher": { "@id": "https://ytdlpgui.birol.tech/#organization" }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://ytdlpgui.birol.tech/#organization",
+        "name": "YT-DLP GUI",
+        "url": "https://ytdlpgui.birol.tech/",
+        "sameAs": ["https://github.com/birol-dev/YT-DLP-GUI-"]
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://ytdlpgui.birol.tech/#software",
+        "name": "YT-DLP GUI",
+        "applicationCategory": "MultimediaApplication",
+        "applicationSubCategory": "Video Downloader",
+        "operatingSystem": "Windows 10+, macOS, Linux",
+        "softwareVersion": "1.3.3",
+        "description": "Free, MIT-licensed desktop app that wraps yt-dlp and ffmpeg for YouTube and Instagram downloads with Premiere-ready H.264 MP4, video clipper, and subtitle extraction.",
+        "downloadUrl": "https://github.com/birol-dev/YT-DLP-GUI-/releases",
+        "installUrl": "https://github.com/birol-dev/YT-DLP-GUI-/releases",
+        "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock"
+        },
+        "author": { "@id": "https://ytdlpgui.birol.tech/#organization" },
+        "featureList": [
+          "YouTube video download up to 4K",
+          "H.264 MP4 for Adobe Premiere Pro",
+          "Audio extraction MP3 WAV FLAC",
+          "Video clipper with in-out markers",
+          "Subtitle download VTT SRT",
+          "Instagram Reels and posts",
+          "Auto-install yt-dlp and ffmpeg",
+          "Open source MIT license"
+        ]
+      },
+      {
+        "@type": "HowTo",
+        "name": "How to download YouTube videos with YT-DLP GUI",
+        "description": "Three steps to download YouTube or Instagram media with the YT-DLP GUI desktop app.",
+        "step": [
+          {
+            "@type": "HowToStep",
+            "position": 1,
+            "name": "Download and launch",
+            "text": "Download the Windows installer from GitHub Releases. On first launch, the app auto-installs yt-dlp and ffmpeg."
+          },
+          {
+            "@type": "HowToStep",
+            "position": 2,
+            "name": "Paste URL and pick format",
+            "text": "Choose Video, Audio, Subtitles, Clipper, or Instagram tab. Paste the URL, select quality and format, then start the download."
+          },
+          {
+            "@type": "HowToStep",
+            "position": 3,
+            "name": "Access your file",
+            "text": "Track progress in real time. Optionally auto-open the download folder when complete. Find past downloads in Recents."
+          }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is YT-DLP GUI legal to use?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "YT-DLP GUI is a tool. How you use it is your responsibility. Only download content you have the right to access and respect copyright, creator rights, and platform terms of service."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does YT-DLP GUI work on Mac and Linux?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. The dependency installer supports Windows, macOS, and Linux. Pre-built Windows installers are on GitHub Releases. Mac and Linux users can clone the repo and run npm install and npm start."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need to install ffmpeg separately for YT-DLP GUI?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. On first launch, the app automatically downloads and configures yt-dlp and ffmpeg. If they are already in your system PATH, the app uses those instead."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How is YT-DLP GUI different from youtube-dl?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "YT-DLP GUI is built on yt-dlp, the actively maintained fork of youtube-dl. The GUI adds editor-ready defaults, a video clipper, Instagram support, and automatic dependency management."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is YT-DLP GUI really free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. MIT licensed for personal and commercial use. No subscription, in-app purchases, or ads."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why use YT-DLP GUI instead of a download website?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Web converters send your URL to third-party servers, often cap quality, and show ads. YT-DLP GUI runs locally with full quality control and Premiere-ready H.264 MP4 defaults."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Will YT-DLP GUI downloads work in Adobe Premiere?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Default MP4 output uses H.264 video and AAC audio, the format Adobe Premiere Pro and After Effects expect without transcoding."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does YT-DLP GUI collect user data?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No telemetry or analytics. Recents history is stored locally. The optional weather widget uses Open-Meteo and ipapi.co only if configured in Settings."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <!-- Footer -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#hero" class="nav-logo" aria-label="YT-DLP GUI home">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+            YT-DLP GUI
+          </a>
+          <p>A premium, open-source desktop application wrapping yt-dlp in a beautifully designed Electron GUI. MIT licensed.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#formats">Formats</a></li>
+            <li><a href="#themes">Themes</a></li>
+            <li><a href="#what-is">Overview</a></li>
+            <li><a href="#faq">FAQ</a></li>
+            <li><a href="https://github.com/birol-dev/YT-DLP-GUI-/releases">Downloads</a></li>
+            <li><a href="pricing.md">Pricing</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Source</h4>
+          <ul>
+            <li><a href="https://github.com/birol-dev/YT-DLP-GUI-">GitHub</a></li>
+            <li><a href="llms.txt">llms.txt</a></li>
+            <li><a href="https://github.com/birol-dev/YT-DLP-GUI-/blob/main/LICENSE">MIT License</a></li>
+            <li><a href="https://github.com/birol-dev/YT-DLP-GUI-/blob/main/CHANGELOG.md">Changelog</a></li>
+            <li><a href="https://github.com/birol-dev/YT-DLP-GUI-/issues">Issues</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>MIT License &copy; 2026 YT-DLP GUI · <time datetime="2026-06-09">Updated June 9, 2026</time></span>
+        <p class="footer-disclaimer">YT-DLP GUI is a media download tool. Users are responsible for complying with copyright laws, creator rights, and platform terms of service. Only download content you have the right to access.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
