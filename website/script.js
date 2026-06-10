@@ -62,18 +62,39 @@
     });
   }
 
+  function setMobileNavOpen(isOpen) {
+    if (!navLinks || !navToggle) return;
+
+    navLinks.classList.toggle('open', isOpen);
+    navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    document.body.classList.toggle('nav-open', isOpen);
+  }
+
   function bindMobileNav() {
     if (!navToggle || !navLinks) return;
 
     navToggle.addEventListener('click', () => {
-      navLinks.classList.toggle('open');
+      setMobileNavOpen(!navLinks.classList.contains('open'));
     });
 
     navAnchors.forEach((link) => {
       link.addEventListener('click', () => {
-        navLinks.classList.remove('open');
+        setMobileNavOpen(false);
       });
     });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && navLinks.classList.contains('open')) {
+        setMobileNavOpen(false);
+        navToggle.focus();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 960 && navLinks.classList.contains('open')) {
+        setMobileNavOpen(false);
+      }
+    }, { passive: true });
   }
 
   function bindFaq() {

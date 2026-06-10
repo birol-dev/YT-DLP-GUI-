@@ -51,6 +51,19 @@
           <li><a href="#opensource">Open Source</a></li>
           <li><a href="#compare">Compare</a></li>
           <li><a href="#faq">FAQ</a></li>
+          <li class="nav-mobile-only">
+            <a href="https://github.com/birol-dev/YT-DLP-GUI-/releases" class="btn primary btn-lg nav-mobile-download">Download for Windows</a>
+          </li>
+          <li class="nav-mobile-themes" aria-label="Theme picker">
+            <div class="nav-theme-dots nav-theme-dots--menu">
+              <button class="theme-dot active" data-theme="default" title="Sleek Silver" aria-label="Sleek Silver"></button>
+              <button class="theme-dot" data-theme="youtube" title="YouTube Red" aria-label="YouTube Red"></button>
+              <button class="theme-dot" data-theme="neon" title="Cyan Spark" aria-label="Cyan Spark"></button>
+              <button class="theme-dot" data-theme="emerald" title="Emerald Green" aria-label="Emerald Green"></button>
+              <button class="theme-dot" data-theme="purple" title="Velvet Purple" aria-label="Velvet Purple"></button>
+              <button class="theme-dot" data-theme="amber" title="Amber Gold" aria-label="Amber Gold"></button>
+            </div>
+          </li>
         </ul>
       </nav>
 
@@ -64,7 +77,7 @@
           <button class="theme-dot" data-theme="amber" title="Amber Gold" aria-label="Amber Gold"></button>
         </div>
         <a href="https://github.com/birol-dev/YT-DLP-GUI-/releases" class="btn primary" id="download">Download</a>
-        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
+        <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-links">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
         </button>
       </div>
@@ -777,6 +790,7 @@
         <h2 class="section-title">Pick the right format. Not guesswork.</h2>
         <p class="section-subtitle">Every output format is pre-configured with a clear use case — so you never download a WebM when Premiere needs MP4.</p>
 
+        <div class="table-scroll-wrapper">
         <table class="format-table" aria-label="Supported download formats and use cases">
           <caption class="sr-only">Output formats: MP4, MKV, WebM, MP3, M4A, WAV, FLAC with editor compatibility notes</caption>
           <thead>
@@ -824,6 +838,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </section>
 
