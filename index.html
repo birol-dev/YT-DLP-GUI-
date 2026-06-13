@@ -35,6 +35,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.22 10.58a5 5 0 1 0 0-7.16 5 5 0 0 0 0 7.16Zm0 0L17 21m-9.78-10.42 2.56-2.56m0 0a5 5 0 1 0-7.16 0 5 5 0 0 0 7.16 0Zm0 0L17 3m-7.22 7.58 2.56 2.56"/></svg>
           Video Clipper
         </button>
+        <button class="nav-btn" data-tab="divider-tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scissors"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+          Video Divider
+        </button>
         <button class="nav-btn" data-tab="recents-tab">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Recents
@@ -318,6 +322,222 @@
                 <div id="clipper-download-actions-row" style="display: flex; gap: 10px; margin-top: 0.5rem; flex-shrink: 0; width: 100%;">
                   <button id="btn-clipper-download" class="btn primary flex-1" style="height: 2.75rem; font-size: 0.95rem; font-weight: 600;">Download Video</button>
                   <button id="btn-clipper-download-audio" class="btn flex-1" style="height: 2.75rem; font-size: 0.95rem; font-weight: 600; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Download Audio</button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIDEO DIVIDER TAB -->
+        <section id="divider-tab" class="tab-content h-full">
+          <div class="card h-full flex-col">
+            <div class="card-header">
+              <h2 class="card-title">Video Divider</h2>
+              <p class="card-description">Split local video files or YouTube downloads into custom clips, chunks, or spatial sections.</p>
+            </div>
+            
+            <div class="card-content flex-1 overflow-auto flex-col" style="gap: 1.25rem; display: flex; padding-bottom: 2rem;">
+              
+              <!-- Import Section -->
+              <div id="divider-import-zone" class="flex-col" style="display: flex; gap: 1.25rem;">
+                <!-- Drag and drop zone -->
+                <div id="divider-drop-zone" class="divider-drop-zone">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload-cloud"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m15 15-3-3-3 3"/></svg>
+                  <div>
+                    <p style="font-weight: 500; font-size: 0.95rem; margin-bottom: 4px;">Drag and drop video file here</p>
+                    <p style="font-size: 0.75rem; color: hsl(var(--muted-foreground));">Supports MP4, WebM, MKV, MOV, AVI</p>
+                  </div>
+                  <button id="btn-divider-browse" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">Browse File</button>
+                </div>
+                
+                <!-- OR Divider -->
+                <div style="display: flex; align-items: center; text-align: center; color: hsl(var(--muted-foreground)); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">
+                  <div style="flex: 1; height: 1px; background-color: hsl(var(--border)); margin-right: 10px;"></div>
+                  <span>or import from YouTube</span>
+                  <div style="flex: 1; height: 1px; background-color: hsl(var(--border)); margin-left: 10px;"></div>
+                </div>
+
+                <!-- URL row -->
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="divider-url">YouTube URL</label>
+                  <div class="input-with-action">
+                    <input type="text" id="divider-url" placeholder="https://www.youtube.com/watch?v=...">
+                    <select id="divider-quality" style="width: 140px; height: 2.25rem;">
+                      <option value="1080">1080p</option>
+                      <option value="720">720p</option>
+                      <option value="480">480p</option>
+                      <option value="360">360p</option>
+                    </select>
+                    <button id="btn-divider-load" class="btn primary" style="min-width: 110px;">Load URL</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Divider Workspace (Hidden until video is loaded) -->
+              <div id="divider-workspace" class="flex-col flex-1" style="display: none; gap: 1.25rem; min-height: 0;">
+                
+                <!-- Video File Info -->
+                <div class="clipper-video-info" style="display: flex; gap: 1rem; align-items: center; background-color: hsl(var(--muted) / 0.2); padding: 0.75rem; border-radius: var(--radius); border: 1px solid hsl(var(--border)); flex-shrink: 0;">
+                  <div style="color: hsl(var(--primary)); flex-shrink: 0;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-video"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+                  </div>
+                  <div style="flex: 1; min-width: 0;">
+                    <h4 id="divider-video-title" style="font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 2px;">video_filename.mp4</h4>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <span id="divider-video-duration-badge" class="badge">00:00:00</span>
+                      <span id="divider-video-res-badge" class="badge" style="background-color: hsl(var(--muted) / 0.8);">1920x1080</span>
+                    </div>
+                  </div>
+                  <button id="btn-divider-reset" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2rem; font-size: 0.75rem; padding: 0 0.75rem;">Change Video</button>
+                </div>
+
+                <!-- Video Player Container -->
+                <div class="clipper-player-container" style="position: relative; background-color: #000; border-radius: var(--radius); border: 1px solid hsl(var(--border)); display: flex; justify-content: center; align-items: center; aspect-ratio: 16/9; max-height: 280px; overflow: hidden; flex-shrink: 0;">
+                  <video id="divider-video-player" style="width: 100%; height: 100%; max-height: 280px;" preload="auto" controls></video>
+                </div>
+
+                <!-- Mode Selector -->
+                <div class="form-group" style="margin-bottom: 0; flex-shrink: 0;">
+                  <label>Select Divide Mode</label>
+                  <div class="divider-modes-container">
+                    <div class="divider-mode-card active" data-mode="fast">
+                      <div class="divider-mode-image-wrapper">
+                        <img src="assets/fast_split.png" alt="Fast Split" class="divider-mode-thumb">
+                      </div>
+                      <input type="radio" name="divider-mode" value="fast" checked>
+                      <div class="divider-mode-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <div class="divider-mode-title">Fast Split</div>
+                      </div>
+                      <div class="divider-mode-desc">Instant keyframe split, no re-encoding, zero quality loss (may snap to nearest keyframe).</div>
+                    </div>
+                    <div class="divider-mode-card" data-mode="precise">
+                      <div class="divider-mode-image-wrapper">
+                        <img src="assets/precise_split.png" alt="Precise Split" class="divider-mode-thumb">
+                      </div>
+                      <input type="radio" name="divider-mode" value="precise">
+                      <div class="divider-mode-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-crosshair"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+                        <div class="divider-mode-title">Precise Split</div>
+                      </div>
+                      <div class="divider-mode-desc">Exact frame cuts, decodes and re-encodes video (slower but accurate).</div>
+                    </div>
+                    <div class="divider-mode-card" data-mode="chunks">
+                      <div class="divider-mode-image-wrapper">
+                        <img src="assets/equal_chunks.png" alt="Equal Chunks" class="divider-mode-thumb">
+                      </div>
+                      <input type="radio" name="divider-mode" value="chunks">
+                      <div class="divider-mode-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-columns"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></svg>
+                        <div class="divider-mode-title">Equal Chunks</div>
+                      </div>
+                      <div class="divider-mode-desc">Automatically segment the video into equal-length files of a specified duration.</div>
+                    </div>
+                    <div class="divider-mode-card" data-mode="spatial">
+                      <div class="divider-mode-image-wrapper">
+                        <img src="assets/spatial_split.png" alt="Spatial Split" class="divider-mode-thumb">
+                      </div>
+                      <input type="radio" name="divider-mode" value="spatial">
+                      <div class="divider-mode-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+                        <div class="divider-mode-title">Spatial Split</div>
+                      </div>
+                      <div class="divider-mode-desc">Crop video into Left, Right, Top, or Bottom halves (produces separate outputs).</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Mode Panels -->
+                <div id="divider-mode-panels" style="flex-shrink: 0;">
+                  <!-- Fast & Precise Split Panel -->
+                  <div id="panel-divider-trim" class="divider-panel active">
+                    <div class="clipper-slider-container flex-col" style="gap: 0.5rem; display: flex; flex-shrink: 0;">
+                      <div class="clipper-slider-wrapper" style="position: relative; width: 100%; height: 12px; background-color: hsl(var(--muted)); border-radius: 9999px; cursor: pointer; margin: 10px 0;">
+                        <div id="divider-slider-range" style="position: absolute; height: 100%; background-color: hsl(var(--primary) / 0.3); border-radius: 9999px; left: 0%; width: 100%;"></div>
+                        <div id="divider-slider-playhead" style="position: absolute; width: 4px; height: 20px; background-color: hsl(var(--primary)); border-radius: 2px; top: 50%; transform: translate(-50%, -50%); pointer-events: none; left: 0%; z-index: 3;"></div>
+                        <div id="divider-handle-start" style="position: absolute; width: 16px; height: 16px; background-color: hsl(var(--primary)); border: 2px solid #fff; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; z-index: 4; left: 0%;"></div>
+                        <div id="divider-handle-end" style="position: absolute; width: 16px; height: 16px; background-color: hsl(var(--primary)); border: 2px solid #fff; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; z-index: 4; left: 100%;"></div>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: hsl(var(--muted-foreground));">
+                        <span id="divider-label-current-time">00:00:00.000</span>
+                        <span id="divider-label-total-time">00:00:00.000</span>
+                      </div>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; align-items: stretch; margin-top: 0.5rem;">
+                      <div class="card flex-1" style="padding: 0.75rem; gap: 0.5rem; flex-direction: column; background-color: hsl(var(--card)); border-color: hsl(var(--border));">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+                          <span style="font-size: 0.75rem; font-weight: 600; color: hsl(var(--muted-foreground)); text-transform: uppercase;">Start Marker</span>
+                          <button id="btn-divider-set-start" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 1.75rem; font-size: 0.75rem; padding: 0 0.5rem;">Set Current</button>
+                        </div>
+                        <input type="text" id="divider-start-time-str" value="00:00:00.000" style="text-align: center; font-family: monospace; font-size: 0.9rem; padding: 0.25rem;">
+                      </div>
+
+                      <div class="card flex-1" style="padding: 0.75rem; gap: 0.5rem; flex-direction: column; background-color: hsl(var(--card)); border-color: hsl(var(--border));">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+                          <span style="font-size: 0.75rem; font-weight: 600; color: hsl(var(--muted-foreground)); text-transform: uppercase;">End Marker</span>
+                          <button id="btn-divider-set-end" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 1.75rem; font-size: 0.75rem; padding: 0 0.5rem;">Set Current</button>
+                        </div>
+                        <input type="text" id="divider-end-time-str" value="00:00:00.000" style="text-align: center; font-family: monospace; font-size: 0.9rem; padding: 0.25rem;">
+                      </div>
+                    </div>
+
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                      <button id="btn-divider-go-start" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); font-size: 0.8rem; gap: 6px; padding: 0.25rem 0.75rem;">Go to Start</button>
+                      <button id="btn-divider-preview-clip" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); font-size: 0.8rem; gap: 6px; padding: 0.25rem 0.75rem;">Preview Segment</button>
+                      <button id="btn-divider-go-end" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); font-size: 0.8rem; gap: 6px; padding: 0.25rem 0.75rem;">Go to End</button>
+                    </div>
+                  </div>
+
+                  <!-- Equal Chunks Panel -->
+                  <div id="panel-divider-chunks" class="divider-panel">
+                    <div style="display: flex; gap: 1.5rem; align-items: flex-end;">
+                      <div class="form-group" style="margin-bottom: 0; width: 140px;">
+                        <label for="divider-chunk-min">Minutes</label>
+                        <input type="number" id="divider-chunk-min" min="0" value="0" style="padding: 0.35rem;">
+                      </div>
+                      <div class="form-group" style="margin-bottom: 0; width: 140px;">
+                        <label for="divider-chunk-sec">Seconds</label>
+                        <input type="number" id="divider-chunk-sec" min="0" max="59" value="30" style="padding: 0.35rem;">
+                      </div>
+                      <div style="font-size: 0.85rem; color: hsl(var(--muted-foreground)); padding-bottom: 0.5rem;">
+                        Estimated output: <span id="divider-chunks-preview-count" style="font-weight: 600; color: hsl(var(--primary));">0</span> files
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Spatial Split Panel -->
+                  <div id="panel-divider-spatial" class="divider-panel">
+                    <p class="settings-help" style="margin-bottom: 0.75rem;">Select one or more regions to crop. Each checked region will generate a separate video file.</p>
+                    <div class="spatial-grid">
+                      <label id="lbl-spatial-left" class="spatial-checkbox-container">
+                        <input type="checkbox" id="spatial-left">
+                        <span>Left Half</span>
+                      </label>
+                      <label id="lbl-spatial-right" class="spatial-checkbox-container">
+                        <input type="checkbox" id="spatial-right">
+                        <span>Right Half</span>
+                      </label>
+                      <label id="lbl-spatial-top" class="spatial-checkbox-container">
+                        <input type="checkbox" id="spatial-top">
+                        <span>Top Half</span>
+                      </label>
+                      <label id="lbl-spatial-bottom" class="spatial-checkbox-container">
+                        <input type="checkbox" id="spatial-bottom">
+                        <span>Bottom Half</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div style="display: flex; gap: 10px; margin-top: 0.5rem; width: 100%;">
+                  <button id="btn-divide-video" class="btn primary flex-1" style="height: 2.75rem; font-size: 0.95rem; font-weight: 600;">Divide Video</button>
+                  <button id="btn-divider-open-folder" class="btn flex-1" style="display: none; height: 2.75rem; font-size: 0.95rem; font-weight: 600; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); align-items: center; justify-content: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2A2 2 0 0 0 12 6h6a2 2 0 0 1 2 2v2"/></svg>
+                    Open Output Folder
+                  </button>
                 </div>
 
               </div>

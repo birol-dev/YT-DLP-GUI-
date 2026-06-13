@@ -1164,5 +1164,193 @@ option {
   padding: 1rem 0.5rem;
 }
 
+/* Video Divider Tab Styles */
+.divider-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 3rem 2rem;
+  background-color: hsl(var(--card) / 0.5);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  gap: 1rem;
+}
+
+.divider-drop-zone:hover,
+.divider-drop-zone.dragover {
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--primary) / 0.05);
+  transform: translateY(-2px);
+}
+
+.divider-drop-zone svg {
+  color: hsl(var(--muted-foreground));
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.divider-drop-zone:hover svg,
+.divider-drop-zone.dragover svg {
+  color: hsl(var(--primary));
+  transform: scale(1.1);
+}
+
+.divider-drop-zone p {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.9rem;
+}
+
+.divider-modes-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .divider-modes-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.divider-mode-card {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+  text-align: left;
+}
+
+.divider-mode-card:hover {
+  border-color: hsl(var(--primary) / 0.5);
+  background-color: hsl(var(--accent) / 0.2);
+  transform: translateY(-2px);
+}
+
+.divider-mode-card.active {
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--primary) / 0.05);
+  box-shadow: 0 0 0 1px hsl(var(--primary));
+}
+
+.divider-mode-card input[type="radio"] {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  accent-color: hsl(var(--primary));
+}
+
+.divider-mode-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+}
+
+.divider-mode-desc {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.4;
+}
+
+.divider-panel {
+  display: none;
+  background-color: hsl(var(--muted) / 0.2);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.divider-panel.active {
+  display: block;
+}
+
+.spatial-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .spatial-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.spatial-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.spatial-checkbox-container:hover {
+  border-color: hsl(var(--primary) / 0.5);
+  background-color: hsl(var(--accent) / 0.1);
+}
+
+.spatial-checkbox-container.checked {
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--primary) / 0.05);
+}
+
+.spatial-checkbox-container input[type="checkbox"] {
+  accent-color: hsl(var(--primary));
+}
+
+.divider-mode-image-wrapper {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: calc(var(--radius) - 4px);
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  margin-bottom: 0.25rem;
+  background-color: #000;
+}
+
+.divider-mode-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.divider-mode-card:hover .divider-mode-thumb {
+  transform: scale(1.05);
+}
+
+.divider-mode-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: hsl(var(--primary));
+}
+
+.divider-mode-header svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+
+
 
 

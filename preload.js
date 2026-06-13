@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   downloadVideo: (data) => ipcRenderer.send('download-video', data),
@@ -21,4 +21,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadClip: (data) => ipcRenderer.send('download-clip', data),
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
   finishOnboarding: (data) => ipcRenderer.invoke('finish-onboarding', data),
+  selectVideoFile: () => ipcRenderer.invoke('select-video-file'),
+  getFileUrl: (filePath) => ipcRenderer.invoke('get-file-url', filePath),
+  probeLocalVideo: (filePath) => ipcRenderer.invoke('probe-local-video', filePath),
+  dividerImportUrl: (data) => ipcRenderer.send('divider-import-url', data),
+  divideVideo: (data) => ipcRenderer.send('divide-video', data),
+  onDivideStatus: (cb) => ipcRenderer.on('divide-status', (_event, value) => cb(value)),
+  onDivideProgress: (cb) => ipcRenderer.on('divide-progress', (_event, value) => cb(value)),
+  onDivideComplete: (cb) => ipcRenderer.on('divide-complete', (_event, value) => cb(value)),
+  onDivideError: (cb) => ipcRenderer.on('divide-error', (_event, value) => cb(value)),
+  onDividerImportComplete: (cb) => ipcRenderer.on('divider-import-complete', (_event, value) => cb(value)),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 });

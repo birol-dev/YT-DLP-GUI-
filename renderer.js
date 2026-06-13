@@ -36,6 +36,10 @@ navBtns.forEach(btn => {
     if (player && typeof player.pause === 'function') {
       player.pause();
     }
+    const dividerPlayer = document.getElementById('divider-video-player');
+    if (dividerPlayer && typeof dividerPlayer.pause === 'function') {
+      dividerPlayer.pause();
+    }
     
     // Toggle terminal visibility
     updateTerminalVisibility(btn.dataset.tab);
@@ -1127,6 +1131,574 @@ if (btnClipperDownloadAudio) {
     startClipperDownload('audio');
   });
 }
+
+// ==========================================
+// Video Divider Tab Logic
+// ==========================================
+let dividerSourcePath = '';
+let dividerDuration = 0;
+let dividerStartVal = 0;
+let dividerEndVal = 0;
+let isDividerPreviewing = false;
+let dividerMode = 'fast';
+let isDividing = false;
+let dividerLastTargetSeekTime = null;
+let dividerOutputFolder = '';
+
+// Reusable formatting helpers that support milliseconds
+function secondsToHHMMSSWithMs(totalSeconds) {
+  if (isNaN(totalSeconds) || totalSeconds < 0) return '00:00:00.000';
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds);
+  const ms = Math.floor((totalSeconds % 1) * 1000);
+  const hmsStr = [h, m % 60, s % 60].map(v => v.toString().padStart(2, '0')).join(':');
+  const msStr = ms.toString().padStart(3, '0');
+  return `${hmsStr}.${msStr}`;
+}
+
+function hhmmssToSecondsWithMs(str) {
+  if (!str) return 0;
+  const mainParts = str.split('.');
+  const timeStr = mainParts[0];
+  const msStr = mainParts[1] || '0';
+  
+  const parts = timeStr.split(':');
+  let seconds = 0;
+  if (parts.length === 3) {
+    seconds += parseInt(parts[0], 10) * 3600;
+    seconds += parseInt(parts[1], 10) * 60;
+    seconds += parseInt(parts[2], 10);
+  } else if (parts.length === 2) {
+    seconds += parseInt(parts[0], 10) * 60;
+    seconds += parseInt(parts[1], 10);
+  } else if (parts.length === 1) {
+    seconds += parseInt(parts[0], 10);
+  }
+  
+  const ms = parseInt(msStr.padEnd(3, '0').slice(0, 3), 10) / 1000;
+  return seconds + ms;
+}
+
+// Elements
+const dividerImportZone = document.getElementById('divider-import-zone');
+const dividerDropZone = document.getElementById('divider-drop-zone');
+const btnDividerBrowse = document.getElementById('btn-divider-browse');
+const dividerUrlInput = document.getElementById('divider-url');
+const dividerQualitySelect = document.getElementById('divider-quality');
+const btnDividerLoad = document.getElementById('btn-divider-load');
+
+const dividerWorkspace = document.getElementById('divider-workspace');
+const dividerVideoTitle = document.getElementById('divider-video-title');
+const dividerDurationBadge = document.getElementById('divider-video-duration-badge');
+const dividerResBadge = document.getElementById('divider-video-res-badge');
+const btnDividerReset = document.getElementById('btn-divider-reset');
+const dividerVideoPlayer = document.getElementById('divider-video-player');
+
+const dividerSliderWrapper = document.querySelector('#panel-divider-trim .clipper-slider-wrapper');
+const dividerSliderRange = document.getElementById('divider-slider-range');
+const dividerSliderPlayhead = document.getElementById('divider-slider-playhead');
+const dividerLabelCurrent = document.getElementById('divider-label-current-time');
+const dividerLabelTotal = document.getElementById('divider-label-total-time');
+
+const dividerStartInput = document.getElementById('divider-start-time-str');
+const dividerEndInput = document.getElementById('divider-end-time-str');
+const btnDividerSetStart = document.getElementById('btn-divider-set-start');
+const btnDividerSetEnd = document.getElementById('btn-divider-set-end');
+const btnDividerGoStart = document.getElementById('btn-divider-go-start');
+const btnDividerPreview = document.getElementById('btn-divider-preview-clip');
+const btnDividerGoEnd = document.getElementById('btn-divider-go-end');
+
+const dividerChunkMin = document.getElementById('divider-chunk-min');
+const dividerChunkSec = document.getElementById('divider-chunk-sec');
+const dividerChunksPreviewCount = document.getElementById('divider-chunks-preview-count');
+
+const spatialCheckboxes = {
+  left: document.getElementById('spatial-left'),
+  right: document.getElementById('spatial-right'),
+  top: document.getElementById('spatial-top'),
+  bottom: document.getElementById('spatial-bottom')
+};
+
+const btnDivideVideo = document.getElementById('btn-divide-video');
+const btnDividerOpenFolder = document.getElementById('btn-divider-open-folder');
+
+// Prevent default drag and drop behaviors globally
+window.addEventListener('dragover', (e) => e.preventDefault(), false);
+window.addEventListener('drop', (e) => e.preventDefault(), false);
+
+// Setup Drag and Drop
+if (dividerDropZone) {
+  dividerDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dividerDropZone.classList.add('dragover');
+  });
+
+  dividerDropZone.addEventListener('dragleave', () => {
+    dividerDropZone.classList.remove('dragover');
+  });
+
+  dividerDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dividerDropZone.classList.remove('dragover');
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      const filePath = window.electronAPI.getPathForFile(file);
+      if (filePath) {
+        loadDividerSource(filePath);
+      }
+    }
+  });
+}
+
+// Browse Button click
+if (btnDividerBrowse) {
+  btnDividerBrowse.addEventListener('click', async () => {
+    const path = await window.electronAPI.selectVideoFile();
+    if (path) {
+      loadDividerSource(path);
+    }
+  });
+}
+
+// YouTube Load Button click
+if (btnDividerLoad) {
+  btnDividerLoad.addEventListener('click', () => {
+    const url = dividerUrlInput.value.trim();
+    if (!url) return;
+    
+    if (isDownloading) {
+      alert('A download is already in progress. Please wait for it to finish.');
+      return;
+    }
+    
+    const quality = dividerQualitySelect.value;
+    startDownloadIndicator('Downloading YouTube video source...');
+    window.electronAPI.dividerImportUrl({ url, quality });
+  });
+}
+
+// Reset workspace
+if (btnDividerReset) {
+  btnDividerReset.addEventListener('click', () => {
+    dividerVideoPlayer.pause();
+    dividerVideoPlayer.src = '';
+    dividerSourcePath = '';
+    dividerDuration = 0;
+    
+    dividerWorkspace.style.display = 'none';
+    btnDividerOpenFolder.style.display = 'none';
+    dividerImportZone.style.display = 'flex';
+    dividerUrlInput.value = '';
+  });
+}
+
+// Load Video File Source details
+async function loadDividerSource(filePath) {
+  try {
+    dividerSourcePath = filePath;
+    const meta = await window.electronAPI.probeLocalVideo(filePath);
+    
+    dividerDuration = meta.duration;
+    dividerStartVal = 0;
+    dividerEndVal = meta.duration;
+    
+    dividerVideoTitle.textContent = meta.filename;
+    dividerDurationBadge.textContent = secondsToHHMMSSWithMs(meta.duration);
+    dividerResBadge.textContent = meta.width && meta.height ? `${meta.width}x${meta.height}` : 'Unknown Resolution';
+    
+    dividerLabelTotal.textContent = secondsToHHMMSSWithMs(meta.duration);
+    dividerLabelCurrent.textContent = secondsToHHMMSSWithMs(0);
+    dividerStartInput.value = secondsToHHMMSSWithMs(0);
+    dividerEndInput.value = secondsToHHMMSSWithMs(meta.duration);
+    
+    const fileUrl = await window.electronAPI.getFileUrl(filePath);
+    dividerVideoPlayer.src = fileUrl;
+    dividerVideoPlayer.load();
+    
+    dividerImportZone.style.display = 'none';
+    dividerWorkspace.style.display = 'flex';
+    btnDividerOpenFolder.style.display = 'none';
+    
+    updateDividerSliderUI();
+    updateChunksCountPreview();
+  } catch (err) {
+    alert('Failed to load local video file:\n' + err.message);
+  }
+}
+
+// Slider / Marker Drag and Scrub UI Handlers
+function updateDividerSliderUI() {
+  if (dividerDuration > 0) {
+    const startPct = (dividerStartVal / dividerDuration) * 100;
+    const endPct = (dividerEndVal / dividerDuration) * 100;
+    const widthPct = Math.max(0, endPct - startPct);
+    
+    dividerSliderRange.style.left = `${startPct}%`;
+    dividerSliderRange.style.width = `${widthPct}%`;
+    
+    const startHandle = document.getElementById('divider-handle-start');
+    const endHandle = document.getElementById('divider-handle-end');
+    if (startHandle) startHandle.style.left = `${startPct}%`;
+    if (endHandle) endHandle.style.left = `${endPct}%`;
+  }
+}
+
+let activeDividerDragHandle = null;
+
+function seekDividerVideoPlayer(time) {
+  if (!dividerVideoPlayer || dividerVideoPlayer.style.display === 'none') return;
+  if (!dividerVideoPlayer.seeking) {
+    dividerVideoPlayer.currentTime = time;
+    dividerLastTargetSeekTime = null;
+  } else {
+    dividerLastTargetSeekTime = time;
+  }
+}
+
+if (dividerVideoPlayer) {
+  dividerVideoPlayer.addEventListener('seeked', () => {
+    if (dividerLastTargetSeekTime !== null) {
+      dividerVideoPlayer.currentTime = dividerLastTargetSeekTime;
+      dividerLastTargetSeekTime = null;
+    }
+  });
+
+  dividerVideoPlayer.addEventListener('timeupdate', () => {
+    if (dividerDuration > 0) {
+      const pct = (dividerVideoPlayer.currentTime / dividerDuration) * 100;
+      dividerSliderPlayhead.style.left = `${pct}%`;
+      dividerLabelCurrent.textContent = secondsToHHMMSSWithMs(dividerVideoPlayer.currentTime);
+      
+      if (isDividerPreviewing) {
+        if (dividerVideoPlayer.currentTime >= dividerEndVal) {
+          dividerVideoPlayer.pause();
+          isDividerPreviewing = false;
+          btnDividerPreview.textContent = 'Preview Segment';
+        }
+      }
+    }
+  });
+
+  dividerVideoPlayer.addEventListener('pause', () => {
+    isDividerPreviewing = false;
+    btnDividerPreview.textContent = 'Preview Segment';
+  });
+}
+
+function handleDividerMouseDown(type) {
+  return function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    activeDividerDragHandle = type;
+    document.addEventListener('mousemove', handleDividerMouseMove);
+    document.addEventListener('mouseup', handleDividerMouseUp);
+  }
+}
+
+const startHandleEl = document.getElementById('divider-handle-start');
+const endHandleEl = document.getElementById('divider-handle-end');
+if (startHandleEl) startHandleEl.addEventListener('mousedown', handleDividerMouseDown('start'));
+if (endHandleEl) endHandleEl.addEventListener('mousedown', handleDividerMouseDown('end'));
+
+function handleDividerMouseMove(e) {
+  if (!activeDividerDragHandle || dividerDuration <= 0) return;
+  
+  const rect = dividerSliderWrapper.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, clickX / rect.width));
+  const timeVal = pct * dividerDuration;
+  
+  dividerSliderPlayhead.style.left = `${pct * 100}%`;
+  dividerLabelCurrent.textContent = secondsToHHMMSSWithMs(timeVal);
+  
+  if (activeDividerDragHandle === 'start') {
+    dividerStartVal = Math.min(timeVal, dividerEndVal);
+    dividerStartInput.value = secondsToHHMMSSWithMs(dividerStartVal);
+    seekDividerVideoPlayer(dividerStartVal);
+  } else if (activeDividerDragHandle === 'end') {
+    dividerEndVal = Math.max(timeVal, dividerStartVal);
+    dividerEndInput.value = secondsToHHMMSSWithMs(dividerEndVal);
+    seekDividerVideoPlayer(dividerEndVal);
+  }
+  updateDividerSliderUI();
+}
+
+function handleDividerMouseUp() {
+  activeDividerDragHandle = null;
+  document.removeEventListener('mousemove', handleDividerMouseMove);
+  document.removeEventListener('mouseup', handleDividerMouseUp);
+}
+
+// Click timeline track to seek
+if (dividerSliderWrapper) {
+  dividerSliderWrapper.addEventListener('click', (e) => {
+    const startHandle = document.getElementById('divider-handle-start');
+    const endHandle = document.getElementById('divider-handle-end');
+    if (e.target === startHandle || e.target === endHandle) return;
+    
+    if (dividerDuration > 0) {
+      const rect = dividerSliderWrapper.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / rect.width));
+      dividerVideoPlayer.currentTime = pct * dividerDuration;
+    }
+  });
+}
+
+// In/Out Marker Setters
+if (btnDividerSetStart) {
+  btnDividerSetStart.addEventListener('click', () => {
+    dividerStartVal = Math.min(dividerVideoPlayer.currentTime, dividerEndVal);
+    dividerStartInput.value = secondsToHHMMSSWithMs(dividerStartVal);
+    updateDividerSliderUI();
+  });
+}
+
+if (btnDividerSetEnd) {
+  btnDividerSetEnd.addEventListener('click', () => {
+    dividerEndVal = Math.max(dividerVideoPlayer.currentTime, dividerStartVal);
+    dividerEndInput.value = secondsToHHMMSSWithMs(dividerEndVal);
+    updateDividerSliderUI();
+  });
+}
+
+// Text Inputs
+if (dividerStartInput) {
+  dividerStartInput.addEventListener('change', (e) => {
+    const val = hhmmssToSecondsWithMs(e.target.value);
+    dividerStartVal = Math.max(0, Math.min(val, dividerEndVal));
+    e.target.value = secondsToHHMMSSWithMs(dividerStartVal);
+    updateDividerSliderUI();
+  });
+}
+
+if (dividerEndInput) {
+  dividerEndInput.addEventListener('change', (e) => {
+    const val = hhmmssToSecondsWithMs(e.target.value);
+    dividerEndVal = Math.max(dividerStartVal, Math.min(val, dividerDuration));
+    e.target.value = secondsToHHMMSSWithMs(dividerEndVal);
+    updateDividerSliderUI();
+  });
+}
+
+// Split playback buttons
+if (btnDividerGoStart) {
+  btnDividerGoStart.addEventListener('click', () => {
+    dividerVideoPlayer.currentTime = dividerStartVal;
+  });
+}
+
+if (btnDividerGoEnd) {
+  btnDividerGoEnd.addEventListener('click', () => {
+    dividerVideoPlayer.currentTime = dividerEndVal;
+  });
+}
+
+if (btnDividerPreview) {
+  btnDividerPreview.addEventListener('click', () => {
+    if (isDividerPreviewing && !dividerVideoPlayer.paused) {
+      dividerVideoPlayer.pause();
+      isDividerPreviewing = false;
+      btnDividerPreview.textContent = 'Preview Segment';
+    } else {
+      dividerVideoPlayer.currentTime = dividerStartVal;
+      isDividerPreviewing = true;
+      dividerVideoPlayer.play();
+      btnDividerPreview.textContent = 'Pause Preview';
+    }
+  });
+}
+
+// Mode cards switching
+const modeCards = document.querySelectorAll('.divider-mode-card');
+const dividerPanels = {
+  fast: document.getElementById('panel-divider-trim'),
+  precise: document.getElementById('panel-divider-trim'),
+  chunks: document.getElementById('panel-divider-chunks'),
+  spatial: document.getElementById('panel-divider-spatial')
+};
+
+modeCards.forEach(card => {
+  card.addEventListener('click', () => {
+    modeCards.forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    
+    const radio = card.querySelector('input[type="radio"]');
+    if (radio) radio.checked = true;
+    
+    dividerMode = card.dataset.mode;
+    
+    // Toggle active panel
+    Object.keys(dividerPanels).forEach(key => {
+      if (key === dividerMode) {
+        dividerPanels[key].classList.add('active');
+      } else {
+        if (!(dividerMode === 'precise' && key === 'fast') && !(dividerMode === 'fast' && key === 'precise')) {
+          dividerPanels[key].classList.remove('active');
+        }
+      }
+    });
+  });
+});
+
+// Chunks count calculation preview
+function updateChunksCountPreview() {
+  if (dividerDuration <= 0) {
+    dividerChunksPreviewCount.textContent = '0';
+    return;
+  }
+  const min = parseInt(dividerChunkMin.value, 10) || 0;
+  const sec = parseInt(dividerChunkSec.value, 10) || 0;
+  const totalSec = min * 60 + sec;
+  
+  if (totalSec <= 0) {
+    dividerChunksPreviewCount.textContent = '0';
+    return;
+  }
+  
+  const count = Math.ceil(dividerDuration / totalSec);
+  dividerChunksPreviewCount.textContent = count.toString();
+}
+
+if (dividerChunkMin) dividerChunkMin.addEventListener('input', updateChunksCountPreview);
+if (dividerChunkSec) dividerChunkSec.addEventListener('input', updateChunksCountPreview);
+
+// Spatial checkbox style styling
+Object.keys(spatialCheckboxes).forEach(key => {
+  const checkbox = spatialCheckboxes[key];
+  if (checkbox) {
+    checkbox.addEventListener('change', () => {
+      const parent = checkbox.closest('.spatial-checkbox-container');
+      if (checkbox.checked) {
+        parent.classList.add('checked');
+      } else {
+        parent.classList.remove('checked');
+      }
+    });
+  }
+});
+
+// Trigger Divide action
+if (btnDivideVideo) {
+  btnDivideVideo.addEventListener('click', () => {
+    if (isDividing) {
+      alert('A division task is already in progress.');
+      return;
+    }
+    if (isDownloading) {
+      alert('A source download is in progress. Please wait for it to complete.');
+      return;
+    }
+    if (!dividerSourcePath) {
+      alert('Please load a video file first.');
+      return;
+    }
+    
+    // Build options based on mode
+    let options = {};
+    if (dividerMode === 'fast' || dividerMode === 'precise') {
+      options = {
+        startTimeStr: dividerStartInput.value,
+        endTimeStr: dividerEndInput.value,
+        startTimeSeconds: dividerStartVal,
+        endTimeSeconds: dividerEndVal
+      };
+      if (options.startTimeSeconds >= options.endTimeSeconds) {
+        alert('Start Marker must be before End Marker.');
+        return;
+      }
+    } else if (dividerMode === 'chunks') {
+      const min = parseInt(dividerChunkMin.value, 10) || 0;
+      const sec = parseInt(dividerChunkSec.value, 10) || 0;
+      const totalSec = min * 60 + sec;
+      if (totalSec <= 0) {
+        alert('Please specify a chunk duration greater than 0.');
+        return;
+      }
+      options = {
+        segmentTimeSeconds: totalSec
+      };
+    } else if (dividerMode === 'spatial') {
+      options = {
+        left: spatialCheckboxes.left.checked,
+        right: spatialCheckboxes.right.checked,
+        top: spatialCheckboxes.top.checked,
+        bottom: spatialCheckboxes.bottom.checked
+      };
+      if (!options.left && !options.right && !options.top && !options.bottom) {
+        alert('Please check at least one crop region.');
+        return;
+      }
+    }
+    
+    // Pause video player
+    dividerVideoPlayer.pause();
+    
+    isDividing = true;
+    btnDividerOpenFolder.style.display = 'none';
+    startDownloadIndicator(`Dividing video using ${dividerMode.toUpperCase()} mode...`);
+    
+    window.electronAPI.divideVideo({
+      inputPath: dividerSourcePath,
+      mode: dividerMode,
+      options
+    });
+  });
+}
+
+// Open folder click
+if (btnDividerOpenFolder) {
+  btnDividerOpenFolder.addEventListener('click', () => {
+    if (dividerOutputFolder) {
+      window.electronAPI.openFolder(dividerOutputFolder);
+    }
+  });
+}
+
+// IPC Receivers for import yt-dlp & division progress
+window.electronAPI.onDividerImportComplete((data) => {
+  appendLog(`[✓] YouTube Video Source Downloaded: ${data.title}`, 'log-success');
+  loadDividerSource(data.filePath);
+  stopDownloadIndicator();
+});
+
+window.electronAPI.onDivideStatus((status) => {
+  appendLog(status, 'log-info');
+  const statusText = document.getElementById('progress-status-text');
+  if (statusText) {
+    statusText.textContent = status;
+  }
+});
+
+window.electronAPI.onDivideProgress((progress) => {
+  const fill = document.getElementById('progress-fill');
+  const percentText = document.getElementById('progress-percent-text');
+  if (fill && percentText) {
+    fill.style.width = `${progress}%`;
+    percentText.textContent = `${progress}%`;
+  }
+});
+
+window.electronAPI.onDivideComplete((data) => {
+  appendLog(`[✓] Video Division Completed! Output saved to: ${data.outputDir}`, 'log-success');
+  isDividing = false;
+  stopDownloadIndicator();
+  
+  if (currentSettings.soundEnabled) {
+    playSuccessChime();
+  }
+  
+  dividerOutputFolder = data.outputDir;
+  btnDividerOpenFolder.style.display = 'inline-flex';
+});
+
+window.electronAPI.onDivideError((error) => {
+  appendLog(`[❌ Error] Division failed: ${error}`, 'log-error');
+  isDividing = false;
+  stopDownloadIndicator();
+  alert('Division failed: ' + error);
+});
 
 // ==========================================
 // Weather, Greetings & Onboarding Extension
