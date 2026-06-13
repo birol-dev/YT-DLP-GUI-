@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-06-13
+
+### Added
+- Add a new "File Specifications" metadata card in the Left Pane of the Video Divider tab displaying resolution, aspect ratio, frame rate, file size, video codec, audio codec, and system path.
+- Add a custom asynchronous video analysis loader spinner (`#divider-loading`) on file drops or browse file selection to prevent visual UI freezing.
+- Add standard browser-fallback environment mocking to support stand-alone testing in browser pages.
+
+### Changed
+- Refactor the Video Divider configuration wizard to place Mode Selection as Step 1 (unskippable) and contextual parameter input selectors as Step 2.
+- Move the "Change Divide Mode" navigation control to the top of Step 2.
+- Relocate the video metadata details card persistently to the top of the right-hand configuration column.
+
 ## [1.4.0] - 2026-06-13
 
 ### Added

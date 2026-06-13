@@ -36,4 +36,4 @@ Free. MIT License. No subscription. See pricing.md for details.
 
 ## Version
 
-1.4.0 (as of June 2026)
+1.5.0 (as of June 2026)
