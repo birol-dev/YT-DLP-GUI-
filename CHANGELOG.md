@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-06-13
+
+### Added
+- Add a new "Video Divider" tab in the Electron sidebar navigation.
+- Add local video file importing via drag-and-drop or browse file picker.
+- Add remote YouTube video import downloading first via yt-dlp.
+- Add interactive dual-slider timeline range controls with millisecond accuracy (`HH:MM:SS.mmm`).
+- Add four local FFmpeg splitting modes: Fast Split (keyframe copy), Precise Split (x264 re-encode), Equal Chunks segmentation, and Spatial Canvas cropping (Left/Right/Top/Bottom halves).
+- Add dynamic inline SVG icons and premium Shadcn-style minimalist vector mode diagrams.
+- Add webUtils integration in preload script to support secure file path resolution in Electron v32+.
+
 ## [1.3.3] - 2026-06-05
 
 ### Fixed
