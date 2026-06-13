@@ -1048,19 +1048,48 @@ function probeLocalVideo(filePath) {
       const videoLine = stderr.split('\n').find(line => line.includes('Video:'));
       let width = 0;
       let height = 0;
+      let vcodec = 'Unknown';
+      let fps = 0;
       if (videoLine) {
         const resMatch = videoLine.match(/\b(\d{2,5})x(\d{2,5})\b/);
         if (resMatch) {
           width = parseInt(resMatch[1], 10);
           height = parseInt(resMatch[2], 10);
         }
+        const codecMatch = videoLine.match(/Video:\s*([a-zA-Z0-9_-]+)/);
+        if (codecMatch) {
+          vcodec = codecMatch[1];
+        }
+        const fpsMatch = videoLine.match(/\b([0-9.]+)\s*fps\b/);
+        if (fpsMatch) {
+          fps = parseFloat(fpsMatch[1]);
+        }
       }
+      
+      const audioLine = stderr.split('\n').find(line => line.includes('Audio:'));
+      let acodec = 'None';
+      if (audioLine) {
+        const audioMatch = audioLine.match(/Audio:\s*([a-zA-Z0-9_-]+)/);
+        if (audioMatch) {
+          acodec = audioMatch[1];
+        }
+      }
+
+      let size = 0;
+      try {
+        size = fs.statSync(filePath).size;
+      } catch(e) {}
       
       resolve({
         duration,
         width,
         height,
-        filename: path.basename(filePath)
+        filename: path.basename(filePath),
+        size,
+        vcodec,
+        fps,
+        acodec,
+        filePath
       });
     });
     proc.on('error', (err) => {

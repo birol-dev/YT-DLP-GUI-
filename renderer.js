@@ -11,7 +11,7 @@ function updateTerminalVisibility(tabId) {
   const progressEl = document.getElementById('download-progress-container');
   
   if (terminalEl) {
-    if (tabId === 'settings-tab') {
+    if (tabId === 'settings-tab' || tabId === 'divider-tab') {
       terminalEl.style.display = 'none';
       if (progressEl) progressEl.style.display = 'none';
     } else {
@@ -50,15 +50,35 @@ navBtns.forEach(btn => {
 function startDownloadIndicator(statusMsg) {
   isDownloading = true;
   const progressEl = document.getElementById('download-progress-container');
-  if (progressEl) {
-    progressEl.classList.add('active');
-    const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
-    if (currentTab !== 'settings-tab') {
-      progressEl.style.display = 'block';
+  const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
+  
+  if (currentTab === 'divider-tab') {
+    // Show inline divider progress
+    const inlineStatus = document.getElementById('divider-inline-status-container');
+    const progressBox = document.getElementById('divider-progress-box');
+    const resultBox = document.getElementById('divider-result-box');
+    const fill = document.getElementById('divider-progress-fill');
+    const percentText = document.getElementById('divider-progress-percent-text');
+    const statusText = document.getElementById('divider-progress-status-text');
+    
+    if (inlineStatus) inlineStatus.style.display = 'block';
+    if (progressBox) progressBox.style.display = 'block';
+    if (resultBox) resultBox.style.display = 'none';
+    if (fill) fill.style.width = '0%';
+    if (percentText) percentText.textContent = '0%';
+    if (statusText) statusText.textContent = statusMsg;
+    
+    if (progressEl) progressEl.style.display = 'none';
+  } else {
+    if (progressEl) {
+      progressEl.classList.add('active');
+      if (currentTab !== 'settings-tab') {
+        progressEl.style.display = 'block';
+      }
+      document.getElementById('progress-fill').style.width = '0%';
+      document.getElementById('progress-percent-text').textContent = '0%';
+      document.getElementById('progress-status-text').textContent = statusMsg;
     }
-    document.getElementById('progress-fill').style.width = '0%';
-    document.getElementById('progress-percent-text').textContent = '0%';
-    document.getElementById('progress-status-text').textContent = statusMsg;
   }
 }
 
@@ -69,6 +89,9 @@ function stopDownloadIndicator() {
     progressEl.classList.remove('active');
     progressEl.style.display = 'none';
   }
+  
+  const progressBox = document.getElementById('divider-progress-box');
+  if (progressBox) progressBox.style.display = 'none';
 }
 
 // Download Video
@@ -178,21 +201,25 @@ window.electronAPI.onDownloadProgress((progress) => {
   const percentMatch = progress.match(/\[download\]\s+([0-9.]+)%/);
   if (percentMatch) {
     const percentage = parseFloat(percentMatch[1]);
-    const fill = document.getElementById('progress-fill');
-    const percentText = document.getElementById('progress-percent-text');
+    const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
+    const isDivider = (currentTab === 'divider-tab');
+    
+    const fill = document.getElementById(isDivider ? 'divider-progress-fill' : 'progress-fill');
+    const percentText = document.getElementById(isDivider ? 'divider-progress-percent-text' : 'progress-percent-text');
+    const statusText = document.getElementById(isDivider ? 'divider-progress-status-text' : 'progress-status-text');
+    
     if (fill && percentText) {
       fill.style.width = `${percentage}%`;
       percentText.textContent = `${Math.round(percentage)}%`;
       
-      const statusText = document.getElementById('progress-status-text');
-      if (percentage === 100) {
-        statusText.textContent = 'Processing and finalizing files...';
-      } else {
-        statusText.textContent = 'Downloading media...';
+      if (statusText) {
+        if (percentage === 100) {
+          statusText.textContent = 'Processing and finalizing files...';
+        } else {
+          statusText.textContent = 'Downloading media...';
+        }
       }
     }
-
-
   }
 });
 
@@ -208,7 +235,25 @@ window.electronAPI.onDownloadError((error) => {
   appendLog(error, 'log-error');
   stopDownloadIndicator();
   
-
+  const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
+  if (currentTab === 'divider-tab') {
+    const inlineStatus = document.getElementById('divider-inline-status-container');
+    const resultBox = document.getElementById('divider-result-box');
+    if (inlineStatus) inlineStatus.style.display = 'block';
+    if (resultBox) {
+      resultBox.style.display = 'block';
+      resultBox.className = 'error';
+      resultBox.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div>
+            <div style="font-weight: 600;">Import/Download Failed</div>
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">${error}</div>
+          </div>
+        </div>
+      `;
+    }
+  }
 });
 
 window.electronAPI.onDownloadComplete((data) => {
@@ -1157,6 +1202,29 @@ function secondsToHHMMSSWithMs(totalSeconds) {
   return `${hmsStr}.${msStr}`;
 }
 
+function formatBytes(bytes) {
+  if (!bytes || isNaN(bytes)) return '--';
+  if (bytes < 1024) return bytes + ' Bytes';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+function getAspectRatioStr(width, height) {
+  if (!width || !height) return '--';
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  const divisor = gcd(width, height);
+  const wRatio = width / divisor;
+  const hRatio = height / divisor;
+  
+  if (wRatio === 16 && hRatio === 9) return '16:9 (Landscape)';
+  if (wRatio === 9 && hRatio === 16) return '9:16 (Portrait)';
+  if (wRatio === 1 && hRatio === 1) return '1:1 (Square)';
+  if (wRatio === 4 && hRatio === 3) return '4:3 (Fullscreen)';
+  
+  return `${wRatio}:${hRatio}`;
+}
+
 function hhmmssToSecondsWithMs(str) {
   if (!str) return 0;
   const mainParts = str.split('.');
@@ -1195,7 +1263,7 @@ const dividerResBadge = document.getElementById('divider-video-res-badge');
 const btnDividerReset = document.getElementById('btn-divider-reset');
 const dividerVideoPlayer = document.getElementById('divider-video-player');
 
-const dividerSliderWrapper = document.querySelector('#panel-divider-trim .clipper-slider-wrapper');
+const dividerSliderWrapper = document.getElementById('divider-timeline-wrapper');
 const dividerSliderRange = document.getElementById('divider-slider-range');
 const dividerSliderPlayhead = document.getElementById('divider-slider-playhead');
 const dividerLabelCurrent = document.getElementById('divider-label-current-time');
@@ -1222,6 +1290,12 @@ const spatialCheckboxes = {
 
 const btnDivideVideo = document.getElementById('btn-divide-video');
 const btnDividerOpenFolder = document.getElementById('btn-divider-open-folder');
+
+// Redesign Steps
+const dividerStep1 = document.getElementById('divider-step-1');
+const dividerStep2 = document.getElementById('divider-step-2');
+const btnDividerNextStep = document.getElementById('btn-divider-next-step');
+const btnDividerBackStep = document.getElementById('btn-divider-back-step');
 
 // Prevent default drag and drop behaviors globally
 window.addEventListener('dragover', (e) => e.preventDefault(), false);
@@ -1290,11 +1364,50 @@ if (btnDividerReset) {
     btnDividerOpenFolder.style.display = 'none';
     dividerImportZone.style.display = 'flex';
     dividerUrlInput.value = '';
+    
+    // Reset metadata fields
+    const elSize = document.getElementById('meta-val-size');
+    const elRes = document.getElementById('meta-val-res');
+    const elAspect = document.getElementById('meta-val-aspect');
+    const elFps = document.getElementById('meta-val-fps');
+    const elVcodec = document.getElementById('meta-val-vcodec');
+    const elAcodec = document.getElementById('meta-val-acodec');
+    const elPath = document.getElementById('meta-val-path');
+    
+    if (elSize) elSize.textContent = '--';
+    if (elRes) elRes.textContent = '--';
+    if (elAspect) elAspect.textContent = '--';
+    if (elFps) elFps.textContent = '--';
+    if (elVcodec) elVcodec.textContent = '--';
+    if (elAcodec) elAcodec.textContent = '--';
+    if (elPath) {
+      elPath.textContent = '--';
+      elPath.title = '';
+    }
+
+    // Reset wizard pane visibility
+    if (dividerStep2) dividerStep2.style.display = 'none';
+    if (dividerStep1) dividerStep1.style.display = 'flex';
+    
+    // Hide inline feedback panels
+    const inlineStatus = document.getElementById('divider-inline-status-container');
+    if (inlineStatus) inlineStatus.style.display = 'none';
+    const resultBox = document.getElementById('divider-result-box');
+    if (resultBox) {
+      resultBox.style.display = 'none';
+      resultBox.className = 'divider-result-box';
+      resultBox.innerHTML = '';
+    }
   });
 }
 
 // Load Video File Source details
 async function loadDividerSource(filePath) {
+  const dividerLoading = document.getElementById('divider-loading');
+  if (dividerImportZone) dividerImportZone.style.display = 'none';
+  if (dividerLoading) dividerLoading.style.display = 'flex';
+  if (dividerWorkspace) dividerWorkspace.style.display = 'none';
+
   try {
     dividerSourcePath = filePath;
     const meta = await window.electronAPI.probeLocalVideo(filePath);
@@ -1316,13 +1429,50 @@ async function loadDividerSource(filePath) {
     dividerVideoPlayer.src = fileUrl;
     dividerVideoPlayer.load();
     
-    dividerImportZone.style.display = 'none';
-    dividerWorkspace.style.display = 'flex';
+    // Set specifications metadata fields
+    const elSize = document.getElementById('meta-val-size');
+    const elRes = document.getElementById('meta-val-res');
+    const elAspect = document.getElementById('meta-val-aspect');
+    const elFps = document.getElementById('meta-val-fps');
+    const elVcodec = document.getElementById('meta-val-vcodec');
+    const elAcodec = document.getElementById('meta-val-acodec');
+    const elPath = document.getElementById('meta-val-path');
+    
+    if (elSize) elSize.textContent = formatBytes(meta.size);
+    if (elRes) elRes.textContent = meta.width && meta.height ? `${meta.width}x${meta.height}` : '--';
+    if (elAspect) elAspect.textContent = getAspectRatioStr(meta.width, meta.height);
+    if (elFps) elFps.textContent = meta.fps ? `${meta.fps} fps` : '--';
+    if (elVcodec) elVcodec.textContent = meta.vcodec || '--';
+    if (elAcodec) elAcodec.textContent = meta.acodec || '--';
+    if (elPath) {
+      elPath.textContent = meta.filePath || '--';
+      elPath.title = meta.filePath || '';
+    }
+
+    if (dividerImportZone) dividerImportZone.style.display = 'none';
+    if (dividerLoading) dividerLoading.style.display = 'none';
+    if (dividerWorkspace) dividerWorkspace.style.display = 'flex';
     btnDividerOpenFolder.style.display = 'none';
+    
+    // Reset wizard pane visibility
+    if (dividerStep2) dividerStep2.style.display = 'none';
+    if (dividerStep1) dividerStep1.style.display = 'flex';
+    
+    // Hide inline feedback panels
+    const inlineStatus = document.getElementById('divider-inline-status-container');
+    if (inlineStatus) inlineStatus.style.display = 'none';
+    const resultBox = document.getElementById('divider-result-box');
+    if (resultBox) {
+      resultBox.style.display = 'none';
+      resultBox.className = 'divider-result-box';
+      resultBox.innerHTML = '';
+    }
     
     updateDividerSliderUI();
     updateChunksCountPreview();
   } catch (err) {
+    if (dividerLoading) dividerLoading.style.display = 'none';
+    if (dividerImportZone) dividerImportZone.style.display = 'flex';
     alert('Failed to load local video file:\n' + err.message);
   }
 }
@@ -1345,6 +1495,7 @@ function updateDividerSliderUI() {
 }
 
 let activeDividerDragHandle = null;
+let isScrubbingPlayhead = false;
 
 function seekDividerVideoPlayer(time) {
   if (!dividerVideoPlayer || dividerVideoPlayer.style.display === 'none') return;
@@ -1430,19 +1581,67 @@ function handleDividerMouseUp() {
   document.removeEventListener('mouseup', handleDividerMouseUp);
 }
 
-// Click timeline track to seek
+// Click and drag timeline track to seek and scrub
+function handlePlayheadScrub(e) {
+  if (dividerDuration <= 0 || !dividerSliderWrapper) return;
+  const rect = dividerSliderWrapper.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, clickX / rect.width));
+  const timeVal = pct * dividerDuration;
+  
+  seekDividerVideoPlayer(timeVal);
+  
+  dividerSliderPlayhead.style.left = `${pct * 100}%`;
+  dividerLabelCurrent.textContent = secondsToHHMMSSWithMs(timeVal);
+}
+
+function handlePlayheadMouseMove(e) {
+  if (isScrubbingPlayhead) {
+    handlePlayheadScrub(e);
+  }
+}
+
+function handlePlayheadMouseUp() {
+  isScrubbingPlayhead = false;
+  document.removeEventListener('mousemove', handlePlayheadMouseMove);
+  document.removeEventListener('mouseup', handlePlayheadMouseUp);
+}
+
 if (dividerSliderWrapper) {
-  dividerSliderWrapper.addEventListener('click', (e) => {
+  dividerSliderWrapper.addEventListener('mousedown', (e) => {
     const startHandle = document.getElementById('divider-handle-start');
     const endHandle = document.getElementById('divider-handle-end');
     if (e.target === startHandle || e.target === endHandle) return;
     
-    if (dividerDuration > 0) {
-      const rect = dividerSliderWrapper.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const pct = Math.max(0, Math.min(1, clickX / rect.width));
-      dividerVideoPlayer.currentTime = pct * dividerDuration;
+    e.preventDefault();
+    isScrubbingPlayhead = true;
+    handlePlayheadScrub(e);
+    document.addEventListener('mousemove', handlePlayheadMouseMove);
+    document.addEventListener('mouseup', handlePlayheadMouseUp);
+  });
+}
+
+// Wizard Step Navigation Transitions
+if (btnDividerNextStep) {
+  btnDividerNextStep.addEventListener('click', () => {
+    if (dividerDuration <= 0) {
+      alert('Please load a video file first.');
+      return;
     }
+    if (!dividerMode) {
+      alert('Please select a divide mode.');
+      return;
+    }
+    
+    dividerStep1.style.display = 'none';
+    dividerStep2.style.display = 'flex';
+  });
+}
+
+if (btnDividerBackStep) {
+  btnDividerBackStep.addEventListener('click', () => {
+    dividerStep2.style.display = 'none';
+    dividerStep1.style.display = 'flex';
   });
 }
 
@@ -1658,30 +1857,59 @@ if (btnDividerOpenFolder) {
 
 // IPC Receivers for import yt-dlp & division progress
 window.electronAPI.onDividerImportComplete((data) => {
-  appendLog(`[✓] YouTube Video Source Downloaded: ${data.title}`, 'log-success');
   loadDividerSource(data.filePath);
   stopDownloadIndicator();
+  
+  // Show clean inline success status for remote source import
+  const inlineStatus = document.getElementById('divider-inline-status-container');
+  const resultBox = document.getElementById('divider-result-box');
+  if (inlineStatus) inlineStatus.style.display = 'block';
+  if (resultBox) {
+    resultBox.style.display = 'block';
+    resultBox.className = 'success';
+    resultBox.innerHTML = `
+      <div style="display: flex; align-items: flex-start; gap: 8px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>
+        <div>
+          <div style="font-weight: 600;">YouTube Video Imported Successfully</div>
+          <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">Details and range controls are ready below.</div>
+        </div>
+      </div>
+    `;
+  }
 });
 
 window.electronAPI.onDivideStatus((status) => {
-  appendLog(status, 'log-info');
-  const statusText = document.getElementById('progress-status-text');
-  if (statusText) {
-    statusText.textContent = status;
+  const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
+  if (currentTab === 'divider-tab') {
+    const statusText = document.getElementById('divider-progress-status-text');
+    if (statusText) statusText.textContent = status;
+  } else {
+    const statusText = document.getElementById('progress-status-text');
+    if (statusText) statusText.textContent = status;
   }
 });
 
 window.electronAPI.onDivideProgress((progress) => {
-  const fill = document.getElementById('progress-fill');
-  const percentText = document.getElementById('progress-percent-text');
-  if (fill && percentText) {
-    fill.style.width = `${progress}%`;
-    percentText.textContent = `${progress}%`;
+  const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
+  if (currentTab === 'divider-tab') {
+    const fill = document.getElementById('divider-progress-fill');
+    const percentText = document.getElementById('divider-progress-percent-text');
+    if (fill && percentText) {
+      fill.style.width = `${progress}%`;
+      percentText.textContent = `${progress}%`;
+    }
+  } else {
+    const fill = document.getElementById('progress-fill');
+    const percentText = document.getElementById('progress-percent-text');
+    if (fill && percentText) {
+      fill.style.width = `${progress}%`;
+      percentText.textContent = `${progress}%`;
+    }
   }
 });
 
 window.electronAPI.onDivideComplete((data) => {
-  appendLog(`[✓] Video Division Completed! Output saved to: ${data.outputDir}`, 'log-success');
   isDividing = false;
   stopDownloadIndicator();
   
@@ -1691,13 +1919,47 @@ window.electronAPI.onDivideComplete((data) => {
   
   dividerOutputFolder = data.outputDir;
   btnDividerOpenFolder.style.display = 'inline-flex';
+  
+  // Show clean inline success status
+  const inlineStatus = document.getElementById('divider-inline-status-container');
+  const resultBox = document.getElementById('divider-result-box');
+  if (inlineStatus) inlineStatus.style.display = 'block';
+  if (resultBox) {
+    resultBox.style.display = 'block';
+    resultBox.className = 'success';
+    resultBox.innerHTML = `
+      <div style="display: flex; align-items: flex-start; gap: 8px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>
+        <div>
+          <div style="font-weight: 600;">Video Divided Successfully!</div>
+          <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">Outputs saved in the output directory. Click "Open Output" in Step 2 to view.</div>
+        </div>
+      </div>
+    `;
+  }
 });
 
 window.electronAPI.onDivideError((error) => {
-  appendLog(`[❌ Error] Division failed: ${error}`, 'log-error');
   isDividing = false;
   stopDownloadIndicator();
-  alert('Division failed: ' + error);
+  
+  // Show clean inline error status
+  const inlineStatus = document.getElementById('divider-inline-status-container');
+  const resultBox = document.getElementById('divider-result-box');
+  if (inlineStatus) inlineStatus.style.display = 'block';
+  if (resultBox) {
+    resultBox.style.display = 'block';
+    resultBox.className = 'error';
+    resultBox.innerHTML = `
+      <div style="display: flex; align-items: flex-start; gap: 8px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>
+          <div style="font-weight: 600;">Division Failed</div>
+          <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">${error}</div>
+        </div>
+      </div>
+    `;
+  }
 });
 
 // ==========================================
