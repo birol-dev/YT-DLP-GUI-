@@ -32,4 +32,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDivideError: (cb) => ipcRenderer.on('divide-error', (_event, value) => cb(value)),
   onDividerImportComplete: (cb) => ipcRenderer.on('divider-import-complete', (_event, value) => cb(value)),
   getPathForFile: (file) => webUtils.getPathForFile(file),
+  scanLocalFile: (filePath) => ipcRenderer.send('scan-local-file', filePath),
+  scanYoutubeUrl: (url) => ipcRenderer.send('scan-youtube-url', url),
+  selectAudioVideoFile: () => ipcRenderer.invoke('select-audio-video-file'),
+  onScanStatus: (callback) => ipcRenderer.on('scan-status', (_event, value) => callback(value)),
+  onScanProgress: (callback) => ipcRenderer.on('scan-progress', (_event, value) => callback(value)),
+  onScanComplete: (callback) => ipcRenderer.on('scan-complete', (_event, value) => callback(value)),
+  onScanError: (callback) => ipcRenderer.on('scan-error', (_event, value) => callback(value)),
 });

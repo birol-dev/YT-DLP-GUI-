@@ -39,6 +39,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scissors"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
           Video Divider
         </button>
+        <button class="nav-btn" data-tab="musicfinder-tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-headphones"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+          Music Finder
+        </button>
         <button class="nav-btn" data-tab="recents-tab">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Recents
@@ -325,6 +329,106 @@
                 </div>
 
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MUSIC FINDER TAB -->
+        <section id="musicfinder-tab" class="tab-content h-full">
+          <div class="card h-full flex-col">
+            <div class="card-header">
+              <h2 class="card-title">Music Finder</h2>
+              <p class="card-description">Locally slice and fingerprint any audio/video file, or download a YouTube audio track, to identify all embedded songs with timestamps.</p>
+            </div>
+            
+            <div class="card-content flex-1 overflow-auto flex-col" style="gap: 1.25rem; display: flex; padding-bottom: 2rem;">
+              
+              <!-- Input Workspace (Drag & Drop or URL Input) -->
+              <div id="musicfinder-input-zone" class="flex-col animate-fade-in" style="display: flex; gap: 1.25rem;">
+                <!-- Drag and drop zone -->
+                <div id="musicfinder-drop-zone" class="divider-drop-zone">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload-cloud"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m15 15-3-3-3 3"/></svg>
+                  <div>
+                    <p style="font-weight: 500; font-size: 0.95rem; margin-bottom: 4px;">Drag and drop audio or video file here</p>
+                    <p style="font-size: 0.75rem; color: hsl(var(--muted-foreground));">Supports MP3, WAV, M4A, FLAC, MP4, MKV, MOV</p>
+                  </div>
+                  <button id="btn-musicfinder-browse" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">Browse File</button>
+                </div>
+                
+                <!-- OR Separator -->
+                <div style="display: flex; align-items: center; text-align: center; color: hsl(var(--muted-foreground)); font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">
+                  <div style="flex: 1; height: 1px; background-color: hsl(var(--border)); margin-right: 10px;"></div>
+                  <span>or scan from YouTube</span>
+                  <div style="flex: 1; height: 1px; background-color: hsl(var(--border)); margin-left: 10px;"></div>
+                </div>
+
+                <!-- URL scan input -->
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="musicfinder-url">YouTube URL</label>
+                  <div class="input-with-action">
+                    <input type="text" id="musicfinder-url" placeholder="https://www.youtube.com/watch?v=...">
+                    <button id="btn-musicfinder-scan-url" class="btn primary" style="min-width: 120px;">Scan Link</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scanning/Processing State (Hidden by default) -->
+              <div id="musicfinder-loading" class="flex-col" style="display: none; gap: 1.25rem;">
+                <div class="card" style="padding: 1.5rem; background-color: hsl(var(--card) / 0.5); border-color: hsl(var(--border));">
+                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem;">
+                    <div class="loading-spinner" style="width: 28px; height: 28px; border-width: 3px;"></div>
+                    <div style="flex: 1;">
+                      <h4 id="musicfinder-progress-status-text" style="font-weight: 600; font-size: 0.9rem;">Initializing scanning...</h4>
+                      <p style="font-size: 0.75rem; color: hsl(var(--muted-foreground)); margin-top: 1px;">Processing media locally, zero data uploads</p>
+                    </div>
+                    <span id="musicfinder-progress-percent-text" style="font-size: 0.85rem; font-weight: 600; color: hsl(var(--foreground));">0%</span>
+                  </div>
+                  <!-- Progress Bar -->
+                  <div class="progress-track" style="width: 100%; height: 6px; background-color: hsl(var(--muted)); border-radius: 9999px; overflow: hidden; margin-bottom: 1rem;">
+                    <div id="musicfinder-progress-fill" style="width: 0%; height: 100%; background-color: hsl(var(--primary)); border-radius: 9999px; transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                  </div>
+                  <!-- Real-time step logging output -->
+                  <div style="font-size: 0.75rem; font-weight: 600; color: hsl(var(--muted-foreground)); text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Process Activity Log</div>
+                  <div id="musicfinder-step-log" style="font-family: monospace; font-size: 0.75rem; background-color: hsl(var(--muted) / 0.3); border: 1px solid hsl(var(--border)); padding: 0.75rem; border-radius: calc(var(--radius) - 2px); max-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; color: hsl(var(--muted-foreground));">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Error Zone (Hidden by default) -->
+              <div id="musicfinder-error-zone" class="flex-col animate-fade-in" style="display: none; gap: 1.25rem;">
+                <div class="card" style="padding: 1.5rem; background-color: hsl(var(--destructive) / 0.1); border-color: hsl(var(--destructive) / 0.4); display: flex; flex-direction: row; gap: 16px; align-items: flex-start;">
+                  <div style="color: hsl(var(--destructive)); flex-shrink: 0; padding-top: 2px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                  </div>
+                  <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                    <h4 style="font-weight: 600; font-size: 0.95rem; color: hsl(var(--foreground));">Scanning Failed</h4>
+                    <p id="musicfinder-error-text" style="font-size: 0.85rem; color: hsl(var(--muted-foreground)); line-height: 1.4;"></p>
+                    <div style="display: flex; gap: 10px; margin-top: 0.5rem;">
+                      <button id="btn-musicfinder-error-settings" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2rem; font-size: 0.75rem;">Go to Settings</button>
+                      <button id="btn-musicfinder-error-dismiss" class="btn" style="background-color: transparent; border: 1px solid hsl(var(--border)); height: 2rem; font-size: 0.75rem;">Dismiss</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scan Results Workspace (Hidden by default) -->
+              <div id="musicfinder-results-zone" class="flex-col flex-1" style="display: none; gap: 1rem; min-height: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <h3 style="font-weight: 600; font-size: 1.1rem; margin-bottom: 2px;">Detected Songs</h3>
+                    <p id="musicfinder-results-summary" style="font-size: 0.75rem; color: hsl(var(--muted-foreground));">Found X song(s) inside this file.</p>
+                  </div>
+                  <button id="btn-musicfinder-clear-results" class="btn" style="background-color: transparent; border: 1px solid hsl(var(--border)); height: 2rem; font-size: 0.75rem;">Scan Another File</button>
+                </div>
+                
+                <!-- Scrollable Tracklist -->
+                <div class="flex-1 overflow-auto" style="border: 1px solid hsl(var(--border)); border-radius: var(--radius); background-color: hsl(var(--card) / 0.2);">
+                  <div id="musicfinder-tracklist" style="display: flex; flex-direction: column; padding: 0.25rem;">
+                    <!-- Tracklist items dynamically generated -->
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </section>
@@ -845,6 +949,26 @@
                   </label>
                 </div>
               </div>
+
+              <!-- Music Finder Settings -->
+              <div class="settings-section">
+                <h3 class="settings-section-title">Music Finder (AcoustID)</h3>
+                <div class="form-group">
+                  <label for="settings-acoustid-key">AcoustID Client API Key</label>
+                  <input type="text" id="settings-acoustid-key" placeholder="Enter AcoustID API Key (e.g. 8XaXgX...)">
+                  <p class="settings-help">The Music Finder scans and fingerprints tracks locally and queries AcoustID. Sign up for a free Client API Key at <a href="https://acoustid.org/" target="_blank" style="color: hsl(var(--primary)); text-decoration: underline;">acoustid.org</a> to get yours.</p>
+                </div>
+                <div class="form-group" style="margin-top: 1.25rem;">
+                  <label for="settings-scan-interval" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span>Scan Interval</span>
+                    <span style="font-weight: 600; color: hsl(var(--primary));" id="label-scan-interval-val">90s</span>
+                  </label>
+                  <div style="display: flex; align-items: center; gap: 12px; margin-top: 0.5rem; width: 100%;">
+                    <input type="range" id="settings-scan-interval" class="slider-control" min="10" max="180" step="5" value="90">
+                  </div>
+                  <p class="settings-help">Adjust how frequently the Music Finder scans the track. Lower values scan more frequently to find background songs, but take longer and make more API queries.</p>
+                </div>
+              </div>
             </div>
             
             <div class="card-footer" style="border-top: 1px solid hsl(var(--border)); padding-top: 1.5rem; justify-content: flex-end; gap: 10px;">
@@ -901,6 +1025,11 @@
           <div class="status-indicator"></div>
           <span class="status-label">FFmpeg media utilities</span>
           <span id="dep-val-ffmpeg" class="status-value">Verifying...</span>
+        </div>
+        <div id="dep-status-fpcalc" class="dependency-status-item pending">
+          <div class="status-indicator"></div>
+          <span class="status-label">AcoustID audio fingerprinting</span>
+          <span id="dep-val-fpcalc" class="status-value">Verifying...</span>
         </div>
       </div>
 

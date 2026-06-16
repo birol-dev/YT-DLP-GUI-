@@ -1424,3 +1424,49 @@ option {
   align-items: center;
   gap: 0.5rem;
 }
+
+/* Custom range slider styling for settings */
+.slider-control {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: hsl(var(--muted));
+  outline: none;
+  transition: background 0.15s ease;
+}
+
+.slider-control::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  border: 2px solid #fff;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.slider-control::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  background: hsl(var(--primary) / 0.9);
+}
+
+.slider-control::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  border: 2px solid #fff;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.slider-control::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  background: hsl(var(--primary) / 0.9);
+}
+

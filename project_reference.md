@@ -1,88 +1,125 @@
 # YT-DLP GUI Wrapper Reference
 
-This document serves as a technical reference for the Electron-based GUI built around `yt-dlp`. It explains the architecture, how the different components communicate, and the specific underlying commands used to achieve the desired file formats.
+This document serves as a technical reference for the Electron-based GUI built around `yt-dlp` and `ffmpeg`. It explains the architecture, IPC messaging, custom utility modules, and the specific underlying commands used to achieve downloading, clipping, dividing, and song recognition.
 
-## Architecture Overview
+## Architecture & Communication Flow
 
-The application utilizes a standard Electron architecture, which strictly separates the back-end OS processes from the front-end user interface for security and stability.
+The application utilizes a secure, isolated Electron architecture to partition local OS execution from visual rendering.
 
-- **Main Process (`main.js`)**: Runs in a Node.js environment. It has full OS access. It handles the window creation, parses the downloads directory, runs asynchronous child processes (like the update checkers), and executes the actual `yt-dlp` commands for video, audio, and subtitles.
-- **Preload Script (`preload.js`)**: Acts as a secure bridge. It uses Electron's `contextBridge` to expose specific, safe APIs to the Renderer Process without giving it full OS access (like `downloadVideo` and `downloadSubtitles`).
-- **Renderer Process (`renderer.js`, `index.html`, `styles.css`)**: The visual frontend strictly adhering to a Shadcn-inspired aesthetic (true dark mode, semantic variables, Lucide UI icons). Handles DOM interactions, creates visually rich Recents with YouTube thumbnails fetched synchronously, and sends parameters to the IPC channel.
+- **Main Process (`main.js`)**: Orchestrates window creation, initializes settings, coordinates file system layout, manages background checks/auto-downloads for binaries, and runs `child_process.spawn()` to invoke `yt-dlp` and `ffmpeg`.
+- **Preload Script (`preload.js`)**: Connects the renderer to the backend using Electron's `contextBridge`. It exposes limited, sanitized APIs (e.g., download triggers, folder actions, settings read/write, weather data triggers, and scan status callbacks) to avoid exposing Node's global object in the renderer.
+- **Renderer Process (`renderer.js`, `index.html`, `styles.css`)**: Implements a highly polished, Shadcn-inspired dark mode interface. Handles user event bindings, updates download/processing state panels, renders lists (like Recents and Music Finder tracks) dynamically, and interfaces with the exposed preload APIs.
 
-## Inter-Process Communication (IPC)
+### Inter-Process Communication (IPC)
+Most processes follow a standard callback or message payload loop:
+1. **Renderer**: Dispatches an action (e.g., `window.electronAPI.scanYoutubeUrl(url)`).
+2. **Preload**: Encapsulates and registers IPC events (e.g., `ipcRenderer.send('scan-youtube-url', url)`).
+3. **Main**: Listens to IPC channels (`ipcMain.on` / `ipcMain.handle`), executes the operations, and replies asynchronously back to the window via `win.webContents.send()`.
+4. **Renderer**: Subscribes to events (like progress bars and activity logs) and updates UI states.
 
-When a user clicks a download button, a specific flow occurs:
-1. **Renderer**: `renderer.js` captures the click, reads the input values (URL, Quality), and calls `window.electronAPI.downloadVideo(...)`.
-2. **Preload**: The preload script securely forwards this call to the Main Process using `ipcRenderer.send('download-video')`.
-3. **Main**: `main.js` catches this event using `ipcMain.on('download-video')`. It constructs the command line arguments, spawns the `yt-dlp` child process, and streams the standard output (`stdout`/`stderr`) back to the window via `win.webContents.send()`.
-4. **Renderer**: Listens for the incoming `download-progress` and appends the lines to the UI terminal.
+---
 
-## Core Mechanics & Commands
+## Native Binary Management
+On startup, `main.js` performs dependency audits for the required binary files. If any binary is missing, the app triggers a setup modal that downloads and extracts zip/tarballs from static repository URLs:
+- **`yt-dlp`**: Downloaded directly from the official releases repository (`yt-dlp.exe` on Windows).
+- **`ffmpeg`**: Pulled from prebuilt binary releases to handle format conversions, clipping, and video processing tasks.
+- **`fpcalc`**: The Chromaprint fingerprinting utility, downloaded from AcoustID releases and extracted dynamically into the app's local user data binary directory.
 
-### Asynchronous Update Checker
-When the app launches, `main.js` immediately spawns background processes to check the status of `yt-dlp` and `ffmpeg`.
-- `spawn('yt-dlp', ['-U'])`: Triggers `yt-dlp` to update itself. Because it's asynchronous, the user can start using the app immediately while this runs in the background.
-- `spawn('ffmpeg', ['-version'])`: Checks if `ffmpeg` is accessible in the system PATH.
+---
 
-### Video Downloads (Adobe After Effects Compatibility)
-Adobe After Effects requires specific, highly standardized codecs to import without lagging or failing. The preferred web delivery format is an MP4 container housing H.264 video. 
+## Core Feature Workflows & Commands
 
-**The yt-dlp Command Breakdown:**
-```js
-const args = [
+### 1. Video Downloads (Adobe After Effects Compatibility)
+Constructs specific stream parameters to download H.264 video paired with M4A audio. This format imports seamlessly into After Effects without codec errors.
+- **Command Arguments**:
+  ```js
   '-f', 'bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-  '--merge-output-format', 'mp4',
-];
-```
-- `-f FORMAT_STRING`: This is a complex format string. It explicitly looks for a video stream where the codec starts with `avc1` (H.264) and the height is equal to or less than the user's selected dropdown quality. It then pairs that with the best corresponding `m4a` audio stream.
-- `--merge-output-format mp4`: Ensures the final merged file is guaranteed to be wrapped in `.mp4`.
+  '--merge-output-format', 'mp4'
+  ```
+- **Directory**: Saved to `Downloads/yt-videos/`.
 
-### Audio Downloads (Best MP3)
-**The yt-dlp Command Breakdown:**
-```js
-const args = [
+### 2. Audio Downloads
+Downloads the highest quality raw audio streams and transcodes them into high-fidelity MP3 files.
+- **Command Arguments**:
+  ```js
   '-f', 'bestaudio',
   '-x',
   '--audio-format', 'mp3',
-  '--audio-quality', '0',
-];
-```
-- `-f bestaudio`: Tells `yt-dlp` to download the highest quality raw audio stream.
-- `-x`: Stands for `--extract-audio`. It discards the video portion.
-- `--audio-format mp3`: Prompts `ffmpeg` to encode the downloaded raw stream into an MP3.
-- `--audio-quality 0`: Sets Variable Bitrate (VBR) to level 0, which is the highest possible MP3 quality.
+  '--audio-quality', '0'
+  ```
+- **Directory**: Saved to `Downloads/yt-audios/`.
 
-### Subtitle Downloads (VTT/SRT)
-A new core functionality allows extracting and downloading subtitles without downloading the video itself.
-**The yt-dlp Command Breakdown:**
-```js
-const args = [
-  '--write-subs',
-  '--write-auto-subs',
-  '--sub-langs', 'en.*', // Or '--all-subs'
-  '--skip-download'
-];
-```
-- `--write-subs` / `--write-auto-subs`: Instructs `yt-dlp` to write the standard subtitles and automatic youtube closed-captions to disk.
-- `--skip-download`: Halts the video download phase entirely so the process completes almost instantly.
+### 3. Subtitles Extractor
+Retrieves closed-captioning files without downloading video streams.
+- **Command Arguments**:
+  - Individual languages: `--write-subs`, `--write-auto-subs`, `--sub-langs [lang].*`, `--skip-download`
+  - All languages: `--write-subs`, `--write-auto-subs`, `--all-subs`, `--skip-download`
+- **Directory**: Saved to `Downloads/yt-subs/`.
 
-## Default Directories
-The app automatically detects the user's primary "Downloads" folder using Electron's `app.getPath('downloads')`. It then ensures three sub-directories exist:
-- `Downloads/yt-videos/`
-- `Downloads/yt-audios/`
-- `Downloads/yt-subs/`
+### 4. Instagram Media Downloader
+Supports downloading Reels, Posts, and IGTV videos as video clips or raw MP3 extractions.
+- **Video Arguments**:
+  ```js
+  '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+  '--merge-output-format', 'mp4'
+  ```
+- **Audio Arguments**: Extracts audio as MP3 at maximum quality.
+- **Directories**: Saved to `Downloads/ig-videos/` or `Downloads/ig-audios/`.
 
-## Recent Downloads Data
-The "Recents" tab leverages the `localStorage` API inherent to the Chromium browser running inside Electron.
-When a download successfully completes, `main.js` parses the `yt-dlp` stdout to retrieve the exact final `filePath` and forwards it to `renderer.js`. 
-`renderer.js` pushes a record object to `localStorage` containing the `url`, `type`, and `filePath`.
-A robust regex matches against typical YouTube URL variants (like `youtu.be`, `/v/`, `v=`) to scrape the 11-character video ID synchronously. It then populates the list with native `<img src="https://img.youtube.com/vi/${videoId}/hqdefault.jpg">` blocks to achieve immediate cache-hitting thumbnail rendering.
-Clicking on these cached thumbnails directly invokes `window.electronAPI.openFolder(filePath)`, which securely calls Electron's native `shell.showItemInFolder()` to open Windows Explorer and instantly highlight the downloaded file.
+### 5. Video Clipper
+Features a stream preview layout that queries metadata JSON and plays compatible MP4/webm video streams directly inside the HTML player.
+- **Command Arguments**: Uses `yt-dlp`'s range-cut command parameter to avoid downloading the whole file:
+  ```js
+  '--download-sections', `*${startTime}-${endTime}`
+  ```
+- **Directories**: Saved to `Downloads/yt-videos/` or `Downloads/yt-audios/` based on format.
 
-## Packaging & Building
-The application is pre-packaged with **electron-builder**. A custom `build` block in the `package.json` links the `build/icon.png` generated securely using the Antigravity system, and builds an NSIS Installer payload when executing:
-```sh
-npm run dist
-```
-This encapsulates `ffmpeg` dependencies (if available via user path or bundled statically) and provides a standalone distributable for Windows (`.exe`).
+### 6. Video Divider
+Automates slicing local video files or YouTube source downloads into divided sections or segments using a linear FFmpeg job queue in `main.js`.
+- **Modes**:
+  - **Fast Split**: Splits instantly on keyframe bounds without re-encoding:
+    `['-ss', startTime, '-i', inputPath, '-t', duration, '-c', 'copy', outputPath]`
+  - **Precise Split**: Re-encodes frames around cuts for precise cutting bounds:
+    `['-i', inputPath, '-ss', startTime, '-to', endTime, '-c:v', 'libx264', '-crf', '18', '-c:a', 'aac', outputPath]`
+  - **Equal Chunks**: Chops the timeline into equal duration segments:
+    `['-i', inputPath, '-c', 'copy', '-f', 'segment', '-segment_time', time, '-reset_timestamps', '1', outputPattern]`
+  - **Spatial Split**: Crops the video canvas into quadrant regions:
+    - Left crop filter: `-vf crop=iw/2:ih:0:0`
+    - Right crop filter: `-vf crop=iw/2:ih:iw/2:0`
+    - Top crop filter: `-vf crop=iw:ih/2:0:0`
+    - Bottom crop filter: `-vf crop=iw:ih/2:0:ih/2`
+- **Directory**: Saved to `Downloads/yt-divided/[sanitized_video_name]/`.
+
+### 7. Music Finder (Audio Fingerprinting)
+Slices any audio/video target locally to run song searches against the AcoustID database.
+- **Slicing**: Spawns `fluent-ffmpeg` to write 12-second wave slices every 90 seconds.
+- **Fingerprinting**: Spawns local `fpcalc` binary on each clip to generate Chromaprint string hashes.
+- **Lookup Service**: Sequentially queries the AcoustID API:
+  `https://api.acoustid.org/v2/lookup?client=${apiKey}&meta=recordings+releasegroups&duration=12&fingerprint=${fingerprint}`
+- **Rate-Limiting**: Applies a strict 350ms delay between fetches to respect database limits (maximum 3 requests/second).
+- **Deduplication**: Eliminates matching adjacent track results (by MBID or normalized title/artist comparisons) to list chronological appearances.
+- **Cover Art**: Connects to the Cover Art Archive release group schema (`https://coverartarchive.org/release-group/{mbid}/front-250`) to render thumbnails, falling back to a vinyl record vector representation on error.
+- **UI State Machine**: Manages transitions between `input`, `loading`, `error`, and `results` views, isolating errors cleanly inside an inline destructive red alert banner (`#musicfinder-error-zone`) rather than using default system dialog pop-ups.
+
+---
+
+## Shared UI Components & State
+
+### Settings Management
+Settings are stored locally in `settings.json` within the app's `userData` folder.
+- Key properties include download directories, default media qualities, interface themes, and the user's local AcoustID API Key (`acoustidKey`).
+
+### Weather Widget
+Featured dynamically in headers of main downloading screens. Resolves user coordinates dynamically to render a custom weather card with automatic search suggestions.
+
+### Recents Log
+Maintains a log of finished downloads in browser `localStorage`. Uses regular expressions to extract YouTube 11-character video IDs and render thumbnails asynchronously. Clicking thumbnails invokes native platform folder highlights via Electron's `shell.showItemInFolder()`.
+
+---
+
+## Packaging & Distribution
+Bundled via `electron-builder` into NSIS executables for Windows.
+- Target configuration details are maintained in `package.json` (`build` block).
+- Build scripts:
+  - `npm run pack` (directory build)
+  - `npm run dist` (standalone setup bundle generation)
