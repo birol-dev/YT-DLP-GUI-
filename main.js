@@ -56,6 +56,10 @@ function initSettings() {
     weatherLon: null,
     tempFormat: 'fahrenheit',
     acoustidKey: '',
+    acrcloudKey: '',
+    acrcloudSecret: '',
+    acrcloudHost: 'identify-us-west-2.acrcloud.com',
+    musicFinderService: 'acoustid',
     acoustidScanInterval: 90
   };
   
@@ -1573,6 +1577,47 @@ function extractTrackInfo(apiResponse) {
   return null;
 }
 
+function generateAcrcloudSignature(method, uri, accessKey, accessSecret, dataType, timestamp) {
+  const crypto = require('crypto');
+  const signatureVersion = "1";
+  const stringToSign = `${method}\n${uri}\n${accessKey}\n${dataType}\n${signatureVersion}\n${timestamp}`;
+  return crypto
+    .createHmac('sha1', accessSecret)
+    .update(stringToSign)
+    .digest('base64');
+}
+
+function extractAcrcloudTrackInfo(apiResponse) {
+  if (!apiResponse.status || apiResponse.status.code !== 0 || !apiResponse.metadata || !apiResponse.metadata.music || apiResponse.metadata.music.length === 0) {
+    return null;
+  }
+  
+  const musicList = [...apiResponse.metadata.music].sort((a, b) => b.score - a.score);
+  const bestMatch = musicList[0];
+  
+  const title = bestMatch.title || 'Unknown Title';
+  const artist = bestMatch.artists && bestMatch.artists.length > 0
+    ? bestMatch.artists.map(a => a.name).join(', ')
+    : 'Unknown Artist';
+  const album = bestMatch.album ? bestMatch.album.name : '';
+  
+  let coverUrl = '';
+  if (bestMatch.external_metadata && bestMatch.external_metadata.spotify && bestMatch.external_metadata.spotify.track && bestMatch.external_metadata.spotify.track.album) {
+    const spAlbum = bestMatch.external_metadata.spotify.track.album;
+    if (spAlbum.images && spAlbum.images.length > 0) {
+      coverUrl = spAlbum.images[0].url;
+    }
+  }
+  
+  return {
+    title,
+    artist,
+    album,
+    coverUrl,
+    recordingId: bestMatch.acrid
+  };
+}
+
 function runFpcalc(filePath) {
   return new Promise((resolve, reject) => {
     const fpcalcPath = getFpcalcPath();
@@ -1659,6 +1704,17 @@ async function performLocalFileRecognition(inputPath, win) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
+    const service = settings.musicFinderService || 'acoustid';
+    if (service === 'acoustid') {
+      if (!settings.acoustidKey) {
+        throw new Error('AcoustID Client API Key is not configured. Please add it in the Settings tab.');
+      }
+    } else if (service === 'acrcloud') {
+      if (!settings.acrcloudKey || !settings.acrcloudSecret) {
+        throw new Error('ACRCloud credentials are not configured. Please verify your Access Key and Access Secret in the Settings tab.');
+      }
+    }
+
     const scanInterval = settings.acoustidScanInterval || 90;
     const sliceLen = Math.min(30, Math.floor(duration));
     const slicePoints = [];
@@ -1700,44 +1756,109 @@ async function performLocalFileRecognition(inputPath, win) {
         throw new Error(`Failed to extract audio slice at ${secondsToHHMMSS(startTime)}: ${err.message}`);
       }
 
-      win.webContents.send('scan-status', `[${i+1}/${slicePoints.length}] Fingerprinting clip locally...`);
-      let fpData;
-      try {
-        fpData = await runFpcalc(slicePath);
-      } catch (err) {
-        throw new Error(`Fingerprinting utility (fpcalc) failed to process clip at ${secondsToHHMMSS(startTime)}: ${err.message}`);
-      }
+      let track = null;
 
-      win.webContents.send('scan-status', `[${i+1}/${slicePoints.length}] Querying AcoustID database...`);
-      let response;
-      try {
-        response = await fetch(`https://api.acoustid.org/v2/lookup?client=${clientKey}&meta=recordings+releasegroups&duration=${Math.round(duration)}&fingerprint=${encodeURIComponent(fpData.fingerprint)}`);
-      } catch (err) {
-        throw new Error(`Network error: Failed to connect to AcoustID service. Please check your internet connection and try again.`);
-      }
-
-      if (!response.ok) {
-        if (response.status === 400 || response.status === 403) {
-          throw new Error('Invalid AcoustID API Key. Please verify your Client API Key in the Settings tab.');
+      if (service === 'acoustid') {
+        win.webContents.send('scan-status', `[${i+1}/${slicePoints.length}] Fingerprinting clip locally...`);
+        let fpData;
+        try {
+          fpData = await runFpcalc(slicePath);
+        } catch (err) {
+          throw new Error(`Fingerprinting utility (fpcalc) failed to process clip at ${secondsToHHMMSS(startTime)}: ${err.message}`);
         }
-        throw new Error(`AcoustID lookup failed with server status ${response.status}.`);
-      }
 
-      let apiData;
-      try {
-        apiData = await response.json();
-      } catch (err) {
-        throw new Error('Failed to parse AcoustID response metadata.');
-      }
-
-      if (apiData.error) {
-        if (apiData.error.message && apiData.error.message.includes('invalid client')) {
-          throw new Error('Invalid AcoustID API Key. Please verify your Client API Key in the Settings tab.');
+        win.webContents.send('scan-status', `[${i+1}/${slicePoints.length}] Querying AcoustID database...`);
+        const clientKey = settings.acoustidKey;
+        let response;
+        try {
+          response = await fetch(`https://api.acoustid.org/v2/lookup?client=${clientKey}&meta=recordings+releasegroups&duration=${Math.round(duration)}&fingerprint=${encodeURIComponent(fpData.fingerprint)}`);
+        } catch (err) {
+          throw new Error(`Network error: Failed to connect to AcoustID service. Please check your internet connection and try again.`);
         }
-        throw new Error(`AcoustID API Error: ${apiData.error.message || 'Unknown error'}`);
+
+        if (!response.ok) {
+          if (response.status === 400 || response.status === 403) {
+            throw new Error('Invalid AcoustID API Key. Please verify your Client API Key in the Settings tab.');
+          }
+          throw new Error(`AcoustID lookup failed with server status ${response.status}.`);
+        }
+
+        let apiData;
+        try {
+          apiData = await response.json();
+        } catch (err) {
+          throw new Error('Failed to parse AcoustID response metadata.');
+        }
+
+        if (apiData.error) {
+          if (apiData.error.message && apiData.error.message.includes('invalid client')) {
+            throw new Error('Invalid AcoustID API Key. Please verify your Client API Key in the Settings tab.');
+          }
+          throw new Error(`AcoustID API Error: ${apiData.error.message || 'Unknown error'}`);
+        }
+
+        track = extractTrackInfo(apiData);
+
+      } else if (service === 'acrcloud') {
+        win.webContents.send('scan-status', `[${i+1}/${slicePoints.length}] Querying ACRCloud database...`);
+        const accessKey = settings.acrcloudKey;
+        const accessSecret = settings.acrcloudSecret;
+        const host = settings.acrcloudHost || 'identify-us-west-2.acrcloud.com';
+        
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        const signature = generateAcrcloudSignature('POST', '/v1/identify', accessKey, accessSecret, 'audio', timestamp);
+        
+        let fileBuffer;
+        try {
+          fileBuffer = fs.readFileSync(slicePath);
+        } catch (err) {
+          throw new Error(`Failed to read slice audio data: ${err.message}`);
+        }
+        
+        const fileBlob = new Blob([fileBuffer], { type: 'audio/wav' });
+        
+        const formData = new FormData();
+        formData.append('sample', fileBlob, 'slice.wav');
+        formData.append('access_key', accessKey);
+        formData.append('data_type', 'audio');
+        formData.append('signature_version', '1');
+        formData.append('timestamp', timestamp);
+        formData.append('signature', signature);
+        formData.append('sample_bytes', fileBuffer.length.toString());
+        
+        let response;
+        try {
+          response = await fetch(`https://${host}/v1/identify`, {
+            method: 'POST',
+            body: formData
+          });
+        } catch (err) {
+          throw new Error(`Network error: Failed to connect to ACRCloud service. Please check your internet connection and try again.`);
+        }
+        
+        if (!response.ok) {
+          throw new Error(`ACRCloud lookup failed with server status ${response.status}.`);
+        }
+        
+        let apiData;
+        try {
+          apiData = await response.json();
+        } catch (err) {
+          throw new Error('Failed to parse ACRCloud response metadata.');
+        }
+        
+        if (apiData.status) {
+          const code = apiData.status.code;
+          if (code === 3001 || code === 3003 || code === 3015) {
+            throw new Error(`Invalid ACRCloud Access Key or Access Secret. Please verify your credentials in Settings.`);
+          } else if (code !== 0 && code !== 1001) {
+            throw new Error(`ACRCloud API Error: ${apiData.status.msg || 'Unknown error'} (Code ${code})`);
+          }
+        }
+        
+        track = extractAcrcloudTrackInfo(apiData);
       }
 
-      const track = extractTrackInfo(apiData);
       allResults.push({
         timestamp: startTime,
         timestampStr: secondsToHHMMSS(startTime),

@@ -109,7 +109,7 @@
             <span class="trust-chip">MIT License</span>
             <span class="trust-chip">No ads</span>
             <span class="trust-chip">Auto-installs yt-dlp + ffmpeg</span>
-            <span class="trust-chip">v1.5.0</span>
+            <span class="trust-chip">v1.6.0</span>
           </div>
         </div>
 
@@ -191,7 +191,7 @@
           </article>
         </div>
 
-        <p class="last-updated" id="page-updated">Last updated: <time datetime="2026-06-13">June 13, 2026</time> · Version 1.5.0</p>
+        <p class="last-updated" id="page-updated">Last updated: <time datetime="2026-06-16">June 16, 2026</time> · Version 1.6.0</p>
       </div>
     </section>
 
@@ -502,6 +502,41 @@
               <div style="background-color: hsl(var(--muted) / 0.2); border: 1px solid hsl(var(--border)); border-radius: 6px; padding: 0.5rem; text-align: left; font-size: 0.7rem; color: hsl(var(--muted-foreground)); display: flex; gap: 8px; align-items: center;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: hsl(var(--primary));"><rect width="14" height="14" x="5" y="5" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 21-4.3-4.3"/></svg>
                 <span>Probed file size, codec, path specifications inline.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Music Finder -->
+        <div class="feature-row reveal">
+          <div class="feature-copy">
+            <div class="feature-tag">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+              Music Finder
+            </div>
+            <h3>Identify background songs instantly</h3>
+            <p>Locally slice and fingerprint any audio/video track, then search the AcoustID or ACRCloud databases to identify songs and track timestamps.</p>
+            <ul class="feature-list">
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> AcoustID &amp; ACRCloud API integration</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Standalone settings and syncing slider control</li>
+              <li><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Card-wide drag &amp; drop to auto-scan files</li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="card" style="padding: 1.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <strong style="font-size: 0.9rem;">Detected Songs</strong>
+                <span class="sr-format-badge" style="background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); font-size: 0.65rem;">ACRCloud</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 0.5rem; border: 1px solid hsl(var(--border)); border-radius: 6px;">
+                  <div style="width: 36px; height: 36px; border-radius: 4px; background: hsl(var(--muted)); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: hsl(var(--muted-foreground));">🎵</div>
+                  <div style="flex: 1; text-align: left;">
+                    <div style="font-size: 0.75rem; font-weight: 600; text-align: left;">Never Gonna Give You Up</div>
+                    <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground)); text-align: left;">Rick Astley</div>
+                  </div>
+                  <span style="font-size: 0.65rem; font-family: monospace; padding: 2px 6px; background: hsl(var(--muted)); border-radius: 4px;">@ 00:00:00</span>
+                </div>
               </div>
             </div>
           </div>

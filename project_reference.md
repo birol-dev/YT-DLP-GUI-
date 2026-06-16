@@ -90,15 +90,25 @@ Automates slicing local video files or YouTube source downloads into divided sec
     - Bottom crop filter: `-vf crop=iw:ih/2:0:ih/2`
 - **Directory**: Saved to `Downloads/yt-divided/[sanitized_video_name]/`.
 
-### 7. Music Finder (Audio Fingerprinting)
-Slices any audio/video target locally to run song searches against the AcoustID database.
-- **Slicing**: Spawns `fluent-ffmpeg` to write 12-second wave slices every 90 seconds.
-- **Fingerprinting**: Spawns local `fpcalc` binary on each clip to generate Chromaprint string hashes.
-- **Lookup Service**: Sequentially queries the AcoustID API:
-  `https://api.acoustid.org/v2/lookup?client=${apiKey}&meta=recordings+releasegroups&duration=12&fingerprint=${fingerprint}`
-- **Rate-Limiting**: Applies a strict 350ms delay between fetches to respect database limits (maximum 3 requests/second).
-- **Deduplication**: Eliminates matching adjacent track results (by MBID or normalized title/artist comparisons) to list chronological appearances.
-- **Cover Art**: Connects to the Cover Art Archive release group schema (`https://coverartarchive.org/release-group/{mbid}/front-250`) to render thumbnails, falling back to a vinyl record vector representation on error.
+### 7. Music Finder (Audio Fingerprinting & Service Selection)
+Slices any audio/video target locally to search and identify songs against either the AcoustID or ACRCloud database.
+- **Service Selector**: A dropdown selector (`#musicfinder-service-selector`) on the Music Finder tab lets users toggle between AcoustID (Free) and ACRCloud. A Preferred Service setting dropdown is also located on the Settings tab, synchronized bidirectionally.
+- **Scan Interval Slider**: Adjustable range sliders exist in both the Settings tab (`#settings-scan-interval`, min 10s, max 180s) and directly inside the Music Finder tab itself (`#musicfinder-scan-interval`). The two sliders are dynamically synchronized in real-time, and changing either slider automatically updates settings on disk.
+- **Drag & Drop Visual Transitions**: Dragging files anywhere over the Music Finder card panel (`#musicfinder-card`) triggers a visual boundary focus transition, rendering the card border in `hsl(var(--primary))` to indicate drop targets.
+- **Slicing**: Spawns `fluent-ffmpeg` to write wave slices every `acoustidScanInterval` seconds. The slice duration is calculated dynamically as `Math.min(30, Math.floor(duration))` (up to 30 seconds).
+- **AcoustID Recognition Engine**:
+  - Spawns local `fpcalc` binary on each clip to generate Chromaprint string hashes.
+  - Queries the AcoustID lookup API with the total audio duration:
+    `https://api.acoustid.org/v2/lookup?client=${apiKey}&meta=recordings+releasegroups&duration=${Math.round(duration)}&fingerprint=${fingerprint}`
+  - Best Metadata Selection: Iterates through AcoustID match results and prefers recordings that contain both a valid title and artists, falling back to the first match on failure.
+  - Rate-Limiting: Applies a strict 350ms delay between fetches to respect database limits (maximum 3 requests/second).
+  - Cover Art: Connects to the Cover Art Archive release group schema (`https://coverartarchive.org/release-group/{mbid}/front-250`) to render thumbnails.
+- **ACRCloud Recognition Engine**:
+  - Bypasses local `fpcalc` calculation. Reads the local sliced `.wav` file binary into a native `Blob`.
+  - Calculates a secure HMAC-SHA1 signature using Node's `crypto` module based on http-method, path (`/v1/identify`), access key, data-type (`audio`), signature version (`1`), and current Unix timestamp.
+  - Dispatches a multipart `FormData` POST request containing the audio blob, Access Key, signature, and metadata directly to the regional project host (e.g. `identify-us-west-2.acrcloud.com`).
+  - Cover Art: Dynamically checks `external_metadata.spotify` in the JSON response and extracts Spotify Album cover artwork URLs.
+- **Deduplication**: Eliminates matching adjacent track results (by AcoustID MBID, ACRCloud ACRID, or normalized title/artist comparisons) to list chronological appearances.
 - **UI State Machine**: Manages transitions between `input`, `loading`, `error`, and `results` views, isolating errors cleanly inside an inline destructive red alert banner (`#musicfinder-error-zone`) rather than using default system dialog pop-ups.
 
 ---

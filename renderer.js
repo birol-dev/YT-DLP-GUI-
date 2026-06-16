@@ -481,7 +481,11 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     weatherLat: lat,
     weatherLon: lon,
     tempFormat: document.getElementById('settings-temp-format').value,
+    musicFinderService: document.getElementById('settings-musicfinder-service').value,
     acoustidKey: document.getElementById('settings-acoustid-key').value.trim(),
+    acrcloudKey: document.getElementById('settings-acrcloud-key').value.trim(),
+    acrcloudSecret: document.getElementById('settings-acrcloud-secret').value.trim(),
+    acrcloudHost: document.getElementById('settings-acrcloud-host').value.trim() || 'identify-us-west-2.acrcloud.com',
     acoustidScanInterval: parseInt(document.getElementById('settings-scan-interval').value, 10)
   };
 
@@ -573,10 +577,30 @@ async function initSettingsUI() {
     document.getElementById('settings-audio-format').value = currentSettings.audioFormat || 'mp3';
     document.getElementById('settings-sound-enabled').checked = !!currentSettings.soundEnabled;
     document.getElementById('settings-auto-open').checked = !!currentSettings.autoOpenFolder;
+    const mfService = currentSettings.musicFinderService || 'acoustid';
+    document.getElementById('settings-musicfinder-service').value = mfService;
+    
+    const mfServiceSelector = document.getElementById('musicfinder-service-selector');
+    if (mfServiceSelector) {
+      mfServiceSelector.value = mfService;
+    }
+    
     document.getElementById('settings-acoustid-key').value = currentSettings.acoustidKey || '';
+    document.getElementById('settings-acrcloud-key').value = currentSettings.acrcloudKey || '';
+    document.getElementById('settings-acrcloud-secret').value = currentSettings.acrcloudSecret || '';
+    document.getElementById('settings-acrcloud-host').value = currentSettings.acrcloudHost || 'identify-us-west-2.acrcloud.com';
+    
+    toggleCredentialsContainers(mfService);
+
     const scanInterval = currentSettings.acoustidScanInterval || 90;
     document.getElementById('settings-scan-interval').value = scanInterval;
     document.getElementById('label-scan-interval-val').textContent = `${scanInterval}s`;
+    const mfScanInterval = document.getElementById('musicfinder-scan-interval');
+    if (mfScanInterval) {
+      mfScanInterval.value = scanInterval;
+      const mfScanIntervalLabel = document.getElementById('label-musicfinder-scan-interval-val');
+      if (mfScanIntervalLabel) mfScanIntervalLabel.textContent = `${scanInterval}s`;
+    }
     
     // Populate user profile settings inputs
     document.getElementById('settings-user-name').value = currentSettings.userName || '';
@@ -2778,9 +2802,86 @@ if (settingsCityInput && settingsCityResults) {
 // Scan Interval Slider dynamic update
 const scanIntervalInput = document.getElementById('settings-scan-interval');
 const scanIntervalLabel = document.getElementById('label-scan-interval-val');
+const musicFinderScanIntervalInput = document.getElementById('musicfinder-scan-interval');
+const musicFinderScanIntervalLabel = document.getElementById('label-musicfinder-scan-interval-val');
+
 if (scanIntervalInput && scanIntervalLabel) {
   scanIntervalInput.addEventListener('input', (e) => {
-    scanIntervalLabel.textContent = `${e.target.value}s`;
+    const val = e.target.value;
+    scanIntervalLabel.textContent = `${val}s`;
+    if (musicFinderScanIntervalInput) {
+      musicFinderScanIntervalInput.value = val;
+    }
+    if (musicFinderScanIntervalLabel) {
+      musicFinderScanIntervalLabel.textContent = `${val}s`;
+    }
+  });
+}
+
+if (musicFinderScanIntervalInput && musicFinderScanIntervalLabel) {
+  musicFinderScanIntervalInput.addEventListener('input', (e) => {
+    const val = e.target.value;
+    musicFinderScanIntervalLabel.textContent = `${val}s`;
+    if (scanIntervalInput) {
+      scanIntervalInput.value = val;
+    }
+    if (scanIntervalLabel) {
+      scanIntervalLabel.textContent = `${val}s`;
+    }
+  });
+
+  musicFinderScanIntervalInput.addEventListener('change', async (e) => {
+    const val = parseInt(e.target.value, 10);
+    currentSettings.acoustidScanInterval = val;
+    await window.electronAPI.saveSettings(currentSettings);
+  });
+}
+
+// Toggle credentials containers visibility
+function toggleCredentialsContainers(service) {
+  const acoustidContainer = document.getElementById('acoustid-credentials-container');
+  const acrcloudContainer = document.getElementById('acrcloud-credentials-container');
+  if (acoustidContainer && acrcloudContainer) {
+    if (service === 'acrcloud') {
+      acoustidContainer.style.display = 'none';
+      acrcloudContainer.style.display = 'flex';
+    } else {
+      acoustidContainer.style.display = 'block';
+      acrcloudContainer.style.display = 'none';
+    }
+  }
+}
+
+// Preferred Service dropdown toggles display in Settings
+const settingsServiceSelect = document.getElementById('settings-musicfinder-service');
+if (settingsServiceSelect) {
+  settingsServiceSelect.addEventListener('change', (e) => {
+    const val = e.target.value;
+    toggleCredentialsContainers(val);
+    
+    // Sync to finder tab selector
+    const mfServiceSelector = document.getElementById('musicfinder-service-selector');
+    if (mfServiceSelector) {
+      mfServiceSelector.value = val;
+    }
+  });
+}
+
+// Service Selector dropdown in Finder tab
+const mfServiceSelectorInput = document.getElementById('musicfinder-service-selector');
+if (mfServiceSelectorInput) {
+  mfServiceSelectorInput.addEventListener('change', async (e) => {
+    const val = e.target.value;
+    
+    // Sync to settings tab select
+    if (settingsServiceSelect) {
+      settingsServiceSelect.value = val;
+      toggleCredentialsContainers(val);
+    }
+    
+    // Persist immediately on toggle
+    currentSettings.musicFinderService = val;
+    await window.electronAPI.saveSettings(currentSettings);
   });
 }
 
@@ -2844,19 +2945,58 @@ function resetMusicFinderUI() {
 }
 
 // Drag & Drop event bindings
+const musicFinderCard = document.getElementById('musicfinder-card');
+
 if (musicFinderDropZone) {
   musicFinderDropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     musicFinderDropZone.classList.add('dragover');
   });
 
-  musicFinderDropZone.addEventListener('dragleave', () => {
+  musicFinderDropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     musicFinderDropZone.classList.remove('dragover');
   });
 
   musicFinderDropZone.addEventListener('drop', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     musicFinderDropZone.classList.remove('dragover');
+    if (isScanningMusic) {
+      alert('A music scan is already in progress. Please wait.');
+      return;
+    }
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      const filePath = window.electronAPI.getPathForFile(file);
+      if (filePath) {
+        startLocalFileScan(filePath);
+      }
+    }
+  });
+}
+
+if (musicFinderCard) {
+  musicFinderCard.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!isScanningMusic && musicFinderInputZone && musicFinderInputZone.style.display === 'none') {
+      musicFinderCard.style.borderColor = 'hsl(var(--primary))';
+      musicFinderCard.style.boxShadow = '0 0 0 1px hsl(var(--primary))';
+    }
+  });
+
+  musicFinderCard.addEventListener('dragleave', () => {
+    musicFinderCard.style.borderColor = '';
+    musicFinderCard.style.boxShadow = '';
+  });
+
+  musicFinderCard.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    musicFinderCard.style.borderColor = '';
+    musicFinderCard.style.boxShadow = '';
     if (isScanningMusic) {
       alert('A music scan is already in progress. Please wait.');
       return;
