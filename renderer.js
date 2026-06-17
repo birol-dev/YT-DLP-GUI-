@@ -3444,7 +3444,8 @@ function updateSnifferUI() {
           window.electronAPI.downloadMediaStream({
             url: media.url,
             title: media.title,
-            contentType: media.contentType
+            contentType: media.contentType,
+            pageUrl: media.pageUrl || (browserAddressBar ? browserAddressBar.value.trim() : '')
           });
           
           const downloadsBtn = document.querySelector('.nav-btn[data-tab="video-tab"]');
@@ -3508,6 +3509,23 @@ if (btnBrowserClear) {
 
 // Media Preview Modal Player Logic
 let activeHls = null;
+const PREVIEW_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
+function buildMediaPreviewSrc(url, pageUrl) {
+  const params = new URLSearchParams();
+  params.set('url', url);
+  if (pageUrl) params.set('pageUrl', pageUrl);
+  return `media-preview://fetch?${params.toString()}`;
+}
+
+function restoreBrowserViewIfActive() {
+  const activeTab = document.querySelector('.nav-btn.active');
+  if (activeTab && activeTab.dataset.tab === 'browser-tab') {
+    setTimeout(() => {
+      window.electronAPI.browserViewInit(getPlaceholderBounds());
+    }, 50);
+  }
+}
 
 function loadHlsJs() {
   return new Promise((resolve, reject) => {
@@ -3555,6 +3573,10 @@ async function playPreview(url, title, mediaMeta) {
   errorBox.style.display = 'none';
   modal.classList.add('active');
 
+  window.electronAPI.browserViewHide();
+
+  const pageUrl = mediaMeta.pageUrl || (browserAddressBar ? browserAddressBar.value.trim() : '');
+
   const isHls = url.includes('.m3u8');
   if (isHls) {
     try {
@@ -3562,7 +3584,12 @@ async function playPreview(url, title, mediaMeta) {
       if (!window.Hls.isSupported()) {
         throw new Error('HLS is not supported in this browser environment');
       }
-      activeHls = new window.Hls();
+      activeHls = new window.Hls({
+        xhrSetup: (xhr) => {
+          xhr.setRequestHeader('User-Agent', PREVIEW_USER_AGENT);
+          if (pageUrl) xhr.setRequestHeader('Referer', pageUrl);
+        }
+      });
       activeHls.loadSource(url);
       activeHls.attachMedia(video);
       activeHls.on(window.Hls.Events.ERROR, function (event, data) {
@@ -3577,9 +3604,8 @@ async function playPreview(url, title, mediaMeta) {
       errorDetails.textContent = err.message;
     }
   } else {
-    // Direct playback
-    video.src = url;
-    video.onerror = (e) => {
+    video.src = buildMediaPreviewSrc(url, pageUrl);
+    video.onerror = () => {
       errorBox.style.display = 'flex';
       errorDetails.textContent = 'Standard HTML5 media playback failed. The URL might be forbidden or format unsupported.';
     };
@@ -3602,6 +3628,7 @@ if (btnPreviewClose && mediaPreviewModal) {
       activeHls.destroy();
       activeHls = null;
     }
+    restoreBrowserViewIfActive();
   };
   btnPreviewClose.addEventListener('click', closeFn);
   mediaPreviewModal.addEventListener('click', (e) => {

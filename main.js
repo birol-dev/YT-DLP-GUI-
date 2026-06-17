@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, protocol, net } = require('electron');
 const path = require('path');
 const { spawn, exec } = require('child_process');
 const fs = require('fs');
@@ -37,6 +37,398 @@ function getFpcalcPath() {
 let settings = {};
 let settingsFilePath = '';
 let guestBrowserView = null;
+let guestBrowserHooksVersion = 0;
+
+const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const GUEST_BROWSER_HOOKS_VERSION = 6;
+
+function getGuestPageUrl() {
+  if (guestBrowserView && !guestBrowserView.webContents.isDestroyed()) {
+    const url = guestBrowserView.webContents.getURL();
+    if (url && url.startsWith('http')) return url;
+  }
+  return '';
+}
+
+function buildStreamRequestHeaders(pageUrl) {
+  const referer = pageUrl || getGuestPageUrl();
+  const headers = [`User-Agent: ${BROWSER_USER_AGENT}`];
+  if (referer) {
+    try {
+      headers.push(`Referer: ${new URL(referer).origin}/`);
+    } catch (e) {
+      headers.push(`Referer: ${referer}`);
+    }
+  }
+  return headers;
+}
+
+function resolveGuestRequestOrigin(details) {
+  const pageUrl = getGuestPageUrl();
+  if (pageUrl) {
+    try {
+      return new URL(pageUrl).origin;
+    } catch (e) {}
+  }
+  if (details.referrer && details.referrer.startsWith('http')) {
+    try {
+      return new URL(details.referrer).origin;
+    } catch (e) {}
+  }
+  return '*';
+}
+
+const EMBED_PLAYER_HOST_HINTS = [
+  'vidrame.pro', 'vidrame.net', 'vidplay', 'vidmoly', 'moly.to',
+  'close.video', 'rapidvid', 'streamtape', 'dood', 'filemoon',
+  'embed', 'player.', 'cdn.'
+];
+
+const EMBED_PROXY_HOSTS = [
+  'vidrame.pro', 'vidrame.net', 'vidmoly.to', 'vidplay',
+  'close.video', 'rapidvid', 'streamtape.com', 'doodstream', 'filemoon'
+];
+
+function isEmbedPlayerHost(hostname) {
+  const host = (hostname || '').toLowerCase();
+  return EMBED_PLAYER_HOST_HINTS.some((hint) => host === hint || host.endsWith('.' + hint) || host.includes(hint));
+}
+
+function isEmbedProxyHost(hostname) {
+  const host = (hostname || '').toLowerCase();
+  return EMBED_PROXY_HOSTS.some((hint) => host === hint || host.endsWith('.' + hint));
+}
+
+function getHeaderIgnoreCase(headers, name) {
+  const lower = name.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === lower) return headers[key];
+  }
+  return undefined;
+}
+
+function deleteHeaderIgnoreCase(headers, name) {
+  const lower = name.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === lower) delete headers[key];
+  }
+}
+
+function isNavigationResourceType(resourceType) {
+  return resourceType === 'mainFrame' || resourceType === 'subFrame';
+}
+
+function refererMatchesParentSite(referer, parentHostname) {
+  if (!referer || !referer.startsWith('http')) return false;
+  try {
+    const refHost = new URL(referer).hostname;
+    const parent = parentHostname.replace(/^www\./, '');
+    const refBase = refHost.replace(/^www\./, '');
+    return refHost === parentHostname || refBase === parent || refHost.endsWith('.' + parent);
+  } catch (e) {
+    return false;
+  }
+}
+
+function applyGuestBrowserHeaders(details, requestHeaders) {
+  const topUrl = getGuestPageUrl();
+  if (!topUrl) return requestHeaders;
+
+  let parsedPage;
+  let parsedReq;
+  try {
+    parsedPage = new URL(topUrl);
+    parsedReq = new URL(details.url);
+  } catch (e) {
+    return requestHeaders;
+  }
+
+  const existingReferer = getHeaderIgnoreCase(requestHeaders, 'referer') || '';
+  const refererOk = existingReferer && existingReferer.startsWith('http');
+  const isCrossOrigin = parsedReq.hostname !== parsedPage.hostname;
+  const isNavigation = isNavigationResourceType(details.resourceType);
+
+  if (isNavigation) {
+    deleteHeaderIgnoreCase(requestHeaders, 'Origin');
+  }
+
+  if (isEmbedProxyHost(parsedReq.hostname)) {
+    requestHeaders['Referer'] = topUrl;
+  } else if (!refererOk) {
+    requestHeaders['Referer'] = topUrl;
+  }
+
+  const rt = details.resourceType;
+  if (rt === 'subFrame' && isCrossOrigin) {
+    requestHeaders['Sec-Fetch-Site'] = 'cross-site';
+    requestHeaders['Sec-Fetch-Mode'] = 'navigate';
+    requestHeaders['Sec-Fetch-Dest'] = 'iframe';
+    requestHeaders['Sec-Fetch-User'] = '?1';
+  } else if (rt === 'mainFrame') {
+    requestHeaders['Sec-Fetch-Site'] = 'none';
+    requestHeaders['Sec-Fetch-Mode'] = 'navigate';
+    requestHeaders['Sec-Fetch-Dest'] = 'document';
+    requestHeaders['Sec-Fetch-User'] = '?1';
+  } else if (isCrossOrigin && (rt === 'media' || rt === 'xhr')) {
+    requestHeaders['Sec-Fetch-Site'] = 'cross-site';
+    requestHeaders['Sec-Fetch-Mode'] = rt === 'media' ? 'no-cors' : 'cors';
+    requestHeaders['Sec-Fetch-Dest'] = rt === 'media' ? 'video' : 'empty';
+  }
+
+  if (!isNavigation && isCrossOrigin && !getHeaderIgnoreCase(requestHeaders, 'origin')) {
+    requestHeaders['Origin'] = parsedPage.origin;
+  }
+
+  requestHeaders['User-Agent'] = BROWSER_USER_AGENT;
+  requestHeaders['sec-ch-ua'] = '"Chromium";v="122", "Google Chrome";v="122", "Not-A.Brand";v="99"';
+  requestHeaders['sec-ch-ua-mobile'] = '?0';
+  requestHeaders['sec-ch-ua-platform'] = '"Windows"';
+  if (!getHeaderIgnoreCase(requestHeaders, 'accept-language')) {
+    requestHeaders['Accept-Language'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
+  }
+
+  return requestHeaders;
+}
+
+function buildEmbedReferer(topUrl) {
+  if (!topUrl) return '';
+  try {
+    return new URL(topUrl).origin + '/';
+  } catch (e) {
+    return topUrl;
+  }
+}
+
+function injectEmbedBaseHref(html, targetUrl) {
+  try {
+    const baseHref = new URL(targetUrl).origin + '/';
+    if (!/<base\s/i.test(html)) {
+      return html.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
+    }
+  } catch (e) {}
+  return html;
+}
+
+function buildBrowserProxyUrl(targetUrl, referer) {
+  const params = new URLSearchParams();
+  params.set('url', targetUrl);
+  if (referer) params.set('referer', referer);
+  return `browser-proxy://fetch?${params.toString()}`;
+}
+
+function getEmbedProxyUrlFilters() {
+  return ['*://*/*'];
+}
+
+function registerGuestEmbedProxy(session) {
+  // Do not redirect subFrame navigations to browser-proxy:// — Chromium blocks custom
+  // schemes in cross-origin iframes (net::ERR_BLOCKED_BY_CLIENT). Referer injection
+  // for embed hosts is handled via CDP Fetch in setupGuestNetworkHooks.
+  void session;
+}
+
+async function fetchEmbedDocument(targetUrl, referer) {
+  const fetchOptions = {};
+  if (guestBrowserView && !guestBrowserView.webContents.isDestroyed()) {
+    fetchOptions.session = guestBrowserView.webContents.session;
+  }
+
+  const target = normalizeEmbedUrl(targetUrl);
+  const refererCandidates = [];
+  if (referer) {
+    refererCandidates.push(referer, buildEmbedReferer(referer));
+  }
+  refererCandidates.push('');
+
+  for (const ref of refererCandidates) {
+    const headers = {
+      'User-Agent': BROWSER_USER_AGENT,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
+    };
+    if (ref) headers['Referer'] = ref;
+
+    try {
+      const response = await net.fetch(target, { ...fetchOptions, headers });
+      if (!response.ok) continue;
+      const html = await response.text();
+      if (!html || html.length < 80) continue;
+      return injectEmbedBaseHref(html, target);
+    } catch (e) {
+      continue;
+    }
+  }
+  return null;
+}
+
+function getEmbedFetchPatterns() {
+  const patterns = [];
+  for (const hint of EMBED_PROXY_HOSTS) {
+    if (hint.includes('.')) {
+      patterns.push({ urlPattern: `*://${hint}/*`, requestStage: 'Request' });
+      patterns.push({ urlPattern: `*://*.${hint}/*`, requestStage: 'Request' });
+    } else {
+      patterns.push({ urlPattern: `*://*${hint}*/*`, requestStage: 'Request' });
+    }
+  }
+  return patterns;
+}
+
+function normalizeEmbedUrl(targetUrl) {
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.hostname.includes('vidrame') && !parsed.searchParams.has('ap')) {
+      parsed.searchParams.set('ap', '1');
+      return parsed.toString();
+    }
+    return targetUrl;
+  } catch (e) {
+    return targetUrl;
+  }
+}
+
+const hydratedIframeUrls = new Set();
+const embedIframeFirstSeen = new Map();
+const EMBED_SRCDOC_WAIT_MS = 3000;
+
+function startEmbedIframeHydration(webContents) {
+  const scan = async () => {
+    if (!webContents || webContents.isDestroyed()) return;
+    const pageUrl = webContents.getURL();
+    if (!pageUrl.startsWith('http')) return;
+
+    let targets = [];
+    try {
+      targets = await webContents.executeJavaScript(`(() => {
+        const embedHints = ['vidrame', 'vidmoly', 'vidplay', 'close.video', 'rapidvid', 'streamtape', 'dood', 'filemoon'];
+        const results = [];
+        document.querySelectorAll('iframe').forEach((ifr, index) => {
+          if (ifr.dataset.ytEmbedHydrated === '1') return;
+          const dataSrc = (ifr.getAttribute('data-src') || '').trim();
+          const src = (ifr.getAttribute('src') || '').trim();
+          const raw = dataSrc || src;
+          if (!raw || raw.startsWith('about:') || raw.startsWith('browser-proxy:')) return;
+          let absolute = raw;
+          try { absolute = new URL(raw, location.href).href; } catch (e) { return; }
+          const host = (() => { try { return new URL(absolute).hostname; } catch (e) { return ''; } })();
+          if (!embedHints.some((hint) => host.includes(hint))) return;
+          const immediate = Boolean(dataSrc && (!src || src.startsWith('about:')));
+          results.push({ index, url: absolute, immediate });
+        });
+        return results;
+      })`);
+    } catch (e) {
+      return;
+    }
+
+    const now = Date.now();
+    for (const target of targets) {
+      const waitKey = `${target.index}:${target.url}`;
+      if (!target.immediate) {
+        if (!embedIframeFirstSeen.has(waitKey)) {
+          embedIframeFirstSeen.set(waitKey, now);
+        }
+        if (now - embedIframeFirstSeen.get(waitKey) < EMBED_SRCDOC_WAIT_MS) {
+          continue;
+        }
+      }
+
+      if (hydratedIframeUrls.has(target.url)) continue;
+
+      const html = await fetchEmbedDocument(target.url, pageUrl);
+      if (!html) continue;
+
+      const htmlJson = JSON.stringify(html);
+      try {
+        await webContents.executeJavaScript(`(() => {
+          const ifr = document.querySelectorAll('iframe')[${target.index}];
+          if (!ifr || ifr.dataset.ytEmbedHydrated === '1') return;
+          ifr.removeAttribute('src');
+          ifr.removeAttribute('data-src');
+          ifr.removeAttribute('sandbox');
+          ifr.srcdoc = ${htmlJson};
+          ifr.dataset.ytEmbedHydrated = '1';
+        })`);
+        hydratedIframeUrls.add(target.url);
+      } catch (e) {}
+    }
+  };
+
+  const resetHydration = () => {
+    hydratedIframeUrls.clear();
+    embedIframeFirstSeen.clear();
+  };
+
+  webContents.on('did-finish-load', () => {
+    resetHydration();
+    scan();
+  });
+  webContents.on('did-navigate', resetHydration);
+  webContents.on('did-navigate-in-page', () => {
+    resetHydration();
+    scan();
+  });
+
+  const timer = setInterval(scan, 800);
+  webContents.once('destroyed', () => clearInterval(timer));
+  scan();
+}
+
+function setupGuestNetworkHooks(webContents) {
+  if (!webContents || webContents.isDestroyed()) return;
+  const dbg = webContents.debugger;
+  let networkEnabled = false;
+  let fetchEnabled = false;
+
+  const onFetchPaused = async (event, method, params) => {
+    if (method !== 'Fetch.requestPaused') return;
+    const { requestId, request } = params;
+    const referer = getGuestPageUrl();
+    if (!referer) {
+      try { await dbg.sendCommand('Fetch.continueRequest', { requestId }); } catch (e) {}
+      return;
+    }
+    try {
+      const headers = Object.entries({ ...request.headers, Referer: referer })
+        .map(([name, value]) => ({ name, value: String(value) }));
+      await dbg.sendCommand('Fetch.continueRequest', { requestId, headers });
+    } catch (e) {
+      try { await dbg.sendCommand('Fetch.continueRequest', { requestId }); } catch (e2) {}
+    }
+  };
+
+  dbg.on('message', onFetchPaused);
+
+  const syncReferer = async () => {
+    const referer = getGuestPageUrl();
+    if (!referer) return;
+    try {
+      if (!dbg.isAttached()) dbg.attach('1.3');
+      if (!networkEnabled) {
+        await dbg.sendCommand('Network.enable');
+        networkEnabled = true;
+      }
+      if (!fetchEnabled) {
+        await dbg.sendCommand('Fetch.enable', { patterns: getEmbedFetchPatterns() });
+        fetchEnabled = true;
+      }
+      await dbg.sendCommand('Network.setExtraHTTPHeaders', {
+        headers: {
+          Referer: referer,
+          'User-Agent': BROWSER_USER_AGENT
+        }
+      });
+    } catch (e) {
+      console.error('Guest network referer sync failed:', e.message);
+    }
+  };
+
+  webContents.on('did-start-navigation', syncReferer);
+  webContents.on('did-navigate-in-page', syncReferer);
+  webContents.on('did-finish-load', syncReferer);
+  webContents.once('destroyed', () => dbg.removeListener('message', onFetchPaused));
+  syncReferer();
+}
 
 function initSettings() {
   settingsFilePath = path.join(app.getPath('userData'), 'settings.json');
@@ -516,9 +908,128 @@ function checkUpdates(win) {
 }
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+app.commandLine.appendSwitch('disable-features', 'ThirdPartyCookiesBlocked');
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'media-preview',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  },
+  {
+    scheme: 'browser-proxy',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+      bypassCSP: true
+    }
+  }
+]);
 
 app.whenReady().then(() => {
   initSettings();
+
+  protocol.handle('media-preview', async (request) => {
+    try {
+      const parsed = new URL(request.url);
+      const targetUrl = parsed.searchParams.get('url');
+      const pageUrl = parsed.searchParams.get('pageUrl') || getGuestPageUrl();
+      if (!targetUrl) {
+        return new Response('Missing url parameter', { status: 400 });
+      }
+      const fetchHeaders = { 'User-Agent': BROWSER_USER_AGENT };
+      if (pageUrl) fetchHeaders['Referer'] = pageUrl;
+      const fetchOptions = { headers: fetchHeaders };
+      if (guestBrowserView && !guestBrowserView.webContents.isDestroyed()) {
+        fetchOptions.session = guestBrowserView.webContents.session;
+      }
+      return net.fetch(targetUrl, fetchOptions);
+    } catch (err) {
+      return new Response(err.message, { status: 500 });
+    }
+  });
+
+  protocol.handle('browser-proxy', async (request) => {
+    try {
+      const parsed = new URL(request.url);
+      const targetUrl = parsed.searchParams.get('url');
+      const referer = parsed.searchParams.get('referer') || getGuestPageUrl() || '';
+      if (!targetUrl) {
+        return new Response('Missing url parameter', { status: 400 });
+      }
+      const fetchUrl = normalizeEmbedUrl(targetUrl);
+
+      const refererCandidates = [];
+      if (referer) {
+        refererCandidates.push(referer);
+        const originReferer = buildEmbedReferer(referer);
+        if (originReferer && originReferer !== referer) {
+          refererCandidates.push(originReferer);
+        }
+      }
+      if (refererCandidates.length === 0) {
+        refererCandidates.push('');
+      }
+
+      const fetchOptions = {};
+      if (guestBrowserView && !guestBrowserView.webContents.isDestroyed()) {
+        fetchOptions.session = guestBrowserView.webContents.session;
+      }
+
+      let lastResponse = null;
+      for (const ref of refererCandidates) {
+        const fetchHeaders = {
+          'User-Agent': BROWSER_USER_AGENT,
+          'Accept': '*/*',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'sec-ch-ua': '"Chromium";v="122", "Google Chrome";v="122", "Not-A.Brand";v="99"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"'
+        };
+        if (ref) fetchHeaders['Referer'] = ref;
+
+        const response = await net.fetch(fetchUrl, { ...fetchOptions, headers: fetchHeaders });
+        if (response.status === 404 && ref !== refererCandidates[refererCandidates.length - 1]) {
+          lastResponse = response;
+          continue;
+        }
+
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        if (contentType.includes('text/html')) {
+          const html = await response.text();
+          const body = injectEmbedBaseHref(html, fetchUrl);
+          return new Response(body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Referrer-Policy': 'unsafe-url'
+            }
+          });
+        }
+
+        if (response.status !== 404) {
+          return response;
+        }
+        lastResponse = response;
+      }
+
+      return lastResponse || new Response('Upstream not found', { status: 404 });
+    } catch (err) {
+      console.error('browser-proxy fetch failed:', err.message);
+      return new Response(err.message, { status: 502 });
+    }
+  });
+
   createWindow();
 
   app.on('activate', () => {
@@ -1158,19 +1669,40 @@ function probeLocalVideo(filePath, headers = null) {
     }
     args.push('-i', filePath);
     const proc = spawn(ffmpegPath, args);
-    
-    // Add a timeout to kill the probe process if it hangs (e.g. slow remote streams)
+
+    let settled = false;
+    let stderr = '';
+
+    const emptyMeta = () => ({
+      duration: 0,
+      width: 0,
+      height: 0,
+      vcodec: 'Unknown',
+      fps: 0,
+      acodec: 'None',
+      filename: path.basename(filePath || ''),
+      size: 0,
+      filePath
+    });
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimeout);
+      resolve(result);
+    };
+
     const killTimeout = setTimeout(() => {
       try {
-        proc.kill();
-      } catch (e) {}
-      resolve({ duration: 0, width: 0, height: 0, vcodec: 'Unknown', fps: 0 });
+        proc.kill('SIGKILL');
+      } catch (e) {
+        try { proc.kill(); } catch (e2) {}
+      }
+      finish(emptyMeta());
     }, 4000);
 
-    let stderr = '';
-    proc.stderr.on('data', (d) => stderr += d.toString());
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
     proc.on('close', () => {
-      clearTimeout(killTimeout);
       const durationMatch = stderr.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?/);
       let duration = 0;
       if (durationMatch) {
@@ -1184,7 +1716,7 @@ function probeLocalVideo(filePath, headers = null) {
         }
         duration = hours * 3600 + minutes * 60 + seconds + ms;
       }
-      
+
       const videoLine = stderr.split('\n').find(line => line.includes('Video:'));
       let width = 0;
       let height = 0;
@@ -1205,7 +1737,7 @@ function probeLocalVideo(filePath, headers = null) {
           fps = parseFloat(fpsMatch[1]);
         }
       }
-      
+
       const audioLine = stderr.split('\n').find(line => line.includes('Audio:'));
       let acodec = 'None';
       if (audioLine) {
@@ -1218,9 +1750,9 @@ function probeLocalVideo(filePath, headers = null) {
       let size = 0;
       try {
         size = fs.statSync(filePath).size;
-      } catch(e) {}
-      
-      resolve({
+      } catch (e) {}
+
+      finish({
         duration,
         width,
         height,
@@ -1233,6 +1765,9 @@ function probeLocalVideo(filePath, headers = null) {
       });
     });
     proc.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimeout);
       reject(err);
     });
   });
@@ -2056,21 +2591,29 @@ function isMedia(urlStr, contentType) {
 
 ipcMain.on('browser-view-init', (event, bounds) => {
   const win = BrowserWindow.fromWebContents(event.sender);
+
+  if (guestBrowserView && guestBrowserHooksVersion < GUEST_BROWSER_HOOKS_VERSION) {
+    try {
+      win.contentView.removeChildView(guestBrowserView);
+      guestBrowserView.webContents.close();
+    } catch (e) {}
+    guestBrowserView = null;
+  }
+
   if (!guestBrowserView) {
     guestBrowserView = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: true,
+        sandbox: false,
+        webSecurity: false,
+        allowRunningInsecureContent: true,
         autoplayPolicy: 'no-user-gesture-required'
       }
     });
     
-    // Set user agent to a standard, modern Google Chrome browser to bypass client detection
-    guestBrowserView.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
-    
-    // Set session user agent to ensure all sub-requests use the same browser header
-    guestBrowserView.webContents.session.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+    guestBrowserView.webContents.setUserAgent(BROWSER_USER_AGENT);
+    guestBrowserView.webContents.session.setUserAgent(BROWSER_USER_AGENT);
     
     win.contentView.addChildView(guestBrowserView);
     
@@ -2099,6 +2642,16 @@ ipcMain.on('browser-view-init', (event, bounds) => {
     guestBrowserView.webContents.on('did-navigate-in-page', (e, url) => sendNav(url));
     
     const session = guestBrowserView.webContents.session;
+
+    registerGuestEmbedProxy(session);
+    setupGuestNetworkHooks(guestBrowserView.webContents);
+    startEmbedIframeHydration(guestBrowserView.webContents);
+    
+    session.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
+      const requestHeaders = applyGuestBrowserHeaders(details, { ...details.requestHeaders });
+      callback({ requestHeaders });
+    });
+
     session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
       const responseHeaders = { ...details.responseHeaders };
       
@@ -2116,18 +2669,21 @@ ipcMain.on('browser-view-init', (event, bounds) => {
         }
       }
 
-      // Force wildcard access control headers to prevent CORS errors on arbitrary websites
-      let hasAcao = false;
-      for (const key of Object.keys(responseHeaders)) {
-        if (key.toLowerCase() === 'access-control-allow-origin') {
-          responseHeaders[key] = ['*'];
-          hasAcao = true;
-          break;
-        }
+      // Let cross-origin embed iframes send a full Referer (Chromium default strips it).
+      if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
+        responseHeaders['Referrer-Policy'] = ['unsafe-url'];
       }
-      if (!hasAcao) {
-        responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+
+      // Determine requesting origin for CORS dynamically to avoid credentials/wildcard conflicts
+      const requestOrigin = resolveGuestRequestOrigin(details);
+
+      responseHeaders['Access-Control-Allow-Origin'] = [requestOrigin];
+      responseHeaders['Access-Control-Allow-Headers'] = ['Range, Content-Range, Content-Length, Accept, Origin, Referer, Content-Type, Authorization'];
+      responseHeaders['Access-Control-Allow-Methods'] = ['GET, HEAD, OPTIONS'];
+      if (requestOrigin !== '*') {
+        responseHeaders['Access-Control-Allow-Credentials'] = ['true'];
       }
+      responseHeaders['Access-Control-Expose-Headers'] = ['Content-Length, Content-Range, Accept-Ranges'];
 
       // Inspect content-type for sniffer
       let contentType = '';
@@ -2142,20 +2698,15 @@ ipcMain.on('browser-view-init', (event, bounds) => {
       if (isMedia(url, contentType)) {
         if (!win.isDestroyed()) {
           // Send immediately to UI
+          const pageUrl = getGuestPageUrl();
           win.webContents.send('media-detected', {
             url: url,
             title: guestBrowserView.webContents.getTitle() || 'Media Stream',
-            contentType: contentType
+            contentType: contentType,
+            pageUrl: pageUrl
           });
 
-          // Probe stream details asynchronously in background
-          const headers = [
-            `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
-          ];
-          try {
-            const parsedUrl = new URL(url);
-            headers.push(`Referer: ${parsedUrl.origin}/`);
-          } catch (e) {}
+          const headers = buildStreamRequestHeaders(pageUrl);
 
           probeLocalVideo(url, headers).then(meta => {
             if (!win.isDestroyed()) {
@@ -2175,8 +2726,10 @@ ipcMain.on('browser-view-init', (event, bounds) => {
       }
       callback({ cancel: false, responseHeaders: responseHeaders });
     });
+
+    guestBrowserHooksVersion = GUEST_BROWSER_HOOKS_VERSION;
   }
-  
+
   guestBrowserView.setBounds(bounds);
 });
 
@@ -2231,7 +2784,7 @@ ipcMain.on('browser-view-hide', () => {
   }
 });
 
-ipcMain.on('download-media-stream', async (event, { url, title, contentType }) => {
+ipcMain.on('download-media-stream', async (event, { url, title, contentType, pageUrl }) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const baseDir = settings.downloadDir || app.getPath('downloads');
   
@@ -2267,14 +2820,7 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType }) =
   
   const ffmpegPath = getFfmpegPath();
   
-  // Construct headers for ffmpeg to prevent 403 / 401 forbidden errors on protected streams
-  const headers = [
-    `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
-  ];
-  try {
-    const parsedUrl = new URL(url);
-    headers.push(`Referer: ${parsedUrl.origin}/`);
-  } catch (e) {}
+  const headers = buildStreamRequestHeaders(pageUrl);
 
   const args = [
     '-y',

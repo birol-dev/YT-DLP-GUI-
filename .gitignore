@@ -176,3 +176,5 @@ ffmpeg.exe
 ffprobe.exe
 .agents
 skills-lock.json
+agent-instructions.md
+agent_instructions.md
