@@ -1103,6 +1103,10 @@ ipcMain.handle('get-system-info', () => {
   }
 });
 
+ipcMain.handle('check-dependencies', async () => {
+  return await checkDependencies();
+});
+
 ipcMain.handle('finish-onboarding', (event, onboardingData) => {
   const updated = saveSettingsInternal({
     onboardingComplete: true,
@@ -1110,7 +1114,12 @@ ipcMain.handle('finish-onboarding', (event, onboardingData) => {
     weatherCity: onboardingData.weatherCity,
     weatherLat: onboardingData.weatherLat,
     weatherLon: onboardingData.weatherLon,
-    tempFormat: onboardingData.tempFormat
+    tempFormat: onboardingData.tempFormat,
+    musicFinderService: onboardingData.musicFinderService || settings.musicFinderService,
+    acoustidKey: onboardingData.acoustidKey !== undefined ? onboardingData.acoustidKey : settings.acoustidKey,
+    acrcloudKey: onboardingData.acrcloudKey !== undefined ? onboardingData.acrcloudKey : settings.acrcloudKey,
+    acrcloudSecret: onboardingData.acrcloudSecret !== undefined ? onboardingData.acrcloudSecret : settings.acrcloudSecret,
+    acrcloudHost: onboardingData.acrcloudHost !== undefined ? onboardingData.acrcloudHost : settings.acrcloudHost
   });
   
   const win = BrowserWindow.fromWebContents(event.sender);

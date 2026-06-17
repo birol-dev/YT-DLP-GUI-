@@ -1075,6 +1075,18 @@
                   <p class="settings-help">Adjust how frequently the Music Finder scans the track. Lower values scan more frequently to find background songs, but take longer.</p>
                 </div>
               </div>
+
+              <!-- App Setup & Troubleshooting -->
+              <div class="settings-section">
+                <h3 class="settings-section-title">Application Reset</h3>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;">
+                  <div style="flex: 1; min-width: 250px;">
+                    <span style="font-weight: 500; font-size: 0.875rem; display: block; margin-bottom: 4px;">Reset Welcome Onboarding</span>
+                    <span class="settings-help" style="margin-top: 0; display: block; line-height: 1.4;">Resets the application setup. The next time the application starts, you will see the welcome profile configurations and dependency check step.</span>
+                  </div>
+                  <button id="btn-reset-onboarding" class="btn" style="background-color: hsl(var(--destructive) / 0.15); color: #ef4444; border: 1px solid hsl(var(--destructive) / 0.3); height: 2.25rem; font-weight: 600;">Reset Onboarding</button>
+                </div>
+              </div>
             </div>
             
             <div class="card-footer" style="border-top: 1px solid hsl(var(--border)); padding-top: 1.5rem; justify-content: flex-end; gap: 10px;">
@@ -1155,40 +1167,136 @@
 
   <!-- ONBOARDING MODAL -->
   <div id="onboarding-modal" class="onboarding-modal">
-    <div class="onboarding-card">
+    <div class="onboarding-card" style="width: 500px;">
       <div class="onboarding-logo">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-youtube"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
       </div>
       <h2 class="onboarding-title">Welcome to YT-DLP GUI</h2>
-      <p class="onboarding-subtitle">Your premium, high-speed media downloader optimized for video editing, clipper tools, and subtitle extraction.</p>
       
-      <div class="onboarding-form">
-        <div class="form-group text-left">
-          <label for="onboarding-name">What should we call you?</label>
-          <input type="text" id="onboarding-name" placeholder="Enter your name (optional)">
-          <p class="settings-help">If left blank, we'll use your computer's username.</p>
+      <!-- Steps Indicator -->
+      <div class="onboarding-steps-indicator" style="display: flex; gap: 8px; margin-bottom: 1.5rem; justify-content: center;">
+        <span class="step-indicator-pill active" id="indicator-step-1">1. Profile</span>
+        <span class="step-indicator-pill" id="indicator-step-2">2. Music Keys</span>
+        <span class="step-indicator-pill" id="indicator-step-3">3. Dependencies</span>
+      </div>
+
+      <!-- STEP 1: PROFILE & PREFERENCES -->
+      <div id="onboarding-step-1" class="onboarding-step active" style="width: 100%;">
+        <p class="onboarding-subtitle" style="margin-bottom: 1.5rem;">Let's customize your profile and regional preferences.</p>
+        <div class="onboarding-form">
+          <div class="form-group text-left">
+            <label for="onboarding-name">What should we call you?</label>
+            <input type="text" id="onboarding-name" placeholder="Enter your name (optional)">
+            <p class="settings-help">If left blank, we'll use your computer's username.</p>
+          </div>
+          
+          <div class="form-group text-left" style="position: relative; margin-top: 1rem;">
+            <label for="onboarding-city">Where are you located?</label>
+            <input type="text" id="onboarding-city" placeholder="Search and select city (optional)" autocomplete="off">
+            <ul id="onboarding-city-results" class="city-search-results" style="display: none;"></ul>
+            <p class="settings-help">Used to fetch local weather info. If blank, we will estimate your city automatically.</p>
+          </div>
+
+          <div class="form-group text-left" style="margin-top: 1rem;">
+            <label for="onboarding-temp-format">Preferred Temperature Unit</label>
+            <select id="onboarding-temp-format">
+              <option value="fahrenheit">Fahrenheit (°F)</option>
+              <option value="celsius">Celsius (°C)</option>
+            </select>
+          </div>
         </div>
+        <div class="onboarding-actions" style="margin-top: 2rem; width: 100%; display: flex; gap: 10px;">
+          <button id="btn-onboarding-skip" class="btn" style="flex: 1; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Skip Wizard</button>
+          <button id="btn-onboarding-next-1" class="btn primary" style="flex: 1;">Next Step</button>
+        </div>
+      </div>
+
+      <!-- STEP 2: MUSIC SERVICES (OPTIONAL) -->
+      <div id="onboarding-step-2" class="onboarding-step" style="width: 100%; display: none;">
+        <p class="onboarding-subtitle" style="margin-bottom: 1.5rem;">Configure API keys for song identification. You can skip this and set them up later.</p>
+        <div class="onboarding-form">
+          <div class="form-group text-left">
+            <label for="onboarding-musicfinder-service">Preferred Music Service</label>
+            <select id="onboarding-musicfinder-service">
+              <option value="acoustid">AcoustID (Free, Local Verification)</option>
+              <option value="acrcloud">ACRCloud (100 free scans/day)</option>
+            </select>
+          </div>
+
+          <!-- AcoustID Key -->
+          <div id="onboarding-acoustid-container" class="form-group text-left" style="margin-top: 1rem;">
+            <label for="onboarding-acoustid-key">AcoustID Client API Key</label>
+            <input type="text" id="onboarding-acoustid-key" placeholder="Enter AcoustID Key (e.g. 8XaXgX...)">
+            <p class="settings-help">Required for free song identification. Sign up at <a href="https://acoustid.org/" target="_blank" style="color: hsl(var(--primary)); text-decoration: underline;">acoustid.org</a>.</p>
+          </div>
+
+          <!-- ACRCloud Credentials -->
+          <div id="onboarding-acrcloud-container" style="display: none; margin-top: 1rem; flex-direction: column; gap: 1rem;">
+            <div class="form-group text-left">
+              <label for="onboarding-acrcloud-key">ACRCloud Access Key</label>
+              <input type="text" id="onboarding-acrcloud-key" placeholder="Enter Access Key">
+            </div>
+            <div class="form-group text-left">
+              <label for="onboarding-acrcloud-secret">ACRCloud Access Secret</label>
+              <input type="password" id="onboarding-acrcloud-secret" placeholder="Enter Access Secret">
+            </div>
+            <div class="form-group text-left">
+              <label for="onboarding-acrcloud-host">ACRCloud Host</label>
+              <input type="text" id="onboarding-acrcloud-host" placeholder="identify-us-west-2.acrcloud.com">
+              <p class="settings-help">Project host region (from <a href="https://console.acrcloud.com/" target="_blank" style="color: hsl(var(--primary)); text-decoration: underline;">console.acrcloud.com</a>).</p>
+            </div>
+          </div>
+        </div>
+        <div class="onboarding-actions" style="margin-top: 2rem; width: 100%; display: flex; gap: 10px;">
+          <button id="btn-onboarding-back-2" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); padding: 0 1rem;">Back</button>
+          <button id="btn-onboarding-skip-2" class="btn" style="flex: 1; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Skip Keys</button>
+          <button id="btn-onboarding-next-2" class="btn primary" style="flex: 1;">Next Step</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: SYSTEM AUDIT & DEPENDENCIES -->
+      <div id="onboarding-step-3" class="onboarding-step" style="width: 100%; display: none;">
+        <p class="onboarding-subtitle" style="margin-bottom: 1.25rem;">Checking for missing libraries or frameworks required to run video/audio extraction.</p>
         
-        <div class="form-group text-left" style="position: relative; margin-top: 1rem;">
-          <label for="onboarding-city">Where are you located?</label>
-          <input type="text" id="onboarding-city" placeholder="Search and select city (optional)" autocomplete="off">
-          <ul id="onboarding-city-results" class="city-search-results" style="display: none;"></ul>
-          <p class="settings-help">Used to fetch local weather info. If blank, we will estimate your city automatically.</p>
+        <div class="form-group text-left" style="background-color: hsl(var(--muted) / 0.2); border: 1px solid hsl(var(--border)); padding: 0.85rem; border-radius: var(--radius); margin-bottom: 1.25rem; font-size: 0.8rem; line-height: 1.4;">
+          <span style="font-weight: 600; color: hsl(var(--primary)); display: block; margin-bottom: 6px;">Dependency Notice:</span>
+          YT-DLP GUI requires system libraries to download and transcode streams. On many computers, frameworks like <strong style="color: hsl(var(--primary));">FFmpeg</strong> do not exist. We will automatically download and install any missing components in the application directory.
         </div>
 
-        <div class="form-group text-left" style="margin-top: 1rem;">
-          <label for="onboarding-temp-format">Preferred Temperature Unit</label>
-          <select id="onboarding-temp-format">
-            <option value="fahrenheit">Fahrenheit (°F)</option>
-            <option value="celsius">Celsius (°C)</option>
-          </select>
+        <div class="dependency-status-list text-left" style="display: flex; flex-direction: column; gap: 8px;">
+          <div id="onboarding-dep-status-yt" class="dependency-status-item pending">
+            <div class="status-indicator"></div>
+            <span class="status-label">yt-dlp core downloader</span>
+            <span id="onboarding-dep-val-yt" class="status-value">Checking...</span>
+          </div>
+          <div id="onboarding-dep-status-ffmpeg" class="dependency-status-item pending">
+            <div class="status-indicator"></div>
+            <span class="status-label">FFmpeg media utilities</span>
+            <span id="onboarding-dep-val-ffmpeg" class="status-value">Checking...</span>
+          </div>
+          <div id="onboarding-dep-status-fpcalc" class="dependency-status-item pending">
+            <div class="status-indicator"></div>
+            <span class="status-label">AcoustID audio fingerprinting</span>
+            <span id="onboarding-dep-val-fpcalc" class="status-value">Checking...</span>
+          </div>
+        </div>
+
+        <div id="onboarding-dep-progress-container" class="dependency-progress-bar" style="display: none; margin-top: 1.25rem; text-align: left;">
+          <div class="progress-details" style="display: flex; justify-content: space-between; font-size: 0.75rem; color: hsl(var(--muted-foreground)); font-weight: 500; margin-bottom: 0.375rem;">
+            <span id="onboarding-dep-progress-text">Initializing setup...</span>
+            <span id="onboarding-dep-progress-percent">0%</span>
+          </div>
+          <div class="progress-track" style="width: 100%; height: 6px; background-color: hsl(var(--muted)); border-radius: 9999px; overflow: hidden; position: relative;">
+            <div id="onboarding-dep-progress-fill" style="width: 0%; height: 100%; background-color: hsl(var(--primary)); border-radius: 9999px; transition: width 0.2s ease;"></div>
+          </div>
+        </div>
+
+        <div class="onboarding-actions" style="margin-top: 2rem; width: 100%; display: flex; gap: 10px;">
+          <button id="btn-onboarding-back-3" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); padding: 0 1rem;">Back</button>
+          <button id="btn-onboarding-finish" class="btn primary" style="flex: 1;">Install & Finish</button>
         </div>
       </div>
 
-      <div class="onboarding-actions" style="margin-top: 2rem; width: 100%; display: flex; gap: 10px;">
-        <button id="btn-onboarding-skip" class="btn" style="flex: 1; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Skip & Setup Later</button>
-        <button id="btn-onboarding-start" class="btn primary" style="flex: 1;">Get Started</button>
-      </div>
     </div>
   </div>
 

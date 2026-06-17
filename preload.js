@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadClip: (data) => ipcRenderer.send('download-clip', data),
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
   finishOnboarding: (data) => ipcRenderer.invoke('finish-onboarding', data),
+  checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
   selectVideoFile: () => ipcRenderer.invoke('select-video-file'),
   getFileUrl: (filePath) => ipcRenderer.invoke('get-file-url', filePath),
   probeLocalVideo: (filePath) => ipcRenderer.invoke('probe-local-video', filePath),

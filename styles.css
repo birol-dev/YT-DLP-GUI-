@@ -1121,6 +1121,35 @@ option {
   text-align: left;
 }
 
+/* Multi-step Onboarding Wizard Styles */
+.step-indicator-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  background-color: hsl(var(--muted) / 0.5);
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border));
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  letter-spacing: 0.02em;
+}
+
+.step-indicator-pill.active {
+  background-color: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.05);
+}
+
+.onboarding-step {
+  display: none;
+}
+
+.onboarding-step.active {
+  display: block;
+  animation: modalScaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Autocomplete/Search Results list */
 .city-search-results {
   position: absolute;
