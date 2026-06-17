@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const { spawn, exec } = require('child_process');
 const fs = require('fs');
@@ -36,6 +36,7 @@ function getFpcalcPath() {
 // Settings management variables
 let settings = {};
 let settingsFilePath = '';
+let guestBrowserView = null;
 
 function initSettings() {
   settingsFilePath = path.join(app.getPath('userData'), 'settings.json');
@@ -513,6 +514,8 @@ function checkUpdates(win) {
     win.webContents.send('update-log', `[ffmpeg error] ffmpeg not found in PATH! Audio extraction and video merging may fail.`);
   });
 }
+
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 app.whenReady().then(() => {
   initSettings();
@@ -1146,13 +1149,28 @@ function buildDivideOutputDir(inputPath) {
   return outputDir;
 }
 
-function probeLocalVideo(filePath) {
+function probeLocalVideo(filePath, headers = null) {
   return new Promise((resolve, reject) => {
     const ffmpegPath = getFfmpegPath();
-    const proc = spawn(ffmpegPath, ['-i', filePath]);
+    const args = [];
+    if (headers && headers.length > 0) {
+      args.push('-headers', headers.join('\r\n') + '\r\n');
+    }
+    args.push('-i', filePath);
+    const proc = spawn(ffmpegPath, args);
+    
+    // Add a timeout to kill the probe process if it hangs (e.g. slow remote streams)
+    const killTimeout = setTimeout(() => {
+      try {
+        proc.kill();
+      } catch (e) {}
+      resolve({ duration: 0, width: 0, height: 0, vcodec: 'Unknown', fps: 0 });
+    }, 4000);
+
     let stderr = '';
     proc.stderr.on('data', (d) => stderr += d.toString());
     proc.on('close', () => {
+      clearTimeout(killTimeout);
       const durationMatch = stderr.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?/);
       let duration = 0;
       if (durationMatch) {
@@ -1997,3 +2015,330 @@ ipcMain.on('scan-youtube-url', async (event, url) => {
     }
   });
 });
+
+function isMedia(urlStr, contentType) {
+  if (!urlStr) return false;
+  
+  let cleanUrl = urlStr.split('?')[0].split('#')[0].toLowerCase();
+  
+  if (cleanUrl.endsWith('.ts') || cleanUrl.endsWith('.ts/')) {
+    return false;
+  }
+  
+  const mediaExtensions = [
+    '.mp4', '.mkv', '.mp3', '.aac', '.m3u8', '.mpd', '.webm', '.wav', '.ogg'
+  ];
+  if (mediaExtensions.some(ext => cleanUrl.endsWith(ext))) {
+    return true;
+  }
+  
+  if (contentType) {
+    const cType = contentType.toLowerCase();
+    
+    if (cType.includes('video/mp2t')) {
+      return false;
+    }
+    
+    const mediaMimeTypes = [
+      'video/',
+      'audio/',
+      'application/x-mpegurl',
+      'application/vnd.apple.mpegurl',
+      'application/dash+xml'
+    ];
+    if (mediaMimeTypes.some(type => cType.includes(type))) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+ipcMain.on('browser-view-init', (event, bounds) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!guestBrowserView) {
+    guestBrowserView = new WebContentsView({
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+        autoplayPolicy: 'no-user-gesture-required'
+      }
+    });
+    
+    // Set user agent to a standard, modern Google Chrome browser to bypass client detection
+    guestBrowserView.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+    
+    // Set session user agent to ensure all sub-requests use the same browser header
+    guestBrowserView.webContents.session.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+    
+    win.contentView.addChildView(guestBrowserView);
+    
+    // Set permission request handler for media and fullscreen support
+    guestBrowserView.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+      const allowed = ['media', 'geolocation', 'notifications', 'fullscreen', 'pointerLock'];
+      callback(allowed.includes(permission));
+    });
+    
+    // Handle target="_blank" and window.open links by navigating in the same view
+    guestBrowserView.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        guestBrowserView.webContents.loadURL(url);
+      }
+      return { action: 'deny' };
+    });
+    
+    guestBrowserView.webContents.loadURL('https://www.google.com');
+    
+    const sendNav = (url) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('browser-navigate', url);
+      }
+    };
+    guestBrowserView.webContents.on('did-navigate', (e, url) => sendNav(url));
+    guestBrowserView.webContents.on('did-navigate-in-page', (e, url) => sendNav(url));
+    
+    const session = guestBrowserView.webContents.session;
+    session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+      const responseHeaders = { ...details.responseHeaders };
+      
+      // Remove blocking headers to allow embeds and standard playback
+      const headersToRemove = [
+        'x-frame-options',
+        'content-security-policy',
+        'cross-origin-resource-policy',
+        'cross-origin-embedder-policy',
+        'cross-origin-opener-policy'
+      ];
+      for (const key of Object.keys(responseHeaders)) {
+        if (headersToRemove.includes(key.toLowerCase())) {
+          delete responseHeaders[key];
+        }
+      }
+
+      // Force wildcard access control headers to prevent CORS errors on arbitrary websites
+      let hasAcao = false;
+      for (const key of Object.keys(responseHeaders)) {
+        if (key.toLowerCase() === 'access-control-allow-origin') {
+          responseHeaders[key] = ['*'];
+          hasAcao = true;
+          break;
+        }
+      }
+      if (!hasAcao) {
+        responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+      }
+
+      // Inspect content-type for sniffer
+      let contentType = '';
+      for (const key of Object.keys(responseHeaders)) {
+        if (key.toLowerCase() === 'content-type') {
+          contentType = responseHeaders[key][0];
+          break;
+        }
+      }
+
+      const url = details.url;
+      if (isMedia(url, contentType)) {
+        if (!win.isDestroyed()) {
+          // Send immediately to UI
+          win.webContents.send('media-detected', {
+            url: url,
+            title: guestBrowserView.webContents.getTitle() || 'Media Stream',
+            contentType: contentType
+          });
+
+          // Probe stream details asynchronously in background
+          const headers = [
+            `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
+          ];
+          try {
+            const parsedUrl = new URL(url);
+            headers.push(`Referer: ${parsedUrl.origin}/`);
+          } catch (e) {}
+
+          probeLocalVideo(url, headers).then(meta => {
+            if (!win.isDestroyed()) {
+              win.webContents.send('media-probed', {
+                url: url,
+                width: meta.width || 0,
+                height: meta.height || 0,
+                duration: meta.duration || 0,
+                vcodec: meta.vcodec || 'Unknown',
+                fps: meta.fps || 0
+              });
+            }
+          }).catch(err => {
+            console.log('Background stream probe failed:', err.message);
+          });
+        }
+      }
+      callback({ cancel: false, responseHeaders: responseHeaders });
+    });
+  }
+  
+  guestBrowserView.setBounds(bounds);
+});
+
+ipcMain.on('browser-view-load', (event, url) => {
+  if (guestBrowserView) {
+    let targetUrl = url.trim();
+    if (!/^https?:\/\//i.test(targetUrl)) {
+      targetUrl = 'https://' + targetUrl;
+    }
+    guestBrowserView.webContents.loadURL(targetUrl).catch(err => {
+      console.error('Failed to load url:', err);
+    });
+  }
+});
+
+ipcMain.handle('browser-clear-data', async () => {
+  if (guestBrowserView) {
+    try {
+      const ses = guestBrowserView.webContents.session;
+      await ses.clearStorageData();
+      await ses.clearCache();
+      return true;
+    } catch (err) {
+      console.error('Failed to clear browser storage/cache data:', err);
+      return false;
+    }
+  }
+  return false;
+});
+
+ipcMain.on('browser-view-control', (event, action) => {
+  if (guestBrowserView) {
+    if (action === 'back' && guestBrowserView.webContents.canGoBack()) {
+      guestBrowserView.webContents.goBack();
+    } else if (action === 'forward' && guestBrowserView.webContents.canGoForward()) {
+      guestBrowserView.webContents.goForward();
+    } else if (action === 'reload') {
+      guestBrowserView.webContents.reload();
+    }
+  }
+});
+
+ipcMain.on('browser-view-resize', (event, bounds) => {
+  if (guestBrowserView) {
+    guestBrowserView.setBounds(bounds);
+  }
+});
+
+ipcMain.on('browser-view-hide', () => {
+  if (guestBrowserView) {
+    guestBrowserView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+  }
+});
+
+ipcMain.on('download-media-stream', async (event, { url, title, contentType }) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const baseDir = settings.downloadDir || app.getPath('downloads');
+  
+  const isAudioOnly = contentType && contentType.toLowerCase().startsWith('audio/');
+  const subFolder = isAudioOnly ? 'yt-audios' : 'yt-videos';
+  const targetDir = path.join(baseDir, subFolder);
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  let cleanTitle = sanitizeFilename(title || 'stream_download');
+  let ext = isAudioOnly ? '.mp3' : '.mp4';
+  
+  if (url.includes('.m3u8')) {
+    ext = isAudioOnly ? '.mp3' : '.mp4';
+  } else {
+    const cleanUrlPath = url.split('?')[0].split('#')[0];
+    const urlExt = path.extname(cleanUrlPath);
+    if (urlExt && urlExt.length <= 5) {
+      ext = urlExt;
+    }
+  }
+  
+  let baseOut = path.join(targetDir, cleanTitle);
+  let count = 0;
+  let outputPath = `${baseOut}${ext}`;
+  while (fs.existsSync(outputPath)) {
+    count++;
+    outputPath = `${baseOut}_${count}${ext}`;
+  }
+
+  win.webContents.send('download-status', `[STREAM] Starting direct FFmpeg download...`);
+  
+  const ffmpegPath = getFfmpegPath();
+  
+  // Construct headers for ffmpeg to prevent 403 / 401 forbidden errors on protected streams
+  const headers = [
+    `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
+  ];
+  try {
+    const parsedUrl = new URL(url);
+    headers.push(`Referer: ${parsedUrl.origin}/`);
+  } catch (e) {}
+
+  const args = [
+    '-y',
+    '-headers', headers.join('\r\n') + '\r\n',
+    '-i', url,
+    '-c', 'copy',
+    outputPath
+  ];
+  
+  const downloadStartedAt = Date.now();
+  
+  let totalDuration = 0;
+  try {
+    const meta = await probeLocalVideo(url, headers);
+    totalDuration = meta.duration || 0;
+  } catch (err) {
+    console.log('Stream probe failed (normal for live/some hosts):', err.message);
+  }
+
+  let proc;
+  try {
+    proc = spawn(ffmpegPath, args);
+  } catch (err) {
+    win.webContents.send('download-error', `[STREAM] FFmpeg failed to start: ${err.message}`);
+    return;
+  }
+  
+  let stderr = '';
+  
+  proc.stderr.on('data', (data) => {
+    const text = data.toString();
+    stderr += text;
+    
+    if (totalDuration > 0) {
+      const progress = parseFfmpegProgress(text, totalDuration);
+      if (progress !== null) {
+        win.webContents.send('download-progress', `[download]  ${Math.round(progress)}% of stream`);
+      }
+    } else {
+      const match = text.match(/time=\s*(\d{2}):(\d{2}):(\d{2})/);
+      if (match) {
+        win.webContents.send('download-progress', `[download]  Copied ${match[1]}:${match[2]}:${match[3]} of media`);
+      }
+    }
+  });
+
+  proc.on('close', (code) => {
+    if (code === 0) {
+      win.webContents.send('download-complete', {
+        type: isAudioOnly ? 'stream-audio' : 'stream-video',
+        url: url,
+        status: 'Success',
+        filePath: outputPath
+      });
+      if (settings.autoOpenFolder) {
+        shell.showItemInFolder(outputPath);
+      }
+    } else {
+      win.webContents.send('download-error', `[STREAM] FFmpeg copy failed with code ${code}.\nStderr: ${stderr.slice(-200)}`);
+    }
+  });
+
+  proc.on('error', (err) => {
+    win.webContents.send('download-error', `[STREAM] FFmpeg failed to start: ${err.message}`);
+  });
+});
+

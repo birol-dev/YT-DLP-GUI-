@@ -43,6 +43,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-headphones"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
           Music Finder
         </button>
+        <button class="nav-btn" data-tab="browser-tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          Browser
+        </button>
         <button class="nav-btn" data-tab="recents-tab">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Recents
@@ -770,6 +774,59 @@
           </div>
         </section>
 
+        <!-- BROWSER TAB -->
+        <section id="browser-tab" class="tab-content h-full">
+          <div class="card h-full flex-col" style="gap: 0; border: none; background: transparent;">
+            <!-- Browser top navigation toolbar -->
+            <div id="browser-toolbar" class="browser-toolbar" style="display: flex; align-items: center; gap: 8px; padding: 10px; background-color: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius) var(--radius) 0 0; z-index: 100; flex-shrink: 0;">
+              <!-- Navigation Buttons -->
+              <button id="btn-browser-back" class="btn" style="background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); width: 2.25rem; height: 2.25rem; padding: 0; justify-content: center;" title="Go Back">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <button id="btn-browser-forward" class="btn" style="background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); width: 2.25rem; height: 2.25rem; padding: 0; justify-content: center;" title="Go Forward">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+              <button id="btn-browser-reload" class="btn" style="background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); width: 2.25rem; height: 2.25rem; padding: 0; justify-content: center;" title="Reload Page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.72 2.78L21 8"/><path d="M21 3v5h-5"/></svg>
+              </button>
+              <button id="btn-browser-clear" class="btn" style="background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); width: 2.25rem; height: 2.25rem; padding: 0; justify-content: center;" title="Clear Browser Cache and Cookies">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+              </button>
+              
+              <!-- Address bar -->
+              <div class="input-with-action" style="flex: 1; display: flex; gap: 6px;">
+                <input type="text" id="browser-address-bar" value="https://www.google.com" placeholder="Search Google or enter website URL">
+                <button id="btn-browser-go" class="btn primary" style="min-width: 60px;">Go</button>
+              </div>
+
+              <!-- Media Sniffer Indicator Badge (Toggles Sidebar) -->
+              <button id="btn-sniffer-detected" class="btn sniffer-badge" style="display: none; align-items: center; gap: 6px; background: linear-gradient(135deg, hsl(var(--primary)) 0%, #3b82f6 100%); color: hsl(var(--primary-foreground)); border: none; font-weight: 600; padding: 0 0.85rem; border-radius: 9999px; height: 2.25rem; animation: sniffer-glow 2s infinite alternate;" title="Toggle Media Sniffer Sidebar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download-cloud"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m15 15-3-3-3 3"/></svg>
+                <span id="sniffer-count">0</span>
+              </button>
+            </div>
+            
+            <!-- Browser Workspace (split into View and Sidebar) -->
+            <div style="flex: 1; display: flex; min-height: 0; position: relative;">
+              <!-- In-app Browser placeholder -->
+              <div id="browser-view-placeholder" style="flex: 1; height: 100%; background-color: #0c0c0c; border: 1px solid hsl(var(--border)); border-top: none; border-radius: 0 0 0 var(--radius);">
+                <!-- WebContentsView will overlay here natively -->
+              </div>
+              
+              <!-- Sniffer Media Sidebar -->
+              <div id="sniffer-media-sidebar" class="card" style="display: none; width: 300px; height: 100%; border: 1px solid hsl(var(--border)); border-top: none; border-left: none; background-color: hsl(var(--card)); border-radius: 0 0 var(--radius) 0; flex-shrink: 0; flex-direction: column; overflow: hidden;">
+                <div style="padding: 10px 12px; border-bottom: 1px solid hsl(var(--border)); font-weight: 600; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; background-color: hsl(var(--muted) / 0.3); flex-shrink: 0;">
+                  <span>Detected Media</span>
+                  <button id="btn-sniffer-clear" style="background: none; border: none; color: hsl(var(--muted-foreground)); cursor: pointer; font-size: 0.75rem; text-decoration: underline;">Clear All</button>
+                </div>
+                <div id="sniffer-media-list" style="overflow-y: auto; flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 6px;">
+                  <!-- Detected items populated dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- RECENTS TAB -->
         <section id="recents-tab" class="tab-content h-full">
           <div class="card h-full flex-col">
@@ -1131,6 +1188,41 @@
       <div class="onboarding-actions" style="margin-top: 2rem; width: 100%; display: flex; gap: 10px;">
         <button id="btn-onboarding-skip" class="btn" style="flex: 1; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Skip & Setup Later</button>
         <button id="btn-onboarding-start" class="btn primary" style="flex: 1;">Get Started</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEDIA PREVIEW MODAL -->
+  <div id="media-preview-modal" class="dependency-modal">
+    <div class="dependency-card" style="width: 720px; max-width: 95%; padding: 1.5rem; text-align: left; position: relative;">
+      <!-- Close Button -->
+      <button id="btn-preview-close" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: hsl(var(--muted-foreground)); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <h3 id="preview-title" style="font-size: 1.1rem; font-weight: 600; margin-top: 0; margin-bottom: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%;">Media Stream Preview</h3>
+
+      <!-- Video Container -->
+      <div style="position: relative; width: 100%; aspect-ratio: 16/9; background-color: #000; border-radius: var(--radius); overflow: hidden; border: 1px solid hsl(var(--border));">
+        <video id="preview-video-player" controls autoplay style="width: 100%; height: 100%; object-fit: contain;"></video>
+        <div id="preview-player-error" style="display: none; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.85); color: #ef4444; padding: 1.5rem; text-align: center; gap: 8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div style="font-weight: 600;">Playback Error</div>
+          <div id="preview-error-details" style="font-size: 0.75rem; opacity: 0.85; max-width: 80%;">Failed to load video stream.</div>
+        </div>
+      </div>
+      
+      <!-- Meta details -->
+      <div id="preview-metadata-box" style="margin-top: 0.75rem; font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; color: hsl(var(--muted-foreground));">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid hsl(var(--border) / 0.5); padding-bottom: 4px; gap: 10px;">
+          <span>Source URL:</span>
+          <span id="preview-meta-url" style="color: hsl(var(--foreground)); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; text-align: right;">-</span>
+        </div>
+        <div style="display: flex; gap: 20px; margin-top: 4px;">
+          <div>Resolution: <span id="preview-meta-res" style="color: hsl(var(--foreground)); font-weight: 600;">-</span></div>
+          <div>Duration: <span id="preview-meta-duration" style="color: hsl(var(--foreground)); font-weight: 600;">-</span></div>
+          <div>Codec: <span id="preview-meta-codec" style="color: hsl(var(--foreground)); font-weight: 600;">-</span></div>
+        </div>
       </div>
     </div>
   </div>

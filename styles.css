@@ -1470,3 +1470,129 @@ option {
   background: hsl(var(--primary) / 0.9);
 }
 
+/* Browser Tab Styling */
+.browser-toolbar {
+  border-bottom: none !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.browser-toolbar input[type="text"] {
+  background-color: hsl(var(--secondary) / 0.5) !important;
+  border-color: hsl(var(--border)) !important;
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+
+.browser-toolbar input[type="text"]:focus {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--ring)) !important;
+  box-shadow: 0 0 0 1px hsl(var(--ring));
+}
+
+.sniffer-badge {
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sniffer-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.5);
+  cursor: pointer;
+}
+
+@keyframes sniffer-glow {
+  from {
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  }
+  to {
+    box-shadow: 0 0 18px rgba(59, 130, 246, 0.8), 0 0 4px rgba(255, 255, 255, 0.3);
+  }
+}
+
+.sniffer-media-dropdown {
+  animation: snifferSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: hsl(var(--card) / 0.95) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+@keyframes snifferSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sniffer-media-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: calc(var(--radius) - 2px);
+  background-color: hsl(var(--muted) / 0.2);
+  border: 1px solid hsl(var(--border) / 0.5);
+  transition: all 0.15s ease;
+}
+
+.sniffer-media-item:hover {
+  background-color: hsl(var(--muted) / 0.4);
+  border-color: hsl(var(--border));
+}
+
+.sniffer-media-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sniffer-media-title {
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sniffer-media-meta {
+  font-size: 0.65rem;
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sniffer-media-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.sniffer-action-btn {
+  background-color: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 4px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sniffer-action-btn:hover {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: transparent;
+}
+
+
