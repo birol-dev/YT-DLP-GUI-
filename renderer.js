@@ -2,6 +2,141 @@
 let isDownloading = false;
 let settingsCityData = null;
 
+let downloadProgressState = {
+  mode: 'single',
+  currentItem: 1,
+  totalItems: 1,
+  itemPercent: 0,
+  itemTitle: '',
+  playlistTitle: ''
+};
+
+function resetDownloadProgressState() {
+  downloadProgressState = {
+    mode: 'single',
+    currentItem: 1,
+    totalItems: 1,
+    itemPercent: 0,
+    itemTitle: '',
+    playlistTitle: ''
+  };
+}
+
+function isLikelyPlaylistUrl(url) {
+  return /[?&]list=/.test(url) || /youtube\.com\/playlist/i.test(url);
+}
+
+async function beginMediaDownload({ url, type, quality, statusMsg }) {
+  resetDownloadProgressState();
+
+  let initialStatus = statusMsg;
+  if (isLikelyPlaylistUrl(url)) {
+    try {
+      const probe = await window.electronAPI.probePlaylist(url);
+      if (probe.isPlaylist) {
+        downloadProgressState.mode = 'playlist';
+        downloadProgressState.totalItems = probe.playlistCount || 1;
+        downloadProgressState.playlistTitle = probe.title || '';
+        const countLabel = probe.playlistCount ? `${probe.playlistCount} items` : 'playlist';
+        initialStatus = probe.title
+          ? `Downloading playlist: ${probe.title} (${countLabel})`
+          : `Downloading playlist (${countLabel})...`;
+      }
+    } catch {
+      if (isLikelyPlaylistUrl(url)) {
+        downloadProgressState.mode = 'playlist';
+        initialStatus = 'Downloading playlist...';
+      }
+    }
+  }
+
+  startDownloadIndicator(initialStatus, { preserveProgressState: true });
+
+  if (type === 'video') {
+    window.electronAPI.downloadVideo({ url, quality });
+  } else {
+    window.electronAPI.downloadAudio({ url });
+  }
+}
+
+function updateProgressUI(percentage, isDivider) {
+  const fill = document.getElementById(isDivider ? 'divider-progress-fill' : 'progress-fill');
+  const percentText = document.getElementById(isDivider ? 'divider-progress-percent-text' : 'progress-percent-text');
+  const statusText = document.getElementById(isDivider ? 'divider-progress-status-text' : 'progress-status-text');
+  const substatusText = document.getElementById('progress-substatus-text');
+
+  if (!fill || !percentText) return;
+
+  fill.style.width = `${percentage}%`;
+  percentText.textContent = `${Math.round(percentage)}%`;
+
+  if (isDivider) {
+    if (statusText) {
+      statusText.textContent = percentage === 100
+        ? 'Processing and finalizing files...'
+        : 'Downloading media...';
+    }
+    return;
+  }
+
+  if (!statusText) return;
+
+  if (downloadProgressState.mode === 'playlist' && downloadProgressState.totalItems > 1) {
+    const { currentItem, totalItems, itemPercent, itemTitle, playlistTitle } = downloadProgressState;
+    statusText.textContent = `Downloading playlist (${currentItem}/${totalItems})`;
+    if (substatusText) {
+      substatusText.style.display = 'block';
+      const titlePart = itemTitle || playlistTitle || 'Current item';
+      substatusText.textContent = itemPercent >= 100
+        ? `Item ${currentItem}: ${titlePart} — finalizing...`
+        : `Item ${currentItem}: ${titlePart} — ${Math.round(itemPercent)}%`;
+    }
+    return;
+  }
+
+  if (substatusText) substatusText.style.display = 'none';
+
+  if (percentage === 100) {
+    statusText.textContent = 'Processing and finalizing files...';
+  } else {
+    statusText.textContent = 'Downloading media...';
+  }
+}
+
+function parseDownloadProgressOutput(progress) {
+  const itemMatch = progress.match(/Downloading item\s+(\d+)\s+of\s+(\d+)/i);
+  if (itemMatch) {
+    downloadProgressState.mode = 'playlist';
+    downloadProgressState.currentItem = parseInt(itemMatch[1], 10);
+    downloadProgressState.totalItems = parseInt(itemMatch[2], 10);
+    downloadProgressState.itemPercent = 0;
+  }
+
+  const destMatch = progress.match(/Destination:\s*(.+)/);
+  if (destMatch) {
+    const dest = destMatch[1].trim();
+    const fileName = dest.split(/[/\\]/).pop().replace(/\.[^.]+$/, '');
+    if (fileName) downloadProgressState.itemTitle = fileName;
+  }
+
+  const percentMatch = progress.match(/\[download\]\s+([0-9.]+)%/);
+  if (!percentMatch) return;
+
+  const itemPercent = parseFloat(percentMatch[1]);
+  downloadProgressState.itemPercent = itemPercent;
+
+  const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
+  const isDivider = currentTab === 'divider-tab';
+
+  let displayPercent = itemPercent;
+  if (downloadProgressState.mode === 'playlist' && downloadProgressState.totalItems > 1) {
+    const { currentItem, totalItems } = downloadProgressState;
+    displayPercent = ((currentItem - 1) + itemPercent / 100) / totalItems * 100;
+  }
+
+  updateProgressUI(displayPercent, isDivider);
+}
+
 // Tab switching logic
 const navBtns = document.querySelectorAll('.nav-btn');
 const tabContents = document.querySelectorAll('.tab-content');
@@ -57,10 +192,14 @@ navBtns.forEach(btn => {
 });
 
 // Progress Bar Helper Routines
-function startDownloadIndicator(statusMsg) {
+function startDownloadIndicator(statusMsg, options = {}) {
+  if (!options.preserveProgressState) {
+    resetDownloadProgressState();
+  }
   isDownloading = true;
   const progressEl = document.getElementById('download-progress-container');
   const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
+  const substatusText = document.getElementById('progress-substatus-text');
   
   if (currentTab === 'divider-tab') {
     // Show inline divider progress
@@ -88,12 +227,17 @@ function startDownloadIndicator(statusMsg) {
       document.getElementById('progress-fill').style.width = '0%';
       document.getElementById('progress-percent-text').textContent = '0%';
       document.getElementById('progress-status-text').textContent = statusMsg;
+      if (substatusText) {
+        substatusText.style.display = downloadProgressState.mode === 'playlist' ? 'block' : 'none';
+        substatusText.textContent = '';
+      }
     }
   }
 }
 
 function stopDownloadIndicator() {
   isDownloading = false;
+  resetDownloadProgressState();
   const progressEl = document.getElementById('download-progress-container');
   if (progressEl) {
     progressEl.classList.remove('active');
@@ -102,36 +246,49 @@ function stopDownloadIndicator() {
   
   const progressBox = document.getElementById('divider-progress-box');
   if (progressBox) progressBox.style.display = 'none';
+
+  const substatusText = document.getElementById('progress-substatus-text');
+  if (substatusText) {
+    substatusText.style.display = 'none';
+    substatusText.textContent = '';
+  }
 }
 
 // Download Video
-document.getElementById('btn-download-video').addEventListener('click', () => {
+document.getElementById('btn-download-video').addEventListener('click', async () => {
   if (isDownloading) {
     alert('A download is already in progress. Please wait for the current download to finish!');
     appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
     return;
   }
-  const url = document.getElementById('video-url').value;
+  const url = document.getElementById('video-url').value.trim();
   const quality = document.getElementById('video-quality').value;
   if (!url) return;
-  
-  startDownloadIndicator('Downloading video...');
-  window.electronAPI.downloadVideo({ url, quality });
+
+  await beginMediaDownload({
+    url,
+    type: 'video',
+    quality,
+    statusMsg: 'Downloading video...'
+  });
   document.getElementById('video-url').value = '';
 });
 
 // Download Audio
-document.getElementById('btn-download-audio').addEventListener('click', () => {
+document.getElementById('btn-download-audio').addEventListener('click', async () => {
   if (isDownloading) {
     alert('A download is already in progress. Please wait for the current download to finish!');
     appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
     return;
   }
-  const url = document.getElementById('audio-url').value;
+  const url = document.getElementById('audio-url').value.trim();
   if (!url) return;
-  
-  startDownloadIndicator('Extracting audio...');
-  window.electronAPI.downloadAudio({ url });
+
+  await beginMediaDownload({
+    url,
+    type: 'audio',
+    statusMsg: 'Extracting audio...'
+  });
   document.getElementById('audio-url').value = '';
 });
 
@@ -202,35 +359,10 @@ window.electronAPI.onDownloadStatus((status) => {
 });
 
 window.electronAPI.onDownloadProgress((progress) => {
-  // Try to parse out the carriage returns yt-dlp uses to update the same line
   const lines = progress.split('\r');
   const text = lines[lines.length - 1].trim();
   if (text) appendLog(text);
-  
-  // Parse percentage from yt-dlp output
-  const percentMatch = progress.match(/\[download\]\s+([0-9.]+)%/);
-  if (percentMatch) {
-    const percentage = parseFloat(percentMatch[1]);
-    const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
-    const isDivider = (currentTab === 'divider-tab');
-    
-    const fill = document.getElementById(isDivider ? 'divider-progress-fill' : 'progress-fill');
-    const percentText = document.getElementById(isDivider ? 'divider-progress-percent-text' : 'progress-percent-text');
-    const statusText = document.getElementById(isDivider ? 'divider-progress-status-text' : 'progress-status-text');
-    
-    if (fill && percentText) {
-      fill.style.width = `${percentage}%`;
-      percentText.textContent = `${Math.round(percentage)}%`;
-      
-      if (statusText) {
-        if (percentage === 100) {
-          statusText.textContent = 'Processing and finalizing files...';
-        } else {
-          statusText.textContent = 'Downloading media...';
-        }
-      }
-    }
-  }
+  parseDownloadProgressOutput(progress);
 });
 
 window.electronAPI.onUpdateLog((log) => {
@@ -314,21 +446,22 @@ function renderRecents() {
     const videoId = extractVideoId(item.url);
     const isInstagram = item.url.includes('instagram.com') || item.url.includes('instagr.am') || item.type.startsWith('ig-');
     
+    const thumbTitle = 'Click to reveal file · Drag to import into Premiere Pro';
     let thumbnailHtml = '';
     if (videoId) {
-      thumbnailHtml = `<img src="https://img.youtube.com/vi/${videoId}/hqdefault.jpg" alt="Thumbnail" class="recent-thumbnail" style="cursor: pointer;" title="Click to open folder">`;
+      thumbnailHtml = `<img src="https://img.youtube.com/vi/${videoId}/hqdefault.jpg" alt="Thumbnail" class="recent-thumbnail" title="${thumbTitle}">`;
     } else if (isInstagram) {
-      thumbnailHtml = `<div class="recent-thumbnail" style="cursor: pointer; background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); color: white; border: none;" title="Click to open folder">
+      thumbnailHtml = `<div class="recent-thumbnail" style="background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); color: white; border: none;" title="${thumbTitle}">
         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
       </div>`;
     } else {
-      thumbnailHtml = `<div class="recent-thumbnail" style="cursor: pointer;" title="Click to open folder"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></div>`;
+      thumbnailHtml = `<div class="recent-thumbnail" title="${thumbTitle}"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></div>`;
     }
     
     li.innerHTML = `
       ${thumbnailHtml}
       <div class="recent-details">
-        <a href="${item.url}" target="_blank" class="recent-url" title="${item.url}">${item.url}</a>
+        <button type="button" class="recent-url" title="${item.url}">${item.url}</button>
         <div class="recent-meta">
           <span class="badge">${item.type.toUpperCase()}</span>
           <span>${item.date}</span>
@@ -338,8 +471,27 @@ function renderRecents() {
 
     const thumbEl = li.querySelector('.recent-thumbnail');
     if (thumbEl && item.filePath) {
+      let didDrag = false;
+
+      thumbEl.setAttribute('draggable', 'true');
+      thumbEl.addEventListener('dragstart', (e) => {
+        didDrag = true;
+        e.preventDefault();
+        window.electronAPI.startFileDrag(item.filePath);
+      });
+      thumbEl.addEventListener('dragend', () => {
+        setTimeout(() => { didDrag = false; }, 0);
+      });
       thumbEl.addEventListener('click', () => {
+        if (didDrag) return;
         window.electronAPI.openFolder(item.filePath);
+      });
+    }
+
+    const urlEl = li.querySelector('.recent-url');
+    if (urlEl) {
+      urlEl.addEventListener('click', () => {
+        window.electronAPI.openExternalUrl(item.url);
       });
     }
 
@@ -496,7 +648,9 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     acrcloudKey: document.getElementById('settings-acrcloud-key').value.trim(),
     acrcloudSecret: document.getElementById('settings-acrcloud-secret').value.trim(),
     acrcloudHost: document.getElementById('settings-acrcloud-host').value.trim() || 'identify-us-west-2.acrcloud.com',
-    acoustidScanInterval: parseInt(document.getElementById('settings-scan-interval').value, 10)
+    acoustidScanInterval: parseInt(document.getElementById('settings-scan-interval').value, 10),
+    cookiesFromBrowser: document.getElementById('settings-cookies-browser').value,
+    cookiesBrowserProfile: document.getElementById('settings-cookies-profile').value.trim().replace(/^["']|["']$/g, '')
   };
 
   const success = await window.electronAPI.saveSettings(newSettings);
@@ -525,6 +679,105 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     }, 3000);
   }
 });
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderCookiesTestStatus(result, isLoading = false) {
+  const statusEl = document.getElementById('cookies-test-status');
+  const testBtn = document.getElementById('btn-test-cookies');
+  if (!statusEl) return;
+
+  statusEl.style.display = 'block';
+  statusEl.className = 'cookies-test-status';
+
+  if (isLoading) {
+    statusEl.classList.add('testing');
+    statusEl.innerHTML = `
+      <div class="cookies-test-status-title">Testing cookies...</div>
+      <div class="cookies-test-status-detail">Step 1: Reading browser cookie database. Step 2: Checking YouTube session. This may take up to a minute.</div>
+    `;
+    if (testBtn) {
+      testBtn.disabled = true;
+      testBtn.textContent = 'Testing...';
+    }
+    return;
+  }
+
+  if (testBtn) {
+    testBtn.disabled = false;
+    testBtn.textContent = 'Test Cookies';
+  }
+
+  if (!result) return;
+
+  statusEl.classList.add(result.level || (result.ok ? 'success' : 'error'));
+
+  let html = `<div class="cookies-test-status-title">${escapeHtml(result.message)}</div>`;
+  if (result.detail) {
+    html += `<div class="cookies-test-status-detail">${escapeHtml(result.detail)}</div>`;
+  }
+  if (result.tip) {
+    html += `<div class="cookies-test-status-tip">${escapeHtml(result.tip)}</div>`;
+  }
+  statusEl.innerHTML = html;
+}
+
+function hideCookiesTestStatus() {
+  const statusEl = document.getElementById('cookies-test-status');
+  if (statusEl) {
+    statusEl.style.display = 'none';
+    statusEl.innerHTML = '';
+    statusEl.className = 'cookies-test-status';
+  }
+}
+
+const btnTestCookies = document.getElementById('btn-test-cookies');
+if (btnTestCookies) {
+  btnTestCookies.addEventListener('click', async () => {
+    const browser = document.getElementById('settings-cookies-browser').value;
+    const profile = document.getElementById('settings-cookies-profile').value.trim().replace(/^["']|["']$/g, '');
+    const testUrl = document.getElementById('settings-cookies-test-url').value.trim();
+
+    if (!browser) {
+      renderCookiesTestStatus({
+        ok: false,
+        level: 'error',
+        message: 'Select a browser before testing cookies.',
+        tip: 'Choose Chrome, Edge, Firefox, or another supported browser from the dropdown.'
+      });
+      return;
+    }
+
+    renderCookiesTestStatus(null, true);
+
+    try {
+      const result = await window.electronAPI.testBrowserCookies({ browser, profile, testUrl });
+      renderCookiesTestStatus(result);
+    } catch (err) {
+      renderCookiesTestStatus({
+        ok: false,
+        level: 'error',
+        message: 'Cookie test could not be completed.',
+        tip: err.message || 'Try again after closing the selected browser.'
+      });
+    }
+  });
+}
+
+const cookiesBrowserSelect = document.getElementById('settings-cookies-browser');
+if (cookiesBrowserSelect) {
+  cookiesBrowserSelect.addEventListener('change', () => {
+    if (!cookiesBrowserSelect.value) {
+      hideCookiesTestStatus();
+    }
+  });
+}
 
 // Reset onboarding handler
 const btnResetOnboarding = document.getElementById('btn-reset-onboarding');
@@ -609,6 +862,8 @@ async function initSettingsUI() {
     document.getElementById('settings-audio-format').value = currentSettings.audioFormat || 'mp3';
     document.getElementById('settings-sound-enabled').checked = !!currentSettings.soundEnabled;
     document.getElementById('settings-auto-open').checked = !!currentSettings.autoOpenFolder;
+    document.getElementById('settings-cookies-browser').value = currentSettings.cookiesFromBrowser || '';
+    document.getElementById('settings-cookies-profile').value = currentSettings.cookiesBrowserProfile || '';
     const mfService = currentSettings.musicFinderService || 'acoustid';
     document.getElementById('settings-musicfinder-service').value = mfService;
     

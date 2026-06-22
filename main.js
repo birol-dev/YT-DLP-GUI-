@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, protocol, net, nativeImage } = require('electron');
 const path = require('path');
 const { spawn, exec } = require('child_process');
 const fs = require('fs');
@@ -17,6 +17,290 @@ function getYtDlpPath() {
     return localYtDlp;
   }
   return 'yt-dlp';
+}
+
+function appendYtDlpCookieArgs(args, cookieConfig) {
+  if (cookieConfig === false) return args;
+
+  let browser = '';
+  let profile = '';
+  if (cookieConfig && typeof cookieConfig === 'object') {
+    browser = cookieConfig.browser || '';
+    profile = cookieConfig.profile || '';
+  } else {
+    browser = settings.cookiesFromBrowser || '';
+    profile = settings.cookiesBrowserProfile || '';
+  }
+
+  if (!browser) return args;
+  const normalizedProfile = profile.trim().replace(/^["']|["']$/g, '');
+  const value = normalizedProfile ? `${browser}:${normalizedProfile}` : browser;
+  return ['--cookies-from-browser', value, ...args];
+}
+
+function runYtDlpProcess(args, cookieConfig, timeoutMs = 90000) {
+  return new Promise((resolve) => {
+    const proc = spawn(getYtDlpPath(), appendYtDlpCookieArgs(args, cookieConfig), {
+      windowsHide: true
+    });
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    const timer = setTimeout(() => {
+      try { proc.kill(); } catch { /* ignore */ }
+      finish({
+        code: -2,
+        stdout,
+        stderr: `${stderr}\nTimed out after ${Math.round(timeoutMs / 1000)}s. Close the browser and try again.`.trim(),
+        timedOut: true
+      });
+    }, timeoutMs);
+
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('close', (code) => finish({ code, stdout, stderr, timedOut: false }));
+    proc.on('error', (err) => finish({
+      code: -1,
+      stdout,
+      stderr: err.code === 'ENOENT'
+        ? `yt-dlp was not found. Install it or let the app download it from Settings > dependencies.\n${err.message}`
+        : err.message,
+      timedOut: false
+    }));
+  });
+}
+
+function hasCookieExtractionFailure(output) {
+  const lower = (output || '').toLowerCase();
+  return (
+    (lower.includes('could not copy') && lower.includes('cookie')) ||
+    lower.includes('error extracting cookies') ||
+    lower.includes('failed to extract cookies') ||
+    lower.includes('unsupported browser') ||
+    lower.includes('no such browser')
+  );
+}
+
+function parseYtDlpCookieError(stderr, timedOut = false) {
+  if (timedOut) {
+    return {
+      message: 'Cookie test timed out.',
+      tip: 'Close the selected browser completely, then run the test again.'
+    };
+  }
+
+  const text = (stderr || '').trim();
+  const lower = text.toLowerCase();
+
+  if (lower.includes('yt-dlp was not found') || lower.includes('enoent')) {
+    return {
+      message: 'yt-dlp is not available on this system.',
+      tip: 'Open the app setup wizard or install yt-dlp, then try again.'
+    };
+  }
+  if (lower.includes('could not copy') && lower.includes('cookie')) {
+    return {
+      message: 'Could not read the browser cookie database.',
+      tip: 'Close the selected browser completely (all windows), then run the test again. Chromium browsers lock their cookie file while open.'
+    };
+  }
+  if (lower.includes('failed to decrypt') || lower.includes('keyring')) {
+    return {
+      message: 'Cookies were found but could not be decrypted.',
+      tip: 'On Linux, you may need a keyring option. On Windows, close the browser and retry.'
+    };
+  }
+  if (lower.includes('unsupported browser') || lower.includes('no such browser')) {
+    return {
+      message: 'That browser is not supported or could not be located.',
+      tip: 'Pick the browser you actually use and make sure it is installed.'
+    };
+  }
+  if (lower.includes('profile') && (lower.includes('not found') || lower.includes('does not exist'))) {
+    return {
+      message: 'The browser profile name could not be found.',
+      tip: 'Check the exact profile name in your browser settings, or leave the profile blank for default.'
+    };
+  }
+
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const errorLines = lines.filter((l) => /error/i.test(l));
+  return {
+    message: errorLines[errorLines.length - 1] || lines[lines.length - 1] || 'Cookie test failed.',
+    tip: 'Close the browser, confirm the profile name, and try again.'
+  };
+}
+
+function cleanYtDlpError(stderr) {
+  const lines = (stderr || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const errorLines = lines.filter((l) => /error/i.test(l));
+  return errorLines.join(' ') || lines.slice(-2).join(' ') || 'Unknown yt-dlp error.';
+}
+
+async function detectYoutubeLogin(cookieOverride) {
+  const probeUrls = [
+    'https://www.youtube.com/playlist?list=WL',
+    'https://www.youtube.com/feed/subscriptions',
+    'https://www.youtube.com/playlist?list=LL'
+  ];
+
+  for (const url of probeUrls) {
+    const result = await runYtDlpProcess([
+      '--flat-playlist',
+      '--dump-single-json',
+      '--playlist-items', '1',
+      '--no-warnings',
+      '--ignore-no-formats-error',
+      url
+    ], cookieOverride, 60000);
+
+    if (result.code !== 0 || hasCookieExtractionFailure(`${result.stderr}\n${result.stdout}`)) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(result.stdout);
+      const title = (parsed.title || '').toLowerCase();
+      if (title.includes('sign in') || title.includes('login required')) {
+        continue;
+      }
+      if (
+        parsed._type === 'playlist' ||
+        parsed.id === 'WL' ||
+        parsed.id === 'LL'
+      ) {
+        return { loggedIn: true, label: parsed.title || 'YouTube account feed' };
+      }
+    } catch {
+      // try next probe
+    }
+  }
+
+  return { loggedIn: false, label: '' };
+}
+
+async function testBrowserCookiesInternal({ browser, profile, testUrl }) {
+  if (!browser) {
+    return {
+      ok: false,
+      level: 'error',
+      message: 'Select a browser before testing cookies.',
+      tip: 'Choose Chrome, Edge, Firefox, or another supported browser from the dropdown.'
+    };
+  }
+
+  const versionCheck = await runYtDlpProcess(['--version'], false, 15000);
+  if (versionCheck.code !== 0) {
+    return {
+      ok: false,
+      level: 'error',
+      message: 'yt-dlp is not available.',
+      tip: cleanYtDlpError(versionCheck.stderr) || 'Install yt-dlp or complete the app dependency setup first.'
+    };
+  }
+
+  const cookieOverride = {
+    browser,
+    profile: (profile || '').trim().replace(/^["']|["']$/g, '')
+  };
+
+  const extractionTest = await runYtDlpProcess([
+    '--simulate',
+    '--no-warnings',
+    '--ignore-no-formats-error',
+    '--print', '%(title)s',
+    'https://www.youtube.com/watch?v=jNQXAC9IVRw'
+  ], cookieOverride, 60000);
+
+  const extractionOutput = `${extractionTest.stderr}\n${extractionTest.stdout}`;
+
+  if (
+    extractionTest.code !== 0 ||
+    extractionTest.code === -1 ||
+    extractionTest.timedOut ||
+    hasCookieExtractionFailure(extractionOutput)
+  ) {
+    const parsed = parseYtDlpCookieError(extractionOutput, extractionTest.timedOut);
+    return {
+      ok: false,
+      level: 'error',
+      message: parsed.message,
+      tip: parsed.tip,
+      extractionOk: false,
+      youtubeLoggedIn: false
+    };
+  }
+
+  const loginProbe = await detectYoutubeLogin(cookieOverride);
+  const youtubeLoggedIn = loginProbe.loggedIn;
+
+  if (testUrl && testUrl.trim()) {
+    const urlTest = await runYtDlpProcess([
+      '--simulate',
+      '--no-warnings',
+      '--ignore-no-formats-error',
+      '--print', '%(title)s',
+      testUrl.trim()
+    ], cookieOverride, 90000);
+
+    const urlOutput = `${urlTest.stderr}\n${urlTest.stdout}`;
+
+    if (urlTest.code !== 0 || urlTest.timedOut || hasCookieExtractionFailure(urlOutput)) {
+      return {
+        ok: false,
+        level: 'error',
+        message: urlTest.timedOut
+          ? 'Cookie test timed out while checking your URL.'
+          : 'Cookies load, but your test URL could not be accessed.',
+        detail: cleanYtDlpError(urlOutput),
+        tip: urlTest.timedOut
+          ? 'Close the browser and try again with a shorter or public test clip first.'
+          : 'Make sure you are signed in to that site in the selected browser profile.',
+        extractionOk: true,
+        youtubeLoggedIn
+      };
+    }
+
+    const title = urlTest.stdout.trim();
+    return {
+      ok: true,
+      level: 'success',
+      message: 'Cookies verified — your test URL is accessible.',
+      detail: title ? `Reached: ${title}` : 'yt-dlp can access the URL with these cookies.',
+      extractionOk: true,
+      youtubeLoggedIn
+    };
+  }
+
+  if (youtubeLoggedIn) {
+    return {
+      ok: true,
+      level: 'success',
+      message: 'Cookies working — YouTube account detected in this browser profile.',
+      detail: loginProbe.label
+        ? `Verified via: ${loginProbe.label}`
+        : 'yt-dlp can read cookies and sees an active YouTube session.',
+      extractionOk: true,
+      youtubeLoggedIn: true
+    };
+  }
+
+  return {
+    ok: true,
+    level: 'warning',
+    message: 'Cookie extraction works, but no YouTube login was detected.',
+    detail: 'Sign in to YouTube in that browser profile, then test again. For private non-YouTube sites, use the optional test URL below.',
+    extractionOk: true,
+    youtubeLoggedIn: false
+  };
 }
 
 function getFfmpegPath() {
@@ -453,7 +737,9 @@ function initSettings() {
     acrcloudSecret: '',
     acrcloudHost: 'identify-us-west-2.acrcloud.com',
     musicFinderService: 'acoustid',
-    acoustidScanInterval: 90
+    acoustidScanInterval: 90,
+    cookiesFromBrowser: '',
+    cookiesBrowserProfile: ''
   };
   
   settings = { ...defaultSettings };
@@ -1046,6 +1332,24 @@ app.on('window-all-closed', () => {
 });
 
 // IPC Handlers
+ipcMain.on('start-file-drag', (event, filePath) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || !filePath || !fs.existsSync(filePath)) return;
+
+  let icon = nativeImage.createFromPath(filePath);
+  if (icon.isEmpty()) {
+    icon = nativeImage.createEmpty();
+  }
+
+  win.webContents.startDrag({ file: filePath, icon });
+});
+
+ipcMain.on('open-external-url', (_event, url) => {
+  if (url && /^https?:\/\//i.test(url)) {
+    shell.openExternal(url);
+  }
+});
+
 ipcMain.on('open-folder', (event, filePath) => {
   if (filePath) {
     try {
@@ -1174,8 +1478,54 @@ function buildVideoDownloadArgs({ url, quality, outPath }) {
   }
 
   args.push(url);
-  return args;
+  return appendYtDlpCookieArgs(args);
 }
+
+ipcMain.handle('probe-playlist', async (_event, url) => {
+  if (!url || typeof url !== 'string') {
+    return { isPlaylist: false, playlistCount: 0, title: '' };
+  }
+
+  const result = await runYtDlpProcess([
+    '--flat-playlist',
+    '--dump-single-json',
+    '--no-warnings',
+    url
+  ]);
+
+  if (result.code !== 0) {
+    const isLikelyPlaylist = /[?&]list=/.test(url) || /youtube\.com\/playlist/i.test(url);
+    return { isPlaylist: isLikelyPlaylist, playlistCount: 0, title: '' };
+  }
+
+  try {
+    const parsed = JSON.parse(result.stdout);
+    const playlistCount = parsed.playlist_count || parsed.n_entries || 0;
+    const isPlaylist = parsed._type === 'playlist' || playlistCount > 1;
+    return {
+      isPlaylist,
+      playlistCount: isPlaylist ? playlistCount : 0,
+      title: parsed.title || parsed.playlist_title || ''
+    };
+  } catch {
+    const isLikelyPlaylist = /[?&]list=/.test(url) || /youtube\.com\/playlist/i.test(url);
+    return { isPlaylist: isLikelyPlaylist, playlistCount: 0, title: '' };
+  }
+});
+
+ipcMain.handle('test-browser-cookies', async (_event, payload) => {
+  try {
+    return await testBrowserCookiesInternal(payload || {});
+  } catch (err) {
+    console.error('Cookie test failed:', err);
+    return {
+      ok: false,
+      level: 'error',
+      message: 'Cookie test could not be completed.',
+      tip: err.message || 'Try again after closing the selected browser.'
+    };
+  }
+});
 
 ipcMain.on('download-video', (event, { url, quality }) => {
   const win = BrowserWindow.fromWebContents(event.sender);
@@ -1261,12 +1611,13 @@ ipcMain.on('download-audio', (event, { url }) => {
   }
 
   args.push(url);
+  const finalArgs = appendYtDlpCookieArgs(args);
 
   win.webContents.send('download-status', `[AUDIO] Starting extraction to ${audioFormat.toUpperCase()} format for ${url}...`);
   
   const ytDlpPath = getYtDlpPath();
   const downloadStartedAt = Date.now();
-  const ytProcess = spawn(ytDlpPath, args);
+  const ytProcess = spawn(ytDlpPath, finalArgs);
   let finalPath = '';
 
   ytProcess.stdout.on('data', (data) => {
@@ -1335,12 +1686,13 @@ ipcMain.on('download-subtitles', (event, { url, lang }) => {
   }
 
   args.push(url);
+  const finalArgs = appendYtDlpCookieArgs(args);
 
   win.webContents.send('download-status', `[SUBS] Starting download for ${url}...`);
   
   const ytDlpPath = getYtDlpPath();
   const downloadStartedAt = Date.now();
-  const ytProcess = spawn(ytDlpPath, args);
+  const ytProcess = spawn(ytDlpPath, finalArgs);
   let finalPath = '';
 
   ytProcess.stdout.on('data', (data) => {
@@ -1428,13 +1780,14 @@ ipcMain.on('download-instagram', (event, { url, format }) => {
   }
   
   args.push(url);
+  const finalArgs = appendYtDlpCookieArgs(args);
   
   const label = format === 'audio' ? 'AUDIO' : 'VIDEO';
   win.webContents.send('download-status', `[INSTAGRAM ${label}] Starting download in ${format === 'audio' ? (settings.audioFormat || 'mp3').toUpperCase() : (settings.videoFormat || 'mp4').toUpperCase()} format for ${url}...`);
   
   const ytDlpPath = getYtDlpPath();
   const downloadStartedAt = Date.now();
-  const ytProcess = spawn(ytDlpPath, args);
+  const ytProcess = spawn(ytDlpPath, finalArgs);
   let finalPath = '';
   
   ytProcess.stdout.on('data', (data) => {
@@ -1476,23 +1829,7 @@ ipcMain.on('continue-anyway', (event) => {
 });
 
 ipcMain.handle('fetch-video-info', async (event, url) => {
-  const ytDlpPath = getYtDlpPath();
-  
-  const runYtDlp = (args) => {
-    return new Promise((resolve) => {
-      const proc = spawn(ytDlpPath, args);
-      let stdout = '';
-      let stderr = '';
-      proc.stdout.on('data', (d) => stdout += d.toString());
-      proc.stderr.on('data', (d) => stderr += d.toString());
-      proc.on('close', (code) => {
-        resolve({ code, stdout, stderr });
-      });
-      proc.on('error', (err) => {
-        resolve({ code: -1, stdout: '', stderr: err.message });
-      });
-    });
-  };
+  const runYtDlp = (args) => runYtDlpProcess(args);
 
   // Try with mp4 format filter first for small info payload and direct stream URL
   let result = await runYtDlp(['--dump-json', '-f', '18/best[ext=mp4]', url]);
@@ -1607,12 +1944,13 @@ ipcMain.on('download-clip', (event, { url, quality, startTime, endTime, format }
   }
 
   args.push(url);
+  const finalArgs = appendYtDlpCookieArgs(args);
 
   win.webContents.send('download-status', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Starting download for section ${startTime}-${endTime} in ${formatLabel} format...`);
   
   const ytDlpPath = getYtDlpPath();
   const downloadStartedAt = Date.now();
-  const ytProcess = spawn(ytDlpPath, args);
+  const ytProcess = spawn(ytDlpPath, finalArgs);
   let finalPath = '';
 
   ytProcess.stdout.on('data', (data) => {
@@ -2504,11 +2842,12 @@ ipcMain.on('scan-youtube-url', async (event, url) => {
     args.push('--ffmpeg-location', localBinDir);
   }
   args.push(url);
+  const finalArgs = appendYtDlpCookieArgs(args);
 
   const ytDlpPath = getYtDlpPath();
   const downloadStartedAt = Date.now();
   
-  const ytProcess = spawn(ytDlpPath, args);
+  const ytProcess = spawn(ytDlpPath, finalArgs);
   let finalPath = '';
   let stderrData = '';
   let hasSentError = false;
