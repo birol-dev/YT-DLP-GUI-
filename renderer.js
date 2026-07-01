@@ -650,7 +650,8 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     acrcloudHost: document.getElementById('settings-acrcloud-host').value.trim() || 'identify-us-west-2.acrcloud.com',
     acoustidScanInterval: parseInt(document.getElementById('settings-scan-interval').value, 10),
     cookiesFromBrowser: document.getElementById('settings-cookies-browser').value,
-    cookiesBrowserProfile: document.getElementById('settings-cookies-profile').value.trim().replace(/^["']|["']$/g, '')
+    cookiesBrowserProfile: document.getElementById('settings-cookies-profile').value.trim().replace(/^["']|["']$/g, ''),
+    ytDlpChannel: document.getElementById('settings-ytdlp-channel').value
   };
 
   const success = await window.electronAPI.saveSettings(newSettings);
@@ -674,6 +675,9 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     // Display nice animated visual feedback
     const indicator = document.getElementById('settings-save-indicator');
     indicator.style.display = 'inline-flex';
+      await refreshYtDlpChannelInfo();
+      await updateYtDlpChannelHintLabels();
+    await updateYtDlpChannelHintLabels();
     setTimeout(() => {
       indicator.style.display = 'none';
     }, 3000);
@@ -735,6 +739,119 @@ function hideCookiesTestStatus() {
     statusEl.innerHTML = '';
     statusEl.className = 'cookies-test-status';
   }
+}
+
+function renderYtDlpChannelStatus(result, isLoading = false) {
+  const statusEl = document.getElementById('ytdlp-channel-status');
+  const switchBtn = document.getElementById('btn-switch-ytdlp-channel');
+  if (!statusEl) return;
+
+  statusEl.style.display = 'block';
+  statusEl.className = 'cookies-test-status';
+
+  if (isLoading) {
+    statusEl.classList.add('testing');
+    statusEl.innerHTML = `
+      <div class="cookies-test-status-title">Switching yt-dlp channel...</div>
+      <div class="cookies-test-status-detail">Downloading or updating the selected build. This may take up to a minute.</div>
+    `;
+    if (switchBtn) {
+      switchBtn.disabled = true;
+      switchBtn.textContent = 'Switching...';
+    }
+    return;
+  }
+
+  if (switchBtn) {
+    switchBtn.disabled = false;
+    switchBtn.textContent = 'Switch Channel Now';
+  }
+
+  if (!result) return;
+
+  statusEl.classList.add(result.level || (result.ok ? 'success' : 'error'));
+
+  let html = `<div class="cookies-test-status-title">${escapeHtml(result.message || 'Channel switch finished.')}</div>`;
+  if (result.detail) {
+    html += `<div class="cookies-test-status-detail">${escapeHtml(result.detail)}</div>`;
+  }
+  if (result.tip) {
+    html += `<div class="cookies-test-status-tip">${escapeHtml(result.tip)}</div>`;
+  }
+  statusEl.innerHTML = html;
+}
+
+async function refreshYtDlpChannelInfo() {
+  const infoEl = document.getElementById('ytdlp-channel-info');
+  if (!infoEl || !window.electronAPI.getYtDlpInfo) return;
+
+  try {
+    const info = await window.electronAPI.getYtDlpInfo();
+    if (!info.available) {
+      infoEl.textContent = 'yt-dlp is not installed locally yet. It will be downloaded on first use or when you switch channels.';
+      return;
+    }
+
+    const installedChannel = info.installedChannel || info.channel || 'unknown';
+    const selectedChannel = document.getElementById('settings-ytdlp-channel')?.value || info.channel || 'master';
+    const mismatch = installedChannel && selectedChannel && installedChannel !== selectedChannel;
+    infoEl.textContent = mismatch
+      ? `Installed: ${installedChannel} (${info.version || 'unknown'}) — selected ${selectedChannel}. Click Switch Channel Now to apply.`
+      : `Installed: ${installedChannel} (${info.version || 'unknown'})${info.local ? '' : ' via system PATH'}`;
+  } catch (err) {
+    infoEl.textContent = 'Could not read yt-dlp version info.';
+  }
+}
+
+const btnSwitchYtDlpChannel = document.getElementById('btn-switch-ytdlp-channel');
+if (btnSwitchYtDlpChannel) {
+  btnSwitchYtDlpChannel.addEventListener('click', async () => {
+    const channel = document.getElementById('settings-ytdlp-channel')?.value || 'master';
+    renderYtDlpChannelStatus(null, true);
+    try {
+      const result = await window.electronAPI.switchYtDlpChannel(channel);
+      renderYtDlpChannelStatus(result);
+      if (result?.ok) {
+        currentSettings = {
+          ...currentSettings,
+          ytDlpChannel: result.targetChannel || channel,
+          ytDlpInstalledChannel: result.channel,
+          ytDlpInstalledVersion: result.version
+        };
+      }
+      await refreshYtDlpChannelInfo();
+      await updateYtDlpChannelHintLabels();
+    } catch (err) {
+      renderYtDlpChannelStatus({
+        ok: false,
+        level: 'error',
+        message: 'Channel switch could not be completed.',
+        tip: err.message || 'Try again in a moment.'
+      });
+    }
+  });
+}
+
+const ytDlpChannelSelect = document.getElementById('settings-ytdlp-channel');
+if (ytDlpChannelSelect) {
+  ytDlpChannelSelect.addEventListener('change', () => {
+    refreshYtDlpChannelInfo();
+  });
+}
+
+if (window.electronAPI.onYtDlpChannelChanged) {
+  window.electronAPI.onYtDlpChannelChanged((data) => {
+    if (data?.channel) {
+      currentSettings = {
+        ...currentSettings,
+        ytDlpInstalledChannel: data.channel,
+        ytDlpInstalledVersion: data.version,
+        ytDlpChannel: data.targetChannel || data.channel
+      };
+    }
+    refreshYtDlpChannelInfo();
+    updateYtDlpChannelHintLabels();
+  });
 }
 
 const btnTestCookies = document.getElementById('btn-test-cookies');
@@ -802,6 +919,97 @@ if (btnResetOnboarding) {
 }
 
 // Dynamically update video/audio tab descriptions based on current format settings
+const YTDLP_HINT_TABS = [
+  { tabId: 'video-tab' },
+  { tabId: 'audio-tab' },
+  { tabId: 'instagram-tab', variant: 'instagram' },
+  { tabId: 'subtitles-tab' },
+  { tabId: 'clipper-tab' },
+  { tabId: 'musicfinder-tab' },
+  { tabId: 'divider-tab' },
+  { tabId: 'browser-tab', placement: 'toolbar' }
+];
+
+function getYtDlpHintMessage(variant) {
+  if (variant === 'instagram') {
+    return 'If Instagram downloads fail, switch yt-dlp builds in Settings. Try <strong>Master</strong> first, then <strong>Nightly</strong> or <strong>Stable</strong> if needed.';
+  }
+  return 'If downloads fail, open Settings and try another yt-dlp build: <strong>Stable</strong>, <strong>Nightly</strong>, or <strong>Master</strong>.';
+}
+
+function openYtDlpChannelSettings() {
+  const settingsBtn = document.querySelector('.nav-btn[data-tab="settings-tab"]');
+  if (settingsBtn) settingsBtn.click();
+  setTimeout(() => {
+    const channelSelect = document.getElementById('settings-ytdlp-channel');
+    channelSelect?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    channelSelect?.focus();
+  }, 120);
+}
+
+function createYtDlpChannelHint(variant = 'default') {
+  const hint = document.createElement('div');
+  hint.className = 'ytdlp-channel-hint';
+  hint.setAttribute('role', 'note');
+  hint.innerHTML = `
+    <svg class="ytdlp-channel-hint-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>
+    <div class="ytdlp-channel-hint-body">
+      <span class="ytdlp-channel-hint-message">${getYtDlpHintMessage(variant)}</span>
+      <span class="ytdlp-channel-hint-current" data-ytdlp-hint-current>Checking installed yt-dlp...</span>
+    </div>
+    <button type="button" class="ytdlp-channel-hint-link">Open Settings</button>
+  `;
+  hint.querySelector('.ytdlp-channel-hint-link')?.addEventListener('click', openYtDlpChannelSettings);
+  return hint;
+}
+
+function initYtDlpChannelHints() {
+  YTDLP_HINT_TABS.forEach(({ tabId, variant, placement }) => {
+    const tab = document.getElementById(tabId);
+    if (!tab || tab.querySelector('.ytdlp-channel-hint')) return;
+
+    const hint = createYtDlpChannelHint(variant);
+
+    if (placement === 'toolbar') {
+      const toolbar = tab.querySelector('#browser-toolbar');
+      toolbar?.insertAdjacentElement('afterend', hint);
+      return;
+    }
+
+    const cardHeader = tab.querySelector('.card .card-header');
+    cardHeader?.insertAdjacentElement('afterend', hint);
+  });
+
+  updateYtDlpChannelHintLabels();
+}
+
+async function updateYtDlpChannelHintLabels() {
+  const labels = document.querySelectorAll('[data-ytdlp-hint-current]');
+  if (!labels.length) return;
+
+  let info = {
+    channel: currentSettings?.ytDlpChannel || 'master',
+    installedChannel: currentSettings?.ytDlpInstalledChannel || '',
+    version: currentSettings?.ytDlpInstalledVersion || ''
+  };
+
+  try {
+    if (window.electronAPI.getYtDlpInfo) {
+      info = await window.electronAPI.getYtDlpInfo();
+    }
+  } catch {
+    // Keep settings fallback.
+  }
+
+  const installedChannel = info.installedChannel || info.channel || 'unknown';
+  const versionSuffix = info.version ? ` (${info.version})` : '';
+  const text = `Currently installed: ${installedChannel}${versionSuffix}`;
+
+  labels.forEach((el) => {
+    el.textContent = text;
+  });
+}
+
 function updateTabDescriptions(settings) {
   const videoFormat = settings.videoFormat || 'mp4';
   const audioFormat = settings.audioFormat || 'mp3';
@@ -864,6 +1072,8 @@ async function initSettingsUI() {
     document.getElementById('settings-auto-open').checked = !!currentSettings.autoOpenFolder;
     document.getElementById('settings-cookies-browser').value = currentSettings.cookiesFromBrowser || '';
     document.getElementById('settings-cookies-profile').value = currentSettings.cookiesBrowserProfile || '';
+    document.getElementById('settings-ytdlp-channel').value = currentSettings.ytDlpChannel || 'master';
+    refreshYtDlpChannelInfo();
     const mfService = currentSettings.musicFinderService || 'acoustid';
     document.getElementById('settings-musicfinder-service').value = mfService;
     
@@ -931,6 +1141,7 @@ async function initSettingsUI() {
 
 // Run settings loader
 initSettingsUI();
+initYtDlpChannelHints();
 
 // Open Video / Audio save location buttons in Recents
 const openVideoDirBtn = document.getElementById('btn-open-video-dir');

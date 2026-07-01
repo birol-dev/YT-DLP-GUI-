@@ -971,6 +971,30 @@
                   </div>
                 </div>
 
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                  <h3 class="settings-section-title">yt-dlp Release Channel</h3>
+                  <div class="settings-grid">
+                    <div class="form-group flex-1">
+                      <label for="settings-ytdlp-channel">Release Channel</label>
+                      <select id="settings-ytdlp-channel">
+                        <option value="stable">Stable — tested releases</option>
+                        <option value="nightly">Nightly — daily builds</option>
+                        <option value="master">Master — bleeding edge (Instagram)</option>
+                      </select>
+                      <p class="settings-help">Hot-swap yt-dlp without restarting the app. Master includes browser impersonation required for most Instagram downloads.</p>
+                    </div>
+                  </div>
+                  <div class="cookies-test-panel">
+                    <div class="cookies-test-actions">
+                      <button type="button" id="btn-switch-ytdlp-channel" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">
+                        Switch Channel Now
+                      </button>
+                    </div>
+                    <div id="ytdlp-channel-status" class="cookies-test-status" style="display: none;" role="status" aria-live="polite"></div>
+                    <p id="ytdlp-channel-info" class="settings-help" style="margin-top: 0.75rem; margin-bottom: 0;">Checking installed yt-dlp...</p>
+                  </div>
+                </div>
+
                 <div class="settings-grid" style="margin-top: 1rem;">
                   <div class="form-group flex-1">
                     <label for="settings-cookies-browser">Browser Cookies (yt-dlp)</label>
@@ -1401,9 +1425,12 @@
         onDownloadComplete: (cb) => registerListener('download-complete', cb),
         onDownloadError: (cb) => registerListener('download-error', cb),
         onUpdateLog: (cb) => registerListener('update-log', cb),
+        onYtDlpChannelChanged: (cb) => registerListener('yt-dlp-channel-changed', cb),
         onDependencyStatus: (cb) => registerListener('dependency-status', cb),
-        getSettings: async () => ({ soundEnabled: true }),
+        getSettings: async () => ({ soundEnabled: true, ytDlpChannel: 'master' }),
         saveSettings: async () => {},
+        getYtDlpInfo: async () => ({ available: true, version: 'mock', channel: 'master', installedChannel: 'master', local: true }),
+        switchYtDlpChannel: async (channel) => ({ ok: true, level: 'success', message: `Mock switched to ${channel}`, channel, version: 'mock' }),
         selectFolder: async () => {},
         fetchVideoInfo: async (url) => ({ title: 'Mock YouTube Video', duration: 300 }),
         downloadClip: () => {},

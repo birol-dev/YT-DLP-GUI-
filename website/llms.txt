@@ -20,6 +20,7 @@ YT-DLP GUI is an MIT-licensed Windows/macOS/Linux desktop application for downlo
 - Subtitle download in 13 languages (VTT/SRT)
 - Instagram Reels, posts, and IGTV support
 - Auto-installs yt-dlp and ffmpeg on first launch
+- Hot-swappable yt-dlp channels: stable, nightly, master (Settings)
 - No ads, no telemetry, no account required — downloads run locally
 
 ## Pricing

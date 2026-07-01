@@ -91,10 +91,20 @@ graph TD
 
 The application is fully self-contained and automatically configures its environment:
 
-1. **`yt-dlp`**: Automatically downloaded and setup locally in the application's userData directory on first launch if not already available in the system PATH.
+1. **`yt-dlp`**: Automatically downloaded and setup locally in the application's userData directory on first launch if not already available in the system PATH. You can switch between **Stable**, **Nightly**, and **Master** release channels in Settings without restarting the app.
 2. **`ffmpeg`**: Automatically downloaded, extracted, and setup locally in the application's userData directory on first launch if not already available in the system PATH.
 
 *Note: If you already have these tools installed in your system PATH, the application will detect them automatically and skip downloading.*
+
+### yt-dlp Release Channels
+
+| Channel | When to use |
+|---------|-------------|
+| **Stable** | Default-safe choice for YouTube and general downloads |
+| **Nightly** | Daily builds with the latest extractor patches |
+| **Master** | Required for most Instagram downloads (includes browser impersonation via `curl_cffi`) |
+
+Open **Settings → yt-dlp Release Channel**, pick a channel, then click **Switch Channel Now** or save settings to apply immediately. The status line shows the installed version and whether it matches your selection.
 
 ---
 

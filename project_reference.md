@@ -21,9 +21,30 @@ Most processes follow a standard callback or message payload loop:
 
 ## Native Binary Management
 On startup, `main.js` performs dependency audits for the required binary files. If any binary is missing, the app triggers a setup modal that downloads and extracts zip/tarballs from static repository URLs:
-- **`yt-dlp`**: Downloaded directly from the official releases repository (`yt-dlp.exe` on Windows).
+- **`yt-dlp`**: Downloaded from the user's selected release channel and stored locally in the app `userData/bin` directory.
 - **`ffmpeg`**: Pulled from prebuilt binary releases to handle format conversions, clipping, and video processing tasks.
 - **`fpcalc`**: The Chromaprint fingerprinting utility, downloaded from AcoustID releases and extracted dynamically into the app's local user data binary directory.
+
+### yt-dlp Release Channels
+Users can hot-swap yt-dlp builds from **Settings → yt-dlp Release Channel** without restarting the app.
+
+| Channel | Source | Best for |
+|---------|--------|----------|
+| **Stable** | [yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp/releases) | Maximum reliability; tested releases |
+| **Nightly** | [yt-dlp-nightly-builds](https://github.com/yt-dlp/yt-dlp-nightly-builds/releases) | Latest daily patches |
+| **Master** | [yt-dlp-master-builds](https://github.com/yt-dlp/yt-dlp-master-builds/releases) | Bleeding-edge fixes; required for most Instagram downloads |
+
+**How switching works**
+1. Renderer calls `window.electronAPI.switchYtDlpChannel(channel)` or saves a new channel in Settings.
+2. Main process runs `yt-dlp --update-to <channel>` when a local binary already exists.
+3. If in-place switching fails, the app downloads a fresh binary from the channel's latest release URL.
+4. Settings persist `ytDlpChannel`, `ytDlpInstalledChannel`, and `ytDlpInstalledVersion`.
+5. On launch, `syncYtDlpChannel()` reconciles the installed binary with the saved preference.
+
+**IPC**
+- `get-yt-dlp-info` → returns installed version, selected channel, and local/PATH status
+- `switch-yt-dlp-channel` → performs an immediate channel switch
+- `yt-dlp-channel-changed` → pushed to renderer after a successful switch
 
 ---
 

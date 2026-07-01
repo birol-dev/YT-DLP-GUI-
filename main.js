@@ -38,6 +38,232 @@ function appendYtDlpCookieArgs(args, cookieConfig) {
   return ['--cookies-from-browser', value, ...args];
 }
 
+const YT_DLP_CHANNELS = ['stable', 'nightly', 'master'];
+const YT_DLP_CHANNEL_BASES = {
+  stable: 'https://github.com/yt-dlp/yt-dlp/releases/latest/download',
+  nightly: 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download',
+  master: 'https://github.com/yt-dlp/yt-dlp-master-builds/releases/latest/download'
+};
+
+let ytDlpChannelSwitchInProgress = false;
+
+function normalizeYtDlpChannel(channel) {
+  const normalized = String(channel || 'master').trim().toLowerCase();
+  return YT_DLP_CHANNELS.includes(normalized) ? normalized : 'master';
+}
+
+function getYtDlpBinaryFileName() {
+  if (process.platform === 'win32') return 'yt-dlp.exe';
+  if (process.platform === 'darwin') return 'yt-dlp_macos';
+  return 'yt-dlp';
+}
+
+function getYtDlpDownloadUrl(channel) {
+  const normalized = normalizeYtDlpChannel(channel);
+  const base = YT_DLP_CHANNEL_BASES[normalized];
+  return `${base}/${getYtDlpBinaryFileName()}`;
+}
+
+function parseYtDlpChannelFromOutput(output) {
+  const text = output || '';
+  const match = text.match(/(?:updated yt-dlp to|latest version:|yt-dlp is up to date \()\s*(\w+)@/i);
+  return match ? normalizeYtDlpChannel(match[1]) : '';
+}
+
+function normalizeInstagramUrl(url) {
+  try {
+    const parsed = new URL(url.trim());
+    if (!parsed.hostname.includes('instagram.com') && parsed.hostname !== 'instagr.am') {
+      return url.trim();
+    }
+    parsed.search = '';
+    parsed.hash = '';
+    if (!parsed.pathname.endsWith('/')) {
+      parsed.pathname += '/';
+    }
+    return parsed.toString();
+  } catch {
+    return url.trim();
+  }
+}
+
+function formatInstagramDownloadError(code, stderr, label) {
+  let msg = `[INSTAGRAM ${label}] Download failed with code ${code}`;
+  const combined = (stderr || '').toLowerCase();
+  if (
+    combined.includes('empty media response') ||
+    combined.includes('login required') ||
+    combined.includes('rate-limit')
+  ) {
+    if (!settings.cookiesFromBrowser) {
+      msg += '. Instagram may require login cookies — open Settings and configure Browser Cookies (close the browser first).';
+    } else {
+      msg += '. Close your browser completely and retry, or verify the post opens when logged into Instagram.';
+    }
+    if (normalizeYtDlpChannel(settings.ytDlpChannel) !== 'master') {
+      msg += ' For Instagram without cookies, switch yt-dlp to the Master channel in Settings.';
+    }
+  }
+  return msg;
+}
+
+async function getYtDlpVersionInfo() {
+  if (!fs.existsSync(localYtDlp) && !(await isCommandInPath('yt-dlp'))) {
+    return {
+      available: false,
+      version: '',
+      channel: normalizeYtDlpChannel(settings.ytDlpChannel),
+      installedChannel: settings.ytDlpInstalledChannel || '',
+      local: fs.existsSync(localYtDlp),
+      path: getYtDlpPath()
+    };
+  }
+
+  const versionResult = await runYtDlpProcess(['--version'], false, 15000);
+  const version = (versionResult.stdout || '').trim();
+  return {
+    available: versionResult.code === 0 && !!version,
+    version,
+    channel: normalizeYtDlpChannel(settings.ytDlpChannel),
+    installedChannel: settings.ytDlpInstalledChannel || normalizeYtDlpChannel(settings.ytDlpChannel),
+    local: fs.existsSync(localYtDlp),
+    path: getYtDlpPath()
+  };
+}
+
+async function downloadYtDlpFromChannel(win, channel) {
+  if (!fs.existsSync(localBinDir)) {
+    fs.mkdirSync(localBinDir, { recursive: true });
+  }
+
+  const targetChannel = normalizeYtDlpChannel(channel);
+  const tempPath = `${localYtDlp}.tmp`;
+  await downloadFile(getYtDlpDownloadUrl(targetChannel), tempPath, win, 'yt-dlp');
+
+  if (fs.existsSync(localYtDlp)) {
+    fs.unlinkSync(localYtDlp);
+  }
+  fs.renameSync(tempPath, localYtDlp);
+  makeExecutable(localYtDlp);
+  return targetChannel;
+}
+
+async function switchYtDlpChannel(win, channel, { silent = false } = {}) {
+  const targetChannel = normalizeYtDlpChannel(channel);
+
+  if (ytDlpChannelSwitchInProgress) {
+    return {
+      ok: false,
+      level: 'warning',
+      message: 'A yt-dlp channel switch is already in progress.',
+      channel: targetChannel
+    };
+  }
+
+  ytDlpChannelSwitchInProgress = true;
+  const log = (message) => {
+    if (!silent) {
+      win?.webContents?.send('update-log', message);
+    }
+  };
+
+  try {
+    let installedChannel = targetChannel;
+    let combinedOutput = '';
+
+    if (fs.existsSync(localYtDlp)) {
+      log(`[yt-dlp] Switching to ${targetChannel} channel...`);
+      const updateResult = await runYtDlpProcess(['--update-to', targetChannel], false, 180000);
+      combinedOutput = `${updateResult.stdout}\n${updateResult.stderr}`;
+      const parsedChannel = parseYtDlpChannelFromOutput(combinedOutput);
+      const updateSucceeded = updateResult.code === 0 ||
+        /updated yt-dlp to/i.test(combinedOutput) ||
+        /is up to date/i.test(combinedOutput);
+
+      if (!updateSucceeded) {
+        log(`[yt-dlp] In-place channel switch failed, downloading fresh ${targetChannel} build...`);
+        installedChannel = await downloadYtDlpFromChannel(win, targetChannel);
+      } else if (parsedChannel) {
+        installedChannel = parsedChannel;
+      }
+    } else {
+      log(`[yt-dlp] Downloading ${targetChannel} build...`);
+      installedChannel = await downloadYtDlpFromChannel(win, targetChannel);
+    }
+
+    const versionResult = await runYtDlpProcess(['--version'], false, 15000);
+    const version = (versionResult.stdout || '').trim();
+    if (!version) {
+      throw new Error(cleanYtDlpError(versionResult.stderr) || 'yt-dlp version check failed after channel switch.');
+    }
+
+    saveSettingsInternal({
+      ytDlpChannel: targetChannel,
+      ytDlpInstalledChannel: installedChannel,
+      ytDlpInstalledVersion: version
+    });
+
+    const message = `yt-dlp is now on the ${installedChannel} channel (${version}).`;
+    log(`[yt-dlp] ${message}`);
+    win?.webContents?.send('yt-dlp-channel-changed', {
+      channel: installedChannel,
+      targetChannel,
+      version
+    });
+
+    return {
+      ok: true,
+      level: 'success',
+      message,
+      detail: combinedOutput.trim() || undefined,
+      channel: installedChannel,
+      targetChannel,
+      version
+    };
+  } catch (err) {
+    console.error('Failed to switch yt-dlp channel:', err);
+    const message = `Failed to switch yt-dlp to ${targetChannel}: ${err.message}`;
+    log(`[yt-dlp] ${message}`);
+    return {
+      ok: false,
+      level: 'error',
+      message,
+      tip: 'Check your internet connection and try again.',
+      channel: targetChannel
+    };
+  } finally {
+    ytDlpChannelSwitchInProgress = false;
+  }
+}
+
+async function syncYtDlpChannel(win, { ensureLocal = false, silent = false } = {}) {
+  const targetChannel = normalizeYtDlpChannel(settings.ytDlpChannel);
+
+  if (ensureLocal && !fs.existsSync(localYtDlp)) {
+    return switchYtDlpChannel(win, targetChannel, { silent });
+  }
+
+  if (!fs.existsSync(localYtDlp)) {
+    return false;
+  }
+
+  let installedChannel = settings.ytDlpInstalledChannel || '';
+  if (!installedChannel) {
+    installedChannel = 'stable';
+    const versionResult = await runYtDlpProcess(['--version'], false, 15000);
+    saveSettingsInternal({
+      ytDlpInstalledChannel: installedChannel,
+      ytDlpInstalledVersion: (versionResult.stdout || '').trim()
+    });
+  }
+
+  if (installedChannel !== targetChannel) {
+    return switchYtDlpChannel(win, targetChannel, { silent });
+  }
+
+  return false;
+}
+
 function runYtDlpProcess(args, cookieConfig, timeoutMs = 90000) {
   return new Promise((resolve) => {
     const proc = spawn(getYtDlpPath(), appendYtDlpCookieArgs(args, cookieConfig), {
@@ -739,7 +965,10 @@ function initSettings() {
     musicFinderService: 'acoustid',
     acoustidScanInterval: 90,
     cookiesFromBrowser: '',
-    cookiesBrowserProfile: ''
+    cookiesBrowserProfile: '',
+    ytDlpChannel: 'master',
+    ytDlpInstalledChannel: '',
+    ytDlpInstalledVersion: ''
   };
   
   settings = { ...defaultSettings };
@@ -747,7 +976,11 @@ function initSettings() {
   try {
     if (fs.existsSync(settingsFilePath)) {
       const data = fs.readFileSync(settingsFilePath, 'utf8');
-      settings = { ...defaultSettings, ...JSON.parse(data) };
+      const parsed = JSON.parse(data);
+      settings = { ...defaultSettings, ...parsed };
+      if (!Object.prototype.hasOwnProperty.call(parsed, 'ytDlpChannel')) {
+        settings.ytDlpChannel = 'stable';
+      }
     }
   } catch (err) {
     console.error('Failed to load settings:', err);
@@ -861,13 +1094,7 @@ function getDependencyUrls() {
     fpcalc: ''
   };
 
-  if (process.platform === 'win32') {
-    urls.ytDlp = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
-  } else if (process.platform === 'darwin') {
-    urls.ytDlp = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos';
-  } else {
-    urls.ytDlp = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
-  }
+  urls.ytDlp = getYtDlpDownloadUrl(settings.ytDlpChannel);
 
   const is64 = process.arch === 'x64' || process.arch === 'arm64';
   if (process.platform === 'win32') {
@@ -1018,7 +1245,13 @@ async function setupDependencies(win) {
       }
       fs.renameSync(tempPath, localYtDlp);
       makeExecutable(localYtDlp);
-      
+      const versionResult = await runYtDlpProcess(['--version'], false, 15000);
+      const version = (versionResult.stdout || '').trim();
+      saveSettingsInternal({
+        ytDlpInstalledChannel: normalizeYtDlpChannel(settings.ytDlpChannel),
+        ytDlpInstalledVersion: version
+      });
+
       win.webContents.send('dependency-status', { type: 'download-complete', item: 'yt-dlp' });
     }
 
@@ -1161,6 +1394,7 @@ function createWindow() {
       if (!settings.firstRunComplete || missingDeps) {
         setupDependencies(win);
       } else {
+        await syncYtDlpChannel(win, { silent: true });
         checkUpdates(win);
       }
     }
@@ -1393,8 +1627,28 @@ ipcMain.handle('get-settings', () => {
   return settings;
 });
 
-ipcMain.handle('save-settings', (event, newSettings) => {
-  return saveSettingsInternal(newSettings);
+ipcMain.handle('save-settings', async (event, newSettings) => {
+  const previousChannel = normalizeYtDlpChannel(settings.ytDlpChannel);
+  const saved = saveSettingsInternal(newSettings);
+  if (!saved) return false;
+
+  const nextChannel = normalizeYtDlpChannel(settings.ytDlpChannel);
+  if (nextChannel !== previousChannel) {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    await switchYtDlpChannel(win, nextChannel);
+  }
+  return true;
+});
+
+ipcMain.handle('get-yt-dlp-info', async () => {
+  return getYtDlpVersionInfo();
+});
+
+ipcMain.handle('switch-yt-dlp-channel', async (event, channel) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const targetChannel = normalizeYtDlpChannel(channel || settings.ytDlpChannel);
+  saveSettingsInternal({ ytDlpChannel: targetChannel });
+  return switchYtDlpChannel(win, targetChannel);
 });
 
 ipcMain.handle('get-system-info', () => {
@@ -1719,8 +1973,11 @@ ipcMain.on('download-subtitles', (event, { url, lang }) => {
   });
 });
 
-ipcMain.on('download-instagram', (event, { url, format }) => {
+ipcMain.on('download-instagram', async (event, { url, format }) => {
   const win = BrowserWindow.fromWebContents(event.sender);
+  url = normalizeInstagramUrl(url);
+  await syncYtDlpChannel(win, { ensureLocal: true });
+
   const baseDir = settings.downloadDir || app.getPath('downloads');
   
   let outPath = '';
@@ -1789,6 +2046,7 @@ ipcMain.on('download-instagram', (event, { url, format }) => {
   const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, finalArgs);
   let finalPath = '';
+  let stderrOutput = '';
   
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
@@ -1810,7 +2068,11 @@ ipcMain.on('download-instagram', (event, { url, format }) => {
       if (existMatch) finalPath = existMatch[1].trim();
     }
   });
-  ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
+  ytProcess.stderr.on('data', (data) => {
+    const text = data.toString();
+    stderrOutput += text;
+    win.webContents.send('download-progress', text);
+  });
   ytProcess.on('close', (code) => {
     if (code === 0) {
       const type = format === 'audio' ? 'ig-audio' : 'ig-video';
@@ -1820,7 +2082,9 @@ ipcMain.on('download-instagram', (event, { url, format }) => {
         shell.showItemInFolder(finalPath);
       }
     }
-    else win.webContents.send('download-error', `[INSTAGRAM ${label}] Download failed with code ${code}`);
+    else {
+      win.webContents.send('download-error', formatInstagramDownloadError(code, stderrOutput, label));
+    }
   });
 });
 
