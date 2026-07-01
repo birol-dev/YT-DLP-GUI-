@@ -5,12 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.7.0] - 2026-07-01
 
 ### Added
 - Add hot-swappable yt-dlp release channels in Settings: **Stable**, **Nightly**, and **Master**.
 - Add `Switch Channel Now` control and live installed-version display for yt-dlp.
 - Add IPC handlers `get-yt-dlp-info` and `switch-yt-dlp-channel` for channel management without restarting the app.
+- Add tab-level troubleshooting hints on download tabs pointing users to yt-dlp channel settings when downloads fail.
 
 ### Changed
 - Default yt-dlp channel is **Master** for fresh installs; existing installs keep **Stable** until changed in Settings.
@@ -18,7 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Instagram downloads ensure a local yt-dlp binary is installed on the configured channel before starting.
 
 ### Fixed
-- Add tab-level troubleshooting hints on download tabs pointing users to yt-dlp channel settings when downloads fail.
+- Fix Instagram downloads failing with `empty media response` when the app was using the stable yt-dlp release.
+
+## [1.6.2] - 2026-06-22
+
+_Previous release._
 
 ## [1.5.0] - 2026-06-13
 
