@@ -654,6 +654,14 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     ytDlpChannel: document.getElementById('settings-ytdlp-channel').value
   };
 
+  const oldChannel = currentSettings.ytDlpChannel || 'master';
+  const newChannel = document.getElementById('settings-ytdlp-channel').value;
+  const channelChanged = oldChannel !== newChannel;
+
+  if (channelChanged) {
+    renderYtDlpChannelStatus(null, true);
+  }
+
   const success = await window.electronAPI.saveSettings(newSettings);
   if (success) {
     currentSettings = { ...currentSettings, ...newSettings };
@@ -675,8 +683,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     // Display nice animated visual feedback
     const indicator = document.getElementById('settings-save-indicator');
     indicator.style.display = 'inline-flex';
-      await refreshYtDlpChannelInfo();
-      await updateYtDlpChannelHintLabels();
+    await refreshYtDlpChannelInfo();
     await updateYtDlpChannelHintLabels();
     setTimeout(() => {
       indicator.style.display = 'none';
@@ -841,6 +848,16 @@ if (ytDlpChannelSelect) {
 
 if (window.electronAPI.onYtDlpChannelChanged) {
   window.electronAPI.onYtDlpChannelChanged((data) => {
+    if (data?.ok === false) {
+      renderYtDlpChannelStatus({
+        ok: false,
+        level: 'error',
+        message: data.error || 'Failed to switch channel.',
+        tip: 'Check your internet connection and try again.'
+      });
+      return;
+    }
+
     if (data?.channel) {
       currentSettings = {
         ...currentSettings,
@@ -848,6 +865,12 @@ if (window.electronAPI.onYtDlpChannelChanged) {
         ytDlpInstalledVersion: data.version,
         ytDlpChannel: data.targetChannel || data.channel
       };
+
+      renderYtDlpChannelStatus({
+        ok: true,
+        level: 'success',
+        message: `yt-dlp is now on the ${data.channel} channel (${data.version}).`
+      });
     }
     refreshYtDlpChannelInfo();
     updateYtDlpChannelHintLabels();
@@ -958,8 +981,14 @@ function createYtDlpChannelHint(variant = 'default') {
       <span class="ytdlp-channel-hint-current" data-ytdlp-hint-current>Checking installed yt-dlp...</span>
     </div>
     <button type="button" class="ytdlp-channel-hint-link">Open Settings</button>
+    <button type="button" class="ytdlp-channel-hint-close" aria-label="Close warning">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
   `;
   hint.querySelector('.ytdlp-channel-hint-link')?.addEventListener('click', openYtDlpChannelSettings);
+  hint.querySelector('.ytdlp-channel-hint-close')?.addEventListener('click', () => {
+    hint.remove();
+  });
   return hint;
 }
 
@@ -1221,6 +1250,17 @@ if (btnDepContinue) {
 
 if (depModal) {
   window.electronAPI.onDependencyStatus((data) => {
+    // Check if we need to update the yt-dlp channel switch status details
+    if (data.item === 'yt-dlp' && data.type === 'progress') {
+      const channelStatusEl = document.getElementById('ytdlp-channel-status');
+      if (channelStatusEl && channelStatusEl.style.display !== 'none' && channelStatusEl.classList.contains('testing')) {
+        const detailEl = channelStatusEl.querySelector('.cookies-test-status-detail');
+        if (detailEl) {
+          detailEl.textContent = `Downloading target release binary: ${data.progress}%...`;
+        }
+      }
+    }
+
     const onboardingModal = document.getElementById('onboarding-modal');
     const isOnboardingActive = onboardingModal && onboardingModal.classList.contains('active');
     

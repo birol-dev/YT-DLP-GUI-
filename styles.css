@@ -525,6 +525,27 @@ option {
   background: hsl(var(--secondary) / 0.85);
 }
 
+.ytdlp-channel-hint-close {
+  flex-shrink: 0;
+  align-self: center;
+  background: transparent;
+  border: none;
+  color: hsl(38 92% 62% / 0.85);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: calc(var(--radius) - 4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, color 0.2s;
+  margin-left: 0.5rem;
+}
+
+.ytdlp-channel-hint-close:hover {
+  background-color: hsl(38 92% 50% / 0.15);
+  color: hsl(38 92% 70%);
+}
+
 #browser-tab .ytdlp-channel-hint {
   margin: 0.75rem 0 0;
   border-radius: 0;
