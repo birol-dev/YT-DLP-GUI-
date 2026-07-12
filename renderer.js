@@ -651,6 +651,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     acoustidScanInterval: parseInt(document.getElementById('settings-scan-interval').value, 10),
     cookiesFromBrowser: document.getElementById('settings-cookies-browser').value,
     cookiesBrowserProfile: document.getElementById('settings-cookies-profile').value.trim().replace(/^["']|["']$/g, ''),
+    cookiesFile: document.getElementById('settings-cookies-file-path').value,
     ytDlpChannel: document.getElementById('settings-ytdlp-channel').value
   };
 
@@ -877,19 +878,55 @@ if (window.electronAPI.onYtDlpChannelChanged) {
   });
 }
 
+function updateCookiesSettingsVisibility() {
+  const select = document.getElementById('settings-cookies-browser');
+  if (!select) return;
+  const val = select.value;
+  const profileContainer = document.getElementById('settings-cookies-profile-container');
+  const fileContainer = document.getElementById('settings-cookies-file-container');
+  const browserHelp = document.getElementById('settings-cookies-browser-help');
+
+  if (!val) {
+    if (profileContainer) profileContainer.style.display = 'none';
+    if (fileContainer) fileContainer.style.display = 'none';
+    if (browserHelp) {
+      browserHelp.textContent = 'Pass login cookies from your browser for age-gated or private content.';
+    }
+  } else if (val === 'file') {
+    if (profileContainer) profileContainer.style.display = 'none';
+    if (fileContainer) fileContainer.style.display = 'block';
+    if (browserHelp) {
+      browserHelp.textContent = 'Read cookies from a Netscape cookies text file (.txt). Perfect for locked browsers or advanced logins.';
+    }
+  } else if (val === 'app-browser') {
+    if (profileContainer) profileContainer.style.display = 'none';
+    if (fileContainer) fileContainer.style.display = 'none';
+    if (browserHelp) {
+      browserHelp.textContent = 'Uses cookies from the in-app browser (Browser tab). Navigate to YouTube or Instagram and log in there to authorize.';
+    }
+  } else {
+    if (profileContainer) profileContainer.style.display = 'block';
+    if (fileContainer) fileContainer.style.display = 'none';
+    if (browserHelp) {
+      browserHelp.textContent = `Extract cookies from your local ${val.charAt(0).toUpperCase() + val.slice(1)} browser database. Close the browser completely before testing or downloading.`;
+    }
+  }
+}
+
 const btnTestCookies = document.getElementById('btn-test-cookies');
 if (btnTestCookies) {
   btnTestCookies.addEventListener('click', async () => {
     const browser = document.getElementById('settings-cookies-browser').value;
     const profile = document.getElementById('settings-cookies-profile').value.trim().replace(/^["']|["']$/g, '');
+    const cookiesFile = document.getElementById('settings-cookies-file-path').value;
     const testUrl = document.getElementById('settings-cookies-test-url').value.trim();
 
     if (!browser) {
       renderCookiesTestStatus({
         ok: false,
         level: 'error',
-        message: 'Select a browser before testing cookies.',
-        tip: 'Choose Chrome, Edge, Firefox, or another supported browser from the dropdown.'
+        message: 'Select a browser or cookie option before testing.',
+        tip: 'Choose Chrome, Edge, In-App Browser, or Custom File.'
       });
       return;
     }
@@ -897,14 +934,14 @@ if (btnTestCookies) {
     renderCookiesTestStatus(null, true);
 
     try {
-      const result = await window.electronAPI.testBrowserCookies({ browser, profile, testUrl });
+      const result = await window.electronAPI.testBrowserCookies({ browser, profile, cookiesFile, testUrl });
       renderCookiesTestStatus(result);
     } catch (err) {
       renderCookiesTestStatus({
         ok: false,
         level: 'error',
         message: 'Cookie test could not be completed.',
-        tip: err.message || 'Try again after closing the selected browser.'
+        tip: err.message || 'Check settings, ensure the target browser is closed, or verify the cookies file is valid.'
       });
     }
   });
@@ -913,8 +950,19 @@ if (btnTestCookies) {
 const cookiesBrowserSelect = document.getElementById('settings-cookies-browser');
 if (cookiesBrowserSelect) {
   cookiesBrowserSelect.addEventListener('change', () => {
+    updateCookiesSettingsVisibility();
     if (!cookiesBrowserSelect.value) {
       hideCookiesTestStatus();
+    }
+  });
+}
+
+const btnSelectCookiesFile = document.getElementById('btn-select-cookies-file');
+if (btnSelectCookiesFile) {
+  btnSelectCookiesFile.addEventListener('click', async () => {
+    const filePath = await window.electronAPI.selectCookiesFile();
+    if (filePath) {
+      document.getElementById('settings-cookies-file-path').value = filePath;
     }
   });
 }
@@ -1101,6 +1149,8 @@ async function initSettingsUI() {
     document.getElementById('settings-auto-open').checked = !!currentSettings.autoOpenFolder;
     document.getElementById('settings-cookies-browser').value = currentSettings.cookiesFromBrowser || '';
     document.getElementById('settings-cookies-profile').value = currentSettings.cookiesBrowserProfile || '';
+    document.getElementById('settings-cookies-file-path').value = currentSettings.cookiesFile || '';
+    updateCookiesSettingsVisibility();
     document.getElementById('settings-ytdlp-channel').value = currentSettings.ytDlpChannel || 'master';
     refreshYtDlpChannelInfo();
     const mfService = currentSettings.musicFinderService || 'acoustid';

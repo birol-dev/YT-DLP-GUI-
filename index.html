@@ -1000,6 +1000,8 @@
                     <label for="settings-cookies-browser">Browser Cookies (yt-dlp)</label>
                     <select id="settings-cookies-browser">
                       <option value="">None (default)</option>
+                      <option value="app-browser">In-App Browser (Cookies from Browser tab)</option>
+                      <option value="file">Custom cookies.txt File</option>
                       <option value="chrome">Chrome</option>
                       <option value="edge">Edge</option>
                       <option value="firefox">Firefox</option>
@@ -1008,13 +1010,22 @@
                       <option value="vivaldi">Vivaldi</option>
                       <option value="chromium">Chromium</option>
                     </select>
-                    <p class="settings-help">Pass login cookies from your browser for age-gated or private content. Close the browser completely before testing or downloading.</p>
+                    <p id="settings-cookies-browser-help" class="settings-help">Pass login cookies from your browser for age-gated or private content. Close the browser completely before testing or downloading.</p>
                   </div>
 
-                  <div class="form-group flex-1">
+                  <div class="form-group flex-1" id="settings-cookies-profile-container">
                     <label for="settings-cookies-profile">Browser Profile (optional)</label>
                     <input type="text" id="settings-cookies-profile" placeholder='e.g. "Profile 1"'>
                     <p class="settings-help">Leave blank for the default profile. Use the exact profile name from your browser.</p>
+                  </div>
+
+                  <div class="form-group flex-1" id="settings-cookies-file-container" style="display: none;">
+                    <label>Custom Cookies File (.txt)</label>
+                    <div class="input-with-action">
+                      <input type="text" id="settings-cookies-file-path" readonly placeholder="No file selected" style="cursor: default;">
+                      <button type="button" id="btn-select-cookies-file" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">Browse</button>
+                    </div>
+                    <p class="settings-help">Select a Netscape format cookies text file (.txt) exported from your browser.</p>
                   </div>
                 </div>
 
