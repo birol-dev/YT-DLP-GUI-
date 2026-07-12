@@ -3666,6 +3666,90 @@ ipcMain.handle('browser-clear-data', async () => {
   return false;
 });
 
+function getGifOutputPath(inputPath) {
+  const baseDir = settings.downloadDir || app.getPath('downloads');
+  const gifOutputDir = path.join(baseDir, 'gif-exports');
+  if (!fs.existsSync(gifOutputDir)) {
+    fs.mkdirSync(gifOutputDir, { recursive: true });
+  }
+  const ext = path.extname(inputPath);
+  const baseName = path.basename(inputPath, ext);
+  const sanitized = baseName.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_');
+  const timestamp = Date.now();
+  return path.join(gifOutputDir, `${sanitized}_${timestamp}.gif`);
+}
+
+ipcMain.handle('convert-video-to-gif', async (event, payload) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const { inputPath, fps, width, startTime, endTime } = payload;
+  
+  try {
+    const outputPath = getGifOutputPath(inputPath);
+    const duration = endTime - startTime;
+    let scaleWidth = width;
+    if (width === 'Original' || !width) {
+      scaleWidth = 'iw';
+    }
+    
+    const ffmpegPath = getFfmpegPath();
+    const args = [
+      '-ss', startTime.toString(),
+      '-t', duration.toString(),
+      '-i', inputPath,
+      '-vf', `fps=${fps},scale=${scaleWidth}:-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3`,
+      '-y',
+      outputPath
+    ];
+
+    console.log(`[GIF Conversion] Spawning: ${ffmpegPath} ${args.join(' ')}`);
+    
+    return new Promise((resolve) => {
+      const proc = spawn(ffmpegPath, args, {
+        windowsHide: true
+      });
+      
+      let stderr = '';
+      
+      proc.stderr.on('data', (data) => {
+        const text = data.toString();
+        stderr += text;
+        
+        const progress = parseFfmpegProgress(text, duration);
+        if (progress !== null) {
+          win.webContents.send('gif-progress', Math.min(100, Math.max(0, Math.round(progress))));
+        }
+      });
+      
+      proc.on('close', (code) => {
+        if (code === 0) {
+          const result = { success: true, outputPath };
+          win.webContents.send('gif-finished', result);
+          resolve(result);
+        } else {
+          console.error(`ffmpeg failed with code ${code}. Stderr: ${stderr}`);
+          const errorMsg = `FFmpeg process exited with code ${code}. Stderr: ${stderr.slice(-300)}`;
+          const result = { success: false, error: errorMsg };
+          win.webContents.send('gif-finished', result);
+          resolve(result);
+        }
+      });
+      
+      proc.on('error', (err) => {
+        console.error('ffmpeg spawn error:', err);
+        const errorMsg = `Failed to spawn FFmpeg: ${err.message}`;
+        const result = { success: false, error: errorMsg };
+        win.webContents.send('gif-finished', result);
+        resolve(result);
+      });
+    });
+  } catch (err) {
+    console.error('GIF conversion error:', err);
+    const result = { success: false, error: err.message };
+    win.webContents.send('gif-finished', result);
+    return result;
+  }
+});
+
 ipcMain.on('browser-view-control', (event, action) => {
   if (guestBrowserView) {
     if (action === 'back' && guestBrowserView.webContents.canGoBack()) {

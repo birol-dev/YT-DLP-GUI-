@@ -39,6 +39,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scissors"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
           Video Divider
         </button>
+        <button class="nav-btn" data-tab="gif-tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          Video to GIF
+        </button>
         <button class="nav-btn" data-tab="musicfinder-tab">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-headphones"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
           Music Finder
@@ -769,6 +773,195 @@
                   </div>
 
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIDEO TO GIF TAB -->
+        <section id="gif-tab" class="tab-content h-full">
+          <div class="card h-full flex-col">
+            <div class="card-header">
+              <h2 class="card-title">Video to GIF Converter</h2>
+              <p class="card-description">Convert local video files into high-quality 256-color animated GIFs with custom trim bounds, FPS, and scale.</p>
+            </div>
+            
+            <div class="card-content flex-1 overflow-auto flex-col" style="gap: 1.25rem; display: flex; padding-bottom: 2rem;">
+              
+              <!-- Import Section -->
+              <div id="gif-import-zone" class="flex-col" style="display: flex; gap: 1.25rem;">
+                <!-- Drag and drop zone -->
+                <div id="gif-drop-zone" class="divider-drop-zone">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload-cloud"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m15 15-3-3-3 3"/></svg>
+                  <div>
+                    <p style="font-weight: 500; font-size: 0.95rem; margin-bottom: 4px;">Drag and drop video file here</p>
+                    <p style="font-size: 0.75rem; color: hsl(var(--muted-foreground));">Supports MP4, WebM, MKV, MOV, AVI</p>
+                  </div>
+                  <button id="btn-gif-browse" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">Browse File</button>
+                </div>
+              </div>
+
+              <!-- Loading State -->
+              <div id="gif-loading" class="flex-col" style="display: none; align-items: center; justify-content: center; padding: 4rem 2rem; text-align: center; gap: 1rem; background-color: hsl(var(--card) / 0.5); border: 1px dashed hsl(var(--border)); border-radius: var(--radius); width: 100%;">
+                <div class="loading-spinner" style="width: 40px; height: 40px; border-width: 3px; margin: 0 auto;"></div>
+                <div>
+                  <p style="font-weight: 500; font-size: 0.95rem; margin-bottom: 4px; color: hsl(var(--foreground));">Loading video file...</p>
+                  <p style="font-size: 0.75rem; color: hsl(var(--muted-foreground));">Probing metadata and analyzing stream details</p>
+                </div>
+              </div>
+
+              <!-- GIF Workspace (Hidden until video is loaded) -->
+              <div id="gif-workspace" class="divider-workspace-layout" style="display: none; gap: 1.5rem; min-height: 0; width: 100%;">
+                
+                <!-- Left Column (Sticky Video Player & Scrub Timeline) -->
+                <div class="divider-left-pane">
+                  <!-- Video Player Container -->
+                  <div class="clipper-player-container" style="position: relative; background-color: #000; border-radius: var(--radius); border: 1px solid hsl(var(--border)); display: flex; justify-content: center; align-items: center; aspect-ratio: 16/9; max-height: 280px; overflow: hidden; flex-shrink: 0; width: 100%;">
+                    <video id="gif-video-player" style="width: 100%; height: 100%; max-height: 280px;" preload="auto" controls></video>
+                  </div>
+
+                  <!-- Timeline & Scrubber -->
+                  <div class="clipper-slider-container flex-col" style="gap: 0.5rem; display: flex; flex-shrink: 0; margin-top: 1rem; width: 100%;">
+                    <div class="clipper-slider-wrapper" id="gif-timeline-wrapper" style="position: relative; width: 100%; height: 12px; background-color: hsl(var(--muted)); border-radius: 9999px; cursor: pointer; margin: 10px 0;">
+                      <div id="gif-slider-range" style="position: absolute; height: 100%; background-color: hsl(var(--primary) / 0.3); border-radius: 9999px; left: 0%; width: 100%;"></div>
+                      <div id="gif-slider-playhead" style="position: absolute; width: 4px; height: 20px; background-color: hsl(var(--primary)); border-radius: 2px; top: 50%; transform: translate(-50%, -50%); pointer-events: none; left: 0%; z-index: 3;"></div>
+                      <div id="gif-handle-start" style="position: absolute; width: 16px; height: 16px; background-color: hsl(var(--primary)); border: 2px solid #fff; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; z-index: 4; left: 0%;"></div>
+                      <div id="gif-handle-end" style="position: absolute; width: 16px; height: 16px; background-color: hsl(var(--primary)); border: 2px solid #fff; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; z-index: 4; left: 100%;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: hsl(var(--muted-foreground));">
+                      <span id="gif-label-current-time">00:00:00.000</span>
+                      <span id="gif-label-total-time">00:00:00.000</span>
+                    </div>
+                  </div>
+
+                  <!-- File Specs metadata card -->
+                  <div id="gif-metadata-card" class="card" style="margin-top: 1.25rem; background-color: hsl(var(--card) / 0.4); border-color: hsl(var(--border) / 0.8); padding: 1rem; width: 100%;">
+                    <div style="font-size: 0.75rem; font-weight: 600; color: hsl(var(--muted-foreground)); text-transform: uppercase; margin-bottom: 0.75rem; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: hsl(var(--primary));"><rect width="14" height="14" x="5" y="5" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 21-4.3-4.3"/></svg>
+                      File Specifications
+                    </div>
+                    
+                    <div class="metadata-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem 1rem;">
+                      <div>
+                        <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground));">File Size</div>
+                        <div id="gif-meta-val-size" style="font-size: 0.825rem; font-weight: 500; color: hsl(var(--foreground)); margin-top: 2px;">--</div>
+                      </div>
+                      <div>
+                        <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground));">Resolution</div>
+                        <div id="gif-meta-val-res" style="font-size: 0.825rem; font-weight: 500; color: hsl(var(--foreground)); margin-top: 2px;">--</div>
+                      </div>
+                      <div>
+                        <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground));">FPS</div>
+                        <div id="gif-meta-val-fps" style="font-size: 0.825rem; font-weight: 500; color: hsl(var(--foreground)); margin-top: 2px;">--</div>
+                      </div>
+                      <div>
+                        <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground));">Duration</div>
+                        <div id="gif-meta-val-duration" style="font-size: 0.825rem; font-weight: 500; color: hsl(var(--foreground)); margin-top: 2px;">--</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right Column (Configuration & Conversion Status) -->
+                <div class="divider-right-pane flex-col" style="display: flex; gap: 1.25rem;">
+                  <div class="flex-col" style="display: flex; gap: 1.25rem; flex-shrink: 0; width: 100%;">
+                    <!-- Active Video Title Info -->
+                    <div style="border-bottom: 1px solid hsl(var(--border)); padding-bottom: 0.75rem;">
+                      <div id="gif-video-title" style="font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px;">Video filename.mp4</div>
+                      <div style="display: flex; gap: 8px; margin-top: 6px;">
+                        <span id="gif-video-duration-badge" class="badge">00:00.000</span>
+                        <span id="gif-video-res-badge" class="badge">1920x1080</span>
+                      </div>
+                    </div>
+
+                    <!-- Configuration Form -->
+                    <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+                      <!-- Trim Inputs -->
+                      <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                          <label for="gif-start-time-str">Start Time</label>
+                          <div class="input-with-action">
+                            <input type="text" id="gif-start-time-str" value="00:00:00.000" style="text-align: center; font-family: monospace;">
+                            <button id="btn-gif-set-start" class="btn" style="padding: 0 0.5rem; height: 2rem; min-width: auto; font-size: 0.75rem;" title="Set to current playhead time">Set</button>
+                          </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                          <label for="gif-end-time-str">End Time</label>
+                          <div class="input-with-action">
+                            <input type="text" id="gif-end-time-str" value="00:00:00.000" style="text-align: center; font-family: monospace;">
+                            <button id="btn-gif-set-end" class="btn" style="padding: 0 0.5rem; height: 2rem; min-width: auto; font-size: 0.75rem;" title="Set to current playhead time">Set</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style="display: flex; gap: 10px; width: 100%;">
+                        <button id="btn-gif-go-start" class="btn secondary" style="flex: 1; height: 2rem; font-size: 0.75rem;">Seek Start</button>
+                        <button id="btn-gif-preview-clip" class="btn secondary" style="flex: 2; height: 2rem; font-size: 0.75rem;">Preview Segment</button>
+                        <button id="btn-gif-go-end" class="btn secondary" style="flex: 1; height: 2rem; font-size: 0.75rem;">Seek End</button>
+                      </div>
+
+                      <!-- Resolution Selector -->
+                      <div class="form-group" style="margin-bottom: 0;">
+                        <label for="gif-resolution">Resolution (Width)</label>
+                        <select id="gif-resolution" style="width: 100%; height: 2.25rem;">
+                          <option value="320">320px</option>
+                          <option value="480" selected>480px</option>
+                          <option value="640">640px</option>
+                          <option value="Original">Original</option>
+                        </select>
+                      </div>
+
+                      <!-- Framerate Selector -->
+                      <div class="form-group" style="margin-bottom: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                          <label for="gif-fps" style="margin: 0;">Framerate</label>
+                          <span id="gif-fps-val" style="font-size: 0.75rem; font-weight: 600; color: hsl(var(--primary)); font-family: monospace;">12 FPS</span>
+                        </div>
+                        <input type="range" id="gif-fps" min="10" max="20" value="12" step="1" style="width: 100%; cursor: pointer;">
+                      </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 10px; border-top: 1px solid hsl(var(--border)); padding-top: 1rem; margin-top: 0.5rem; width: 100%;">
+                      <button id="btn-gif-convert" class="btn primary flex-1" style="height: 2.5rem; font-size: 0.85rem; font-weight: 600;">Convert to GIF</button>
+                      <button id="btn-gif-reset" class="btn" style="height: 2.5rem; font-size: 0.85rem; font-weight: 600; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border));">Reset</button>
+                    </div>
+
+                    <!-- Progress and Stats Status Component -->
+                    <div id="gif-status-container" style="display: none; flex-direction: column; gap: 0.75rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 1rem; background-color: hsl(var(--card) / 0.5); width: 100%;">
+                      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 500;">
+                        <span id="gif-status-title">Converting video...</span>
+                        <span id="gif-progress-percent" style="font-family: monospace;">0%</span>
+                      </div>
+                      <!-- Progress bar -->
+                      <div class="progress-bar-container" style="height: 8px; background-color: hsl(var(--muted)); border-radius: 9999px; overflow: hidden; width: 100%;">
+                        <div id="gif-progress-bar" style="height: 100%; width: 0%; background-color: hsl(var(--primary)); transition: width 0.1s ease;"></div>
+                      </div>
+                    </div>
+
+                    <!-- Success / Results Panel -->
+                    <div id="gif-results-container" style="display: none; flex-direction: column; gap: 0.75rem; border: 1px solid hsl(var(--primary) / 0.3); border-radius: var(--radius); padding: 1.25rem; background-color: hsl(var(--primary) / 0.03); width: 100%;">
+                      <div style="display: flex; align-items: center; gap: 8px; color: hsl(var(--primary)); font-weight: 600; font-size: 0.9rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        Export Successful!
+                      </div>
+                      <div style="font-size: 0.75rem; color: hsl(var(--muted-foreground)); word-break: break-all;">
+                        Saved to: <span id="gif-result-path" style="font-weight: 500; color: hsl(var(--foreground));"></span>
+                      </div>
+                      <button id="btn-gif-open-folder" class="btn" style="height: 2.25rem; font-size: 0.8rem; font-weight: 600; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2A2 2 0 0 0 12 6h6a2 2 0 0 1 2 2v2"/></svg>
+                        Open in Folder
+                      </button>
+                    </div>
+
+                    <!-- Localized error banner -->
+                    <div id="gif-error-zone" style="display: none; border: 1px solid hsl(var(--destructive) / 0.3); border-radius: var(--radius); padding: 0.75rem 1rem; background-color: hsl(var(--destructive) / 0.05); color: hsl(var(--destructive)); font-size: 0.8rem; line-height: 1.4; width: 100%;">
+                      <strong>Conversion Error:</strong> <span id="gif-error-msg"></span>
+                    </div>
+
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
