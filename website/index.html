@@ -503,19 +503,31 @@
               <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: hsl(var(--primary)); margin-bottom: 0.75rem;">Step 1 of 2: Select Divide Mode</div>
               <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-bottom: 1rem; width: 100%;">
                 <div style="border: 1px solid hsl(var(--primary)); background: hsl(var(--primary) / 0.05); border-radius: 6px; padding: 0.5rem; text-align: left; font-size: 0.75rem;">
-                  <strong style="color: hsl(var(--foreground));">⚡ Fast Split</strong>
+                  <strong class="mock-mode-label" style="color: hsl(var(--foreground));">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+                    Fast Split
+                  </strong>
                   <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground)); opacity: 0.9; margin-top: 2px;">Instant keyframe split</div>
                 </div>
                 <div style="border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: 6px; padding: 0.5rem; text-align: left; font-size: 0.75rem; opacity: 0.8;">
-                  <strong style="color: hsl(var(--foreground));">🎯 Precise Split</strong>
+                  <strong class="mock-mode-label" style="color: hsl(var(--foreground));">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                    Precise Split
+                  </strong>
                   <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground)); opacity: 0.9; margin-top: 2px;">Frame-accurate re-encode</div>
                 </div>
                 <div style="border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: 6px; padding: 0.5rem; text-align: left; font-size: 0.75rem; opacity: 0.8;">
-                  <strong style="color: hsl(var(--foreground));">📊 Equal Chunks</strong>
+                  <strong class="mock-mode-label" style="color: hsl(var(--foreground));">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16v-3"/><path d="M12 16V8"/><path d="M17 16v-6"/></svg>
+                    Equal Chunks
+                  </strong>
                   <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground)); opacity: 0.9; margin-top: 2px;">Segment equal parts</div>
                 </div>
                 <div style="border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: 6px; padding: 0.5rem; text-align: left; font-size: 0.75rem; opacity: 0.8;">
-                  <strong style="color: hsl(var(--foreground));">🖼️ Spatial Crop</strong>
+                  <strong class="mock-mode-label" style="color: hsl(var(--foreground));">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+                    Spatial Crop
+                  </strong>
                   <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground)); opacity: 0.9; margin-top: 2px;">Crop Left/Right/Top/Bottom</div>
                 </div>
               </div>
@@ -550,7 +562,9 @@
               </div>
               <div style="display: flex; flex-direction: column; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 10px; padding: 0.5rem; border: 1px solid hsl(var(--border)); border-radius: 6px;">
-                  <div style="width: 36px; height: 36px; border-radius: 4px; background: hsl(var(--muted)); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: hsl(var(--muted-foreground));">🎵</div>
+                  <div class="mock-track-art" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                  </div>
                   <div style="flex: 1; text-align: left;">
                     <div style="font-size: 0.75rem; font-weight: 600; text-align: left;">Never Gonna Give You Up</div>
                     <div style="font-size: 0.65rem; color: hsl(var(--muted-foreground)); text-align: left;">Rick Astley</div>

@@ -818,6 +818,29 @@ img {
   color: hsl(var(--foreground) / 0.9);
 }
 
+.mock-mode-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.mock-mode-label svg {
+  flex-shrink: 0;
+}
+
+.mock-track-art {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .feature-list li svg {
   color: hsl(var(--primary));
   flex-shrink: 0;
