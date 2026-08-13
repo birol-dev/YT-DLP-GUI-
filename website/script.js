@@ -294,6 +294,22 @@
     updateUI();
   }
 
+  function initYouTubeFacade() {
+    document.querySelectorAll('.yt-facade[data-youtube-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-youtube-id');
+        if (!id) return;
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`;
+        iframe.title = btn.getAttribute('aria-label') || 'YouTube video';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+        iframe.setAttribute('allowfullscreen', '');
+        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+        btn.replaceWith(iframe);
+      });
+    });
+  }
+
   initTheme();
   bindThemeControls();
   bindMobileNav();
@@ -302,4 +318,5 @@
   initActiveNav();
   initClipperDemo();
   initSettingsRecentsMock();
+  initYouTubeFacade();
 })();

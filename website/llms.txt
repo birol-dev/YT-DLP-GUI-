@@ -8,28 +8,34 @@ YT-DLP GUI is an MIT-licensed Windows/macOS/Linux desktop application for downlo
 
 ## Who it's for
 
-- Video editors who need Premiere-ready MP4, WAV, or SRT/VTT subtitles
+- Video editors who need Premiere-ready MP4, WAV, SRT/VTT subtitles, or GIF exports
 - Content creators downloading YouTube and Instagram reference clips
-- Power users who want yt-dlp reliability with a GUI, live terminal output, and auto-installed dependencies
+- Power users who want yt-dlp reliability with a GUI, live terminal output, cookie/session support, and auto-installed dependencies
 
 ## Key features
 
 - Video downloads up to 4K (MP4, MKV, WebM)
 - Audio extraction: MP3 320kbps, M4A, WAV 24-bit, FLAC
 - Built-in video clipper with in/out markers
+- Video divider: fast split, precise split, equal chunks, spatial crop
+- Video-to-GIF converter with trim, FPS, and scale controls
 - Subtitle download in 13 languages (VTT/SRT)
 - Instagram Reels, posts, and IGTV support
+- Music Finder via AcoustID and ACRCloud
+- In-app browser and cookie passthrough for authenticated downloads
 - Auto-installs yt-dlp and ffmpeg on first launch
 - Hot-swappable yt-dlp channels: stable, nightly, master (Settings)
 - No ads, no telemetry, no account required — downloads run locally
 
 ## Pricing
 
-Free. MIT License. No subscription. See pricing.md for details.
+Free. MIT License. No subscription. See https://ytdlpgui.birol.tech/pricing.html and pricing.md for details.
 
 ## Links
 
 - Website: https://ytdlpgui.birol.tech/
+- Pricing: https://ytdlpgui.birol.tech/pricing.html
+- Privacy: https://ytdlpgui.birol.tech/privacy.html
 - Source code: https://github.com/birol-dev/YT-DLP-GUI-
 - Releases (Windows installer): https://github.com/birol-dev/YT-DLP-GUI-/releases
 - License: https://github.com/birol-dev/YT-DLP-GUI-/blob/main/LICENSE
@@ -37,4 +43,4 @@ Free. MIT License. No subscription. See pricing.md for details.
 
 ## Version
 
-1.7.0 (as of July 2026)
+1.8.1 (as of August 2026)

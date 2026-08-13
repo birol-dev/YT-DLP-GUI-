@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.classList.add('js');</script>
+  <title>Privacy Policy | YT-DLP GUI</title>
+  <meta name="description" content="YT-DLP GUI privacy policy: no telemetry, no accounts, local downloads. Optional weather uses Open-Meteo and ipapi.co only if you enable it.">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="birol-dev">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://ytdlpgui.birol.tech/privacy.html">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta property="og:site_name" content="YT-DLP GUI">
+  <meta property="og:title" content="Privacy Policy | YT-DLP GUI">
+  <meta property="og:description" content="No telemetry, no accounts, local downloads. Read how YT-DLP GUI handles data.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://ytdlpgui.birol.tech/privacy.html">
+  <meta property="og:image" content="https://ytdlpgui.birol.tech/assets/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Privacy Policy | YT-DLP GUI">
+  <meta name="twitter:description" content="No telemetry, no accounts, local downloads.">
+  <meta name="twitter:image" content="https://ytdlpgui.birol.tech/assets/og-image.jpg">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" sizes="180x180">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"></noscript>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <header class="site-nav" role="banner">
+    <div class="container nav-inner">
+      <a href="/" class="nav-logo" aria-label="YT-DLP GUI home">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+        YT-DLP GUI
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-links" id="nav-links">
+          <li><a href="/#what-is">Overview</a></li>
+          <li><a href="/#features">Features</a></li>
+          <li><a href="/#faq">FAQ</a></li>
+          <li><a href="pricing.html">Pricing</a></li>
+        </ul>
+      </nav>
+      <div class="nav-actions">
+        <a href="https://github.com/birol-dev/YT-DLP-GUI-/releases" class="btn primary">Download</a>
+        <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-links">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content" class="subpage-main">
+    <article class="container prose">
+      <h1>Privacy Policy</h1>
+      <p class="legal-meta">Last updated: <time datetime="2026-08-13">August 13, 2026</time> · Applies to the YT-DLP GUI desktop app and this website</p>
+
+      <p>YT-DLP GUI is built so your media stays on your machine. We do not run a download cloud, we do not require an account, and we do not sell data.</p>
+
+      <h2>What we do not collect</h2>
+      <ul>
+        <li>No telemetry, crash analytics, or advertising identifiers in the desktop app</li>
+        <li>No user accounts, mailing lists, or login walls</li>
+        <li>Download URLs are not uploaded to ytdlpgui.birol.tech</li>
+      </ul>
+
+      <h2>What stays on your computer</h2>
+      <p>Recents history, theme, save paths, and related preferences are stored locally (application storage / localStorage). You can clear them by deleting app data or using Recents controls in the app.</p>
+      <p>yt-dlp and ffmpeg binaries install into your user data directory on first launch unless they already exist on your PATH.</p>
+
+      <h2>Optional weather widget</h2>
+      <p>If you enable the weather widget during onboarding or in Settings, the app may call Open-Meteo for forecast data and ipapi.co to estimate city from IP when no location is typed. Disable the widget and those requests stop. This website does not embed that widget.</p>
+
+      <h2>This marketing website</h2>
+      <p>The site is a static page. Cloudflare Web Analytics may collect privacy-friendly, cookie-free visit counts. Theme choice can be saved in your browser's localStorage under <code>ytdlp-gui-theme</code>.</p>
+
+      <h2>Third-party services you choose to use</h2>
+      <p>GitHub hosts source, releases, and issues. YouTube, Instagram, AcoustID, ACRCloud, and similar providers have their own terms when you fetch media or identify songs. Use only content you have the right to access.</p>
+
+      <h2>Contact</h2>
+      <p>Questions about privacy: open an issue at <a href="https://github.com/birol-dev/YT-DLP-GUI-/issues">GitHub Issues</a>.</p>
+    </article>
+  </main>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": "https://ytdlpgui.birol.tech/privacy.html#webpage",
+        "url": "https://ytdlpgui.birol.tech/privacy.html",
+        "name": "Privacy Policy | YT-DLP GUI",
+        "dateModified": "2026-08-13",
+        "isPartOf": { "@id": "https://ytdlpgui.birol.tech/#website" },
+        "about": { "@id": "https://ytdlpgui.birol.tech/#software" },
+        "breadcrumb": {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ytdlpgui.birol.tech/" },
+            { "@type": "ListItem", "position": 2, "name": "Privacy Policy", "item": "https://ytdlpgui.birol.tech/privacy.html" }
+          ]
+        }
+      }
+    ]
+  }
+  </script>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="container">
+      <div class="footer-bottom">
+        <span><a href="/">YT-DLP GUI</a> · <a href="pricing.html">Pricing</a> · MIT License &copy; 2026</span>
+        <p class="footer-disclaimer">Only download content you have the right to access.</p>
+      </div>
+    </div>
+  </footer>
+  <script src="script.js"></script>
+</body>
+</html>

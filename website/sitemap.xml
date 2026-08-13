@@ -1,20 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://ytdlpgui.birol.tech/</loc>
-    <lastmod>2026-06-09</lastmod>
-    <changefreq>monthly</changefreq>
+    <lastmod>2026-08-13</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://ytdlpgui.birol.tech/assets/og-image.jpg</image:loc>
+      <image:title>YT-DLP GUI — Free YouTube Downloader for Editors</image:title>
+      <image:caption>Open-source desktop YouTube downloader with Premiere-ready H.264 MP4 output</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://ytdlpgui.birol.tech/pricing.md</loc>
-    <lastmod>2026-06-09</lastmod>
+    <loc>https://ytdlpgui.birol.tech/pricing.html</loc>
+    <lastmod>2026-08-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://ytdlpgui.birol.tech/privacy.html</loc>
+    <lastmod>2026-08-13</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.4</priority>
   </url>
   <url>
     <loc>https://ytdlpgui.birol.tech/llms.txt</loc>
-    <lastmod>2026-06-09</lastmod>
+    <lastmod>2026-08-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>

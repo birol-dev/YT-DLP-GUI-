@@ -1,7 +1,17 @@
 # YT-DLP GUI marketing site
-# Allow all crawlers including AI search bots (GPTBot, PerplexityBot, ClaudeBot, Google-Extended)
+# Allow search crawlers and AI citation bots.
+# Machine-readable files: /llms.txt (product summary), /pricing.md (pricing for agents)
 
 User-agent: *
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
 Allow: /
 
 User-agent: GPTBot
@@ -20,6 +30,9 @@ User-agent: anthropic-ai
 Allow: /
 
 User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot
 Allow: /
 
 Sitemap: https://ytdlpgui.birol.tech/sitemap.xml
