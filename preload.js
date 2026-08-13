@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   continueAnyway: () => ipcRenderer.send('continue-anyway'),
   downloadSubtitles: (data) => ipcRenderer.send('download-subtitles', data),
   openFolder: (filePath) => ipcRenderer.send('open-folder', filePath),
+  openFile: (filePath) => ipcRenderer.send('open-file', filePath),
   openDownloadFolder: (type) => ipcRenderer.send('open-download-folder', type),
   startFileDrag: (filePath) => ipcRenderer.send('start-file-drag', filePath),
   openExternalUrl: (url) => ipcRenderer.send('open-external-url', url),

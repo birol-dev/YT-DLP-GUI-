@@ -1806,17 +1806,63 @@ app.on('window-all-closed', () => {
   }
 });
 
-// IPC Handlers
-ipcMain.on('start-file-drag', (event, filePath) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || !filePath || !fs.existsSync(filePath)) return;
+// Native file drag-out (Recents → Explorer / Premiere Pro)
+// Docs: https://www.electronjs.org/docs/latest/tutorial/native-file-drag-drop
+// webContents.startDrag requires a non-empty icon (empty NativeImage no-ops on
+// Windows and is invalid on macOS). Video/audio paths cannot be used as icons.
+const FILE_DRAG_ICON_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+let cachedFileDragIconPath = '';
 
-  let icon = nativeImage.createFromPath(filePath);
-  if (icon.isEmpty()) {
-    icon = nativeImage.createEmpty();
+function normalizeExistingFilePath(filePath) {
+  if (!filePath || typeof filePath !== 'string') return '';
+  const normalized = path.normalize(filePath.trim().replace(/^["']+|["']+$/g, ''));
+  return fs.existsSync(normalized) ? normalized : '';
+}
+
+function getFileDragIconPath() {
+  if (cachedFileDragIconPath && fs.existsSync(cachedFileDragIconPath)) {
+    return cachedFileDragIconPath;
   }
 
-  win.webContents.startDrag({ file: filePath, icon });
+  const dest = path.join(app.getPath('temp'), 'ytdlp-gui-drag-icon.png');
+  const sources = [
+    path.join(__dirname, 'website', 'assets', 'favicon-32.png'),
+    path.join(__dirname, 'website', 'assets', 'icon.png'),
+  ];
+
+  for (const src of sources) {
+    try {
+      if (!fs.existsSync(src)) continue;
+      const image = nativeImage.createFromBuffer(fs.readFileSync(src));
+      if (image.isEmpty()) continue;
+      fs.writeFileSync(dest, image.resize({ width: 32, height: 32 }).toPNG());
+      cachedFileDragIconPath = dest;
+      return dest;
+    } catch (err) {
+      console.error('Failed to prepare drag icon from', src, err);
+    }
+  }
+
+  const fallback = nativeImage.createFromDataURL(FILE_DRAG_ICON_PNG).resize({ width: 32, height: 32 });
+  fs.writeFileSync(dest, fallback.toPNG());
+  cachedFileDragIconPath = dest;
+  return dest;
+}
+
+// IPC Handlers
+ipcMain.on('start-file-drag', (event, filePath) => {
+  const resolved = normalizeExistingFilePath(filePath);
+  if (!resolved) return;
+
+  try {
+    event.sender.startDrag({
+      file: resolved,
+      icon: getFileDragIconPath(),
+    });
+  } catch (err) {
+    console.error('startDrag failed:', err);
+  }
 });
 
 ipcMain.on('open-external-url', (_event, url) => {
@@ -1828,11 +1874,12 @@ ipcMain.on('open-external-url', (_event, url) => {
 ipcMain.on('open-folder', (event, filePath) => {
   if (filePath) {
     try {
-      if (fs.existsSync(filePath)) {
-        shell.showItemInFolder(filePath);
+      const resolved = normalizeExistingFilePath(filePath);
+      if (resolved) {
+        shell.showItemInFolder(resolved);
       } else {
         // Fallback if file itself was moved or deleted - try opening containing folder
-        const dirPath = path.dirname(filePath);
+        const dirPath = path.dirname(String(filePath).replace(/^["']+|["']+$/g, ''));
         if (fs.existsSync(dirPath)) {
           shell.openPath(dirPath);
         }
@@ -1841,6 +1888,14 @@ ipcMain.on('open-folder', (event, filePath) => {
       console.error('Failed to open item in folder:', err);
     }
   }
+});
+
+ipcMain.on('open-file', (_event, filePath) => {
+  const resolved = normalizeExistingFilePath(filePath);
+  if (!resolved) return;
+  shell.openPath(resolved).catch((err) => {
+    console.error('Failed to open file:', err);
+  });
 });
 
 ipcMain.on('open-download-folder', (event, type) => {

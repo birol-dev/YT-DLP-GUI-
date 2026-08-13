@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Double-click a Recents thumbnail to open the downloaded file in the default application.
+
+### Fixed
+- Fix Recents thumbnail drag-out to Explorer and Premiere Pro by supplying a non-empty 32×32 PNG icon to `webContents.startDrag`, matching Electron's native file drag-and-drop docs. The previous code used `nativeImage.createFromPath` on the video/audio file and fell back to `createEmpty()`, which makes `startDrag` no-op.
+- Fix Recents thumbnail click/double-click doing nothing after a drag attempt. Electron does not fire `dragend` after the required `preventDefault()` on `dragstart`, so the old `didDrag` flag stayed true and swallowed later clicks.
+
 ## [1.7.0] - 2026-07-01
 
 ### Added

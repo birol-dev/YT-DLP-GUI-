@@ -333,28 +333,39 @@ option {
   background-color: hsl(var(--muted) / 0.3);
 }
 
+.recent-thumb-drag {
+  width: 120px;
+  height: 68px;
+  flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
+}
+
+.recent-thumb-drag:active {
+  cursor: grabbing;
+}
+
+.recent-thumb-drag img,
+.recent-thumb-drag svg {
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
 .recent-thumbnail {
   width: 120px;
   height: 68px;
   border-radius: calc(var(--radius) - 4px);
   background-color: hsl(var(--muted));
   object-fit: cover;
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: hsl(var(--muted-foreground));
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   border: 1px solid transparent;
-  cursor: pointer;
-}
-
-.recent-thumbnail[draggable="true"] {
-  cursor: grab;
-}
-
-.recent-thumbnail[draggable="true"]:active {
-  cursor: grabbing;
+  pointer-events: none;
 }
 
 .progress-substatus {

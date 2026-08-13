@@ -1,12 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 200" fill="none">
-  <rect x="160" y="25" width="52" height="24" rx="12" fill="#ef4444" fill-opacity="0.15" stroke="#ef4444" stroke-opacity="0.4" transform="rotate(8 186 37)"/>
-  <text x="172" y="41" font-family="monospace" font-size="11" fill="#ef4444" fill-opacity="0.65" transform="rotate(8 186 37)">.SRT</text>
-  <rect x="190" y="70" width="52" height="24" rx="12" fill="#ef4444" fill-opacity="0.12" stroke="#ef4444" stroke-opacity="0.35" transform="rotate(-6 216 82)"/>
-  <text x="202" y="86" font-family="monospace" font-size="11" fill="#ef4444" fill-opacity="0.55" transform="rotate(-6 216 82)">.VTT</text>
-  <rect x="150" y="115" width="52" height="24" rx="12" fill="#ef4444" fill-opacity="0.1" stroke="#ef4444" stroke-opacity="0.3" transform="rotate(4 176 127)"/>
-  <text x="160" y="131" font-family="monospace" font-size="11" fill="#ef4444" fill-opacity="0.45" transform="rotate(4 176 127)">.SUB</text>
-  <rect x="175" y="155" width="60" height="24" rx="12" fill="#ef4444" fill-opacity="0.08" stroke="#ef4444" stroke-opacity="0.25" transform="rotate(-10 205 167)"/>
-  <text x="183" y="171" font-family="monospace" font-size="10" fill="#ef4444" fill-opacity="0.35" transform="rotate(-10 205 167)">.ASS</text>
-  <path d="M60 140 Q100 100 140 130 Q170 150 200 120" stroke="#ef4444" stroke-opacity="0.2" stroke-width="1.5" stroke-dasharray="4 4" fill="none"/>
-  <text x="55" y="175" font-size="10" fill="#ef4444" fill-opacity="0.3">Which format?</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" fill="none" aria-hidden="true">
+  <rect x="84" y="28" width="80" height="34" rx="17" stroke="#ef4444" stroke-width="2" stroke-opacity="0.55"/>
+  <rect x="44" y="76" width="80" height="34" rx="17" stroke="#ef4444" stroke-width="2" stroke-opacity="0.32"/>
+  <rect x="116" y="118" width="80" height="34" rx="17" stroke="#ef4444" stroke-width="2" stroke-opacity="0.22"/>
+  <path d="M104 62c-8 8-18 14-26 18" stroke="#ef4444" stroke-width="1.75" stroke-linecap="round" stroke-dasharray="4 6" stroke-opacity="0.35"/>
+  <path d="M128 112c8-6 20-6 32-6" stroke="#ef4444" stroke-width="1.75" stroke-linecap="round" stroke-dasharray="4 6" stroke-opacity="0.28"/>
+  <path d="M112 45h24" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-opacity="0.4"/>
+  <path d="M68 93h28" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-opacity="0.25"/>
+  <path d="M140 135h28" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-opacity="0.18"/>
 </svg>

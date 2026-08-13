@@ -20,7 +20,7 @@ A premium, open-source desktop application that wraps the powerful `yt-dlp` comm
 - 🎨 **Shadcn-Inspired Design**: A sleek, fully responsive true dark-mode dashboard featuring modern glassmorphism elements, Lucide UI icons, and smooth micro-animations.
 - ⚡ **Asynchronous Background Checkers**: Instant verification of `yt-dlp` updates and `ffmpeg` availability on application launch, keeping the UI fully interactive.
 - 🕒 **Cached Recents History**: Locally cached history (via `localStorage`) showing active YouTube thumbnails fetched dynamically from video IDs.
-- 📁 **Direct Folder Navigation**: Instantly reveal downloaded items in Windows Explorer with a single click on history thumbnails.
+- 📁 **Direct Folder Navigation**: Click a Recents thumbnail to reveal the file in Explorer, double-click to open it, or drag it into Premiere Pro and other editors.
 
 ---
 
