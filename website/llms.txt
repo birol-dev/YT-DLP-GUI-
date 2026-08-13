@@ -43,4 +43,4 @@ Free. MIT License. No subscription. See https://ytdlpgui.birol.tech/pricing.html
 
 ## Version
 
-1.8.1 (as of August 2026)
+1.8.2 (as of August 2026)

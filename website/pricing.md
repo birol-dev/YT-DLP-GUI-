@@ -2,7 +2,7 @@
 
 - HTML page: https://ytdlpgui.birol.tech/pricing.html
 - Last updated: 2026-08-13
-- Current version: 1.8.1
+- Current version: 1.8.2
 
 ## Summary
 
