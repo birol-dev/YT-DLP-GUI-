@@ -1182,6 +1182,9 @@
                       <button type="button" id="btn-switch-ytdlp-channel" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">
                         Switch Channel Now
                       </button>
+                      <button type="button" id="btn-force-update-ytdlp" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.25rem;">
+                        Force Update yt-dlp
+                      </button>
                     </div>
                     <div id="ytdlp-channel-status" class="cookies-test-status" style="display: none;" role="status" aria-live="polite"></div>
                     <p id="ytdlp-channel-info" class="settings-help" style="margin-top: 0.75rem; margin-bottom: 0;">Checking installed yt-dlp...</p>
@@ -1637,6 +1640,7 @@
         saveSettings: async () => {},
         getYtDlpInfo: async () => ({ available: true, version: 'mock', channel: 'master', installedChannel: 'master', local: true }),
         switchYtDlpChannel: async (channel) => ({ ok: true, level: 'success', message: `Mock switched to ${channel}`, channel, version: 'mock' }),
+        forceUpdateYtDlp: async (channel) => ({ ok: true, level: 'success', message: `Mock force-updated ${channel}`, channel, version: 'mock' }),
         selectFolder: async () => {},
         fetchVideoInfo: async (url) => ({ title: 'Mock YouTube Video', duration: 300 }),
         downloadClip: () => {},

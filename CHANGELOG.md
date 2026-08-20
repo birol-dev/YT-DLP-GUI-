@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.3] - 2026-08-20
+
+### Added
+- Add **Force Update yt-dlp** button on the Settings panel with live progress, status badges, and direct binary download.
+- Add seamless **Settings Auto-Save** with instant saving for dropdowns, checkboxes, sliders, and accent themes, plus debounced auto-save for text inputs.
+- Add animated auto-save indicator status feedback in the Settings card.
+- Add `force-update-yt-dlp` IPC handler and expose `forceUpdateYtDlp` in preload.
+
+### Fixed
+- Make yt-dlp build hot-swapping between `Stable`, `Nightly`, and `Master` foolproof, eliminating Windows file lock (`EBUSY`/`EPERM`) crashes during binary replacement using atomic swapping with exponential backoff retries.
+- Fix version and release channel inspection to accurately detect build types across all GitHub release tags.
+- Fix settings saving blocking on channel downloads by decoupling config saves from binary replacement operations.
+
 ## [1.8.2] - 2026-08-13
 
 ### Added

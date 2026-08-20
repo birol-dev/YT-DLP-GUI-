@@ -25,8 +25,8 @@ On startup, `main.js` performs dependency audits for the required binary files. 
 - **`ffmpeg`**: Pulled from prebuilt binary releases to handle format conversions, clipping, and video processing tasks.
 - **`fpcalc`**: The Chromaprint fingerprinting utility, downloaded from AcoustID releases and extracted dynamically into the app's local user data binary directory.
 
-### yt-dlp Release Channels
-Users can hot-swap yt-dlp builds from **Settings → yt-dlp Release Channel** without restarting the app.
+### yt-dlp Release Channels & Binary Management
+Users can hot-swap yt-dlp builds from **Settings → yt-dlp Release Channel** without restarting the app, and force-update builds at any time.
 
 | Channel | Source | Best for |
 |---------|--------|----------|
@@ -34,17 +34,18 @@ Users can hot-swap yt-dlp builds from **Settings → yt-dlp Release Channel** wi
 | **Nightly** | [yt-dlp-nightly-builds](https://github.com/yt-dlp/yt-dlp-nightly-builds/releases) | Latest daily patches |
 | **Master** | [yt-dlp-master-builds](https://github.com/yt-dlp/yt-dlp-master-builds/releases) | Bleeding-edge fixes; required for most Instagram downloads |
 
-**How switching works**
-1. Renderer calls `window.electronAPI.switchYtDlpChannel(channel)` or saves a new channel in Settings.
-2. Main process runs `yt-dlp --update-to <channel>` when a local binary already exists.
-3. If in-place switching fails, the app downloads a fresh binary from the channel's latest release URL.
-4. Settings persist `ytDlpChannel`, `ytDlpInstalledChannel`, and `ytDlpInstalledVersion`.
-5. On launch, `syncYtDlpChannel()` reconciles the installed binary with the saved preference.
+**How Hot-Swapping & Force Updates Work**
+1. **Direct Clean Downloads**: The application downloads the authentic release binary directly from the respective GitHub channel release URL (`yt-dlp/yt-dlp`, `yt-dlp-nightly-builds`, or `yt-dlp-master-builds`), completely bypassing yt-dlp CLI internal updater quirks and version downgrade restrictions.
+2. **Atomic Windows-Safe Binary Replacement**: Binary swapping utilizes `replaceLocalBinary` with exponential backoff retries to handle Windows OS / antivirus executable locks (`EPERM`, `EBUSY`), staging replacements via temporary binaries and backups (`.old_<timestamp>`) with zero data loss.
+3. **Verification**: Newly installed binaries are inspected via `yt-dlp -v` / `--version` to accurately resolve version strings and channel signatures.
+4. **Force Update**: A dedicated **Force Update yt-dlp** action enables re-downloading and reinstalling the latest release for the active channel on demand.
+5. **Persistence**: Settings automatically persist `ytDlpChannel`, `ytDlpInstalledChannel`, and `ytDlpInstalledVersion`.
 
 **IPC**
-- `get-yt-dlp-info` → returns installed version, selected channel, and local/PATH status
-- `switch-yt-dlp-channel` → performs an immediate channel switch
-- `yt-dlp-channel-changed` → pushed to renderer after a successful switch
+- `get-yt-dlp-info` → returns installed version, selected channel, installed channel, and local/PATH status
+- `switch-yt-dlp-channel` → performs an immediate foolproof channel switch
+- `force-update-yt-dlp` → forcefully downloads and reinstalls the latest release build for the selected channel
+- `yt-dlp-channel-changed` → pushed to renderer after a successful switch or force update
 
 ---
 
@@ -138,6 +139,7 @@ Slices any audio/video target locally to search and identify songs against eithe
 
 ### Settings Management
 Settings are stored locally in `settings.json` within the app's `userData` folder.
+- **Auto-Save**: All setting controls (download folders, video/audio formats, default qualities, theme colors, notification sounds, weather location, and API keys) auto-save seamlessly in real-time with debouncing for text inputs and immediate persist for dropdowns, toggles, and buttons.
 - Key properties include download directories, default media qualities, interface themes, and the user's local AcoustID API Key (`acoustidKey`).
 
 ### Weather Widget

@@ -13,7 +13,8 @@ A premium, open-source desktop application that wraps the powerful `yt-dlp` comm
 - 💬 **Subtitle Extraction**: Download YouTube closed-captions and standard subtitles in English and other languages instantly without downloading the video itself.
 - ✂️ **Video Divider Wizard**: Split local videos or remote YouTube streams into custom clips. Features four split modes (Fast keyframe copy, Precise frame-accurate re-encode, Equal length segments, and Spatial canvas cropping to Left/Right/Top/Bottom halves) with a 2-step wizard flow and an interactive drag-to-scrub timeline player.
 - 📊 **Probed File Specifications Card**: Renders granular video details (file size, resolution, aspect ratio, frame rate, video codec, audio codec, and absolute file path) dynamically in the side pane, fully updated upon load and cleared upon reset.
-- ⚙️ **Persistent Application Settings**: Dynamically change and persist your base save locations, pre-selected default video qualities, preferred subtitle languages, and preferred output container and codec formats, with dynamic tab card descriptions reflecting your active selections.
+- ⚙️ **Real-Time Settings Auto-Save**: All changes in Settings (base save locations, pre-selected video qualities, subtitle languages, container/codec formats, theme colors, notification sounds, and API keys) auto-save automatically in real-time.
+- 🔄 **yt-dlp Hot-Swapping & Force Update**: Easily switch between **Stable**, **Nightly**, and **Master** builds with zero app restarts, or use the **Force Update yt-dlp** button to forcefully reinstall the latest release build anytime.
 - 🎨 **Dynamic Theme Accent Palettes**: Re-theme the entire application instantly with one of six curated color scheme styles (Silver, YouTube Red, Cyan Spark, Emerald, Velvet Purple, and Gold Mine) featuring dynamic CSS variables.
 - 🔊 **Dynamic Sound Synthesizer**: Premium double-tone completion chimes synthesized dynamically in real-time using the Web Audio API on successful downloads.
 - 📂 **Auto-Reveal Downloads**: Optional setting to automatically open the download folder in Windows Explorer and highlight the file once the download completes.
@@ -104,7 +105,7 @@ The application is fully self-contained and automatically configures its environ
 | **Nightly** | Daily builds with the latest extractor patches |
 | **Master** | Required for most Instagram downloads (includes browser impersonation via `curl_cffi`) |
 
-Open **Settings → yt-dlp Release Channel**, pick a channel, then click **Switch Channel Now** or save settings to apply immediately. The status line shows the installed version and whether it matches your selection.
+Open **Settings → yt-dlp Release Channel**, pick a channel, then click **Switch Channel Now** to hot-swap immediately or **Force Update yt-dlp** to reinstall the latest build. The status line displays the active installed version and whether it matches your selection.
 
 ---
 

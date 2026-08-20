@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testBrowserCookies: (data) => ipcRenderer.invoke('test-browser-cookies', data),
   getYtDlpInfo: () => ipcRenderer.invoke('get-yt-dlp-info'),
   switchYtDlpChannel: (channel) => ipcRenderer.invoke('switch-yt-dlp-channel', channel),
+  forceUpdateYtDlp: (channel) => ipcRenderer.invoke('force-update-yt-dlp', channel),
   onDownloadStatus: (callback) => ipcRenderer.on('download-status', (_event, value) => callback(value)),
   onDownloadProgress: (callback) => ipcRenderer.on('download-progress', (_event, value) => callback(value)),
   onDownloadComplete: (callback) => ipcRenderer.on('download-complete', (_event, value) => callback(value)),

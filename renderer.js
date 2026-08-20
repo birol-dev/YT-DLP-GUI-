@@ -587,6 +587,51 @@ function playSuccessChime() {
   } catch (err) {
     console.error('Failed to play success chime:', err);
   }
+// Settings Variables and State
+let currentSettings = {};
+let selectedAccent = 'default';
+let autoSaveTimer = null;
+let isAutoSaving = false;
+let isInitializingSettingsUI = false;
+
+// Success Sound Synthesizer
+function playSuccessChime() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // First tone (C5)
+    const osc1 = audioCtx.createOscillator();
+    const gain1 = audioCtx.createGain();
+    
+    osc1.connect(gain1);
+    gain1.connect(audioCtx.destination);
+    
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+    gain1.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+    
+    osc1.start(audioCtx.currentTime);
+    osc1.stop(audioCtx.currentTime + 0.3);
+    
+    // Second tone (E5, delayed by 0.1s)
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    
+    osc2.connect(gain2);
+    gain2.connect(audioCtx.destination);
+    
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
+    gain2.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain2.gain.setValueAtTime(0.08, audioCtx.currentTime + 0.1);
+    gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+    
+    osc2.start(audioCtx.currentTime + 0.1);
+    osc2.stop(audioCtx.currentTime + 0.5);
+  } catch (err) {
+    console.error('Failed to play success chime:', err);
+  }
 }
 
 // Apply Theme
@@ -603,29 +648,48 @@ document.querySelectorAll('.theme-option').forEach(btn => {
     
     // Instant live preview
     applyTheme(selectedAccent);
+    triggerAutoSave(0);
   });
 });
 
 // Select folder browser
-document.getElementById('btn-select-dir').addEventListener('click', async () => {
+document.getElementById('btn-select-dir')?.addEventListener('click', async () => {
   const dirPath = await window.electronAPI.selectFolder();
   if (dirPath) {
     document.getElementById('settings-save-dir').value = dirPath;
+    triggerAutoSave(0);
   }
 });
 
 // Reset folder browser to default
-document.getElementById('btn-reset-dir').addEventListener('click', () => {
+document.getElementById('btn-reset-dir')?.addEventListener('click', () => {
   document.getElementById('settings-save-dir').value = '';
+  triggerAutoSave(0);
 });
 
-// Save settings handler
-document.getElementById('btn-save-settings').addEventListener('click', async () => {
-  const settingsCityInputVal = document.getElementById('settings-weather-city').value.trim();
+function showSaveIndicator(message = 'Settings saved!', isSuccess = true) {
+  const indicator = document.getElementById('settings-save-indicator');
+  if (!indicator) return;
   
-  let lat = null;
-  let lon = null;
-  let city = '';
+  indicator.innerHTML = isSuccess
+    ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${escapeHtml(message)}`
+    : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ${escapeHtml(message)}`;
+  
+  indicator.style.color = isSuccess ? '#22c55e' : '#ef4444';
+  indicator.style.display = 'inline-flex';
+  
+  if (indicator._timeout) clearTimeout(indicator._timeout);
+  indicator._timeout = setTimeout(() => {
+    indicator.style.display = 'none';
+  }, 2500);
+}
+
+function collectCurrentSettingsFromUI() {
+  const settingsCityInputVal = document.getElementById('settings-weather-city')?.value.trim() || '';
+  
+  let lat = currentSettings.weatherLat ?? null;
+  let lon = currentSettings.weatherLon ?? null;
+  let city = currentSettings.weatherCity || '';
   
   if (settingsCityInputVal) {
     if (settingsCityData && settingsCityData.name === settingsCityInputVal) {
@@ -633,106 +697,162 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
       lat = settingsCityData.lat;
       lon = settingsCityData.lon;
     } else {
-      // User typed something but didn't select from autocomplete list, or it's a different value
-      if (settingsCityInputVal.length >= 2) {
-        try {
-          const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(settingsCityInputVal)}&count=1&language=en&format=json`);
-          const data = await res.json();
-          if (data.results && data.results.length > 0) {
-            const firstCity = data.results[0];
-            const region = firstCity.admin1 ? `, ${firstCity.admin1}` : '';
-            const country = firstCity.country ? `, ${firstCity.country}` : '';
-            city = `${firstCity.name}${region}${country}`;
-            lat = firstCity.latitude;
-            lon = firstCity.longitude;
-            // Update settingsCityData to match the geocoded city
-            settingsCityData = { name: city, lat, lon };
-            // Update input value with fully formatted name
-            document.getElementById('settings-weather-city').value = city;
-          } else {
-            // Geocoding returned no results, fallback to previous settings
-            city = currentSettings.weatherCity || '';
-            lat = currentSettings.weatherLat;
-            lon = currentSettings.weatherLon;
-          }
-        } catch (e) {
-          console.error('Failed to geocode settings location:', e);
-          city = currentSettings.weatherCity || '';
-          lat = currentSettings.weatherLat;
-          lon = currentSettings.weatherLon;
-        }
-      } else {
-        city = currentSettings.weatherCity || '';
-        lat = currentSettings.weatherLat;
-        lon = currentSettings.weatherLon;
-      }
+      city = settingsCityInputVal;
     }
   } else {
-    // If input is cleared, set coordinates to null to trigger dynamic IP estimation
-    settingsCityData = { name: '', lat: null, lon: null };
+    city = '';
+    lat = null;
+    lon = null;
   }
 
-  const newSettings = {
-    downloadDir: document.getElementById('settings-save-dir').value,
-    defaultQuality: document.getElementById('settings-default-quality').value,
-    defaultSubLang: document.getElementById('settings-default-sublang').value,
-    videoFormat: document.getElementById('settings-video-format').value,
-    audioFormat: document.getElementById('settings-audio-format').value,
-    accentColor: selectedAccent,
-    soundEnabled: document.getElementById('settings-sound-enabled').checked,
-    autoOpenFolder: document.getElementById('settings-auto-open').checked,
-    userName: document.getElementById('settings-user-name').value.trim(),
+  return {
+    downloadDir: document.getElementById('settings-save-dir')?.value || '',
+    defaultQuality: document.getElementById('settings-default-quality')?.value || '1080',
+    defaultSubLang: document.getElementById('settings-default-sublang')?.value || 'en',
+    videoFormat: document.getElementById('settings-video-format')?.value || 'mp4',
+    audioFormat: document.getElementById('settings-audio-format')?.value || 'mp3',
+    accentColor: selectedAccent || 'default',
+    soundEnabled: !!document.getElementById('settings-sound-enabled')?.checked,
+    autoOpenFolder: !!document.getElementById('settings-auto-open')?.checked,
+    userName: document.getElementById('settings-user-name')?.value.trim() || '',
     weatherCity: city,
     weatherLat: lat,
     weatherLon: lon,
-    tempFormat: document.getElementById('settings-temp-format').value,
-    musicFinderService: document.getElementById('settings-musicfinder-service').value,
-    acoustidKey: document.getElementById('settings-acoustid-key').value.trim(),
-    acrcloudKey: document.getElementById('settings-acrcloud-key').value.trim(),
-    acrcloudSecret: document.getElementById('settings-acrcloud-secret').value.trim(),
-    acrcloudHost: document.getElementById('settings-acrcloud-host').value.trim() || 'identify-us-west-2.acrcloud.com',
-    acoustidScanInterval: parseInt(document.getElementById('settings-scan-interval').value, 10),
-    cookiesFromBrowser: document.getElementById('settings-cookies-browser').value,
-    cookiesBrowserProfile: document.getElementById('settings-cookies-profile').value.trim().replace(/^["']|["']$/g, ''),
-    cookiesFile: document.getElementById('settings-cookies-file-path').value,
-    ytDlpChannel: document.getElementById('settings-ytdlp-channel').value
+    tempFormat: document.getElementById('settings-temp-format')?.value || 'fahrenheit',
+    musicFinderService: document.getElementById('settings-musicfinder-service')?.value || 'acoustid',
+    acoustidKey: document.getElementById('settings-acoustid-key')?.value.trim() || '',
+    acrcloudKey: document.getElementById('settings-acrcloud-key')?.value.trim() || '',
+    acrcloudSecret: document.getElementById('settings-acrcloud-secret')?.value.trim() || '',
+    acrcloudHost: document.getElementById('settings-acrcloud-host')?.value.trim() || 'identify-us-west-2.acrcloud.com',
+    acoustidScanInterval: parseInt(document.getElementById('settings-scan-interval')?.value || '90', 10),
+    cookiesFromBrowser: document.getElementById('settings-cookies-browser')?.value || '',
+    cookiesBrowserProfile: document.getElementById('settings-cookies-profile')?.value.trim().replace(/^["']|["']$/g, '') || '',
+    cookiesFile: document.getElementById('settings-cookies-file-path')?.value || '',
+    ytDlpChannel: document.getElementById('settings-ytdlp-channel')?.value || currentSettings.ytDlpChannel || 'master',
+    dismissedYtDlpChannelHint: !!(currentSettings.dismissedYtDlpChannelHint || (typeof localStorage !== 'undefined' && localStorage.getItem('dismissedYtDlpChannelHint') === 'true'))
   };
+}
 
-  const oldChannel = currentSettings.ytDlpChannel || 'master';
-  const newChannel = document.getElementById('settings-ytdlp-channel').value;
-  const channelChanged = oldChannel !== newChannel;
+async function performSaveSettings(isManual = false) {
+  if (isAutoSaving || isInitializingSettingsUI) return;
+  isAutoSaving = true;
 
-  if (channelChanged) {
-    renderYtDlpChannelStatus(null, true);
+  try {
+    const newSettings = collectCurrentSettingsFromUI();
+    const success = await window.electronAPI.saveSettings(newSettings);
+
+    if (success) {
+      currentSettings = { ...currentSettings, ...newSettings };
+
+      // Instantly update copywriting descriptions
+      updateTabDescriptions(currentSettings);
+
+      // Instantly update main panel options if present
+      if (document.getElementById('video-quality')) {
+        document.getElementById('video-quality').value = currentSettings.defaultQuality || '1080';
+      }
+      if (document.getElementById('subs-lang')) {
+        document.getElementById('subs-lang').value = currentSettings.defaultSubLang || 'en';
+      }
+
+      await refreshYtDlpChannelInfo();
+      await updateYtDlpChannelHintLabels();
+
+      showSaveIndicator(isManual ? 'Settings saved!' : 'All changes auto-saved', true);
+    } else {
+      showSaveIndicator('Failed to save settings', false);
+    }
+  } catch (err) {
+    console.error('Settings save error:', err);
+    showSaveIndicator('Save error: ' + (err.message || 'Unknown'), false);
+  } finally {
+    isAutoSaving = false;
+  }
+}
+
+function triggerAutoSave(debounceMs = 0) {
+  if (isInitializingSettingsUI) return;
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
   }
 
-  const success = await window.electronAPI.saveSettings(newSettings);
-  if (success) {
-    currentSettings = { ...currentSettings, ...newSettings };
-    
-    // Instantly update copywriting descriptions
-    updateTabDescriptions(currentSettings);
-    
-    // Instantly update main panel options
-    if (document.getElementById('video-quality')) {
-      document.getElementById('video-quality').value = currentSettings.defaultQuality || '1080';
-    }
-    if (document.getElementById('subs-lang')) {
-      document.getElementById('subs-lang').value = currentSettings.defaultSubLang || 'en';
-    }
-
-    // Instantly update dashboard greeting & weather
-    initAppDashboard();
-
-    // Display nice animated visual feedback
-    const indicator = document.getElementById('settings-save-indicator');
-    indicator.style.display = 'inline-flex';
-    await refreshYtDlpChannelInfo();
-    await updateYtDlpChannelHintLabels();
-    setTimeout(() => {
-      indicator.style.display = 'none';
-    }, 3000);
+  if (debounceMs > 0) {
+    autoSaveTimer = setTimeout(() => {
+      performSaveSettings(false);
+    }, debounceMs);
+  } else {
+    performSaveSettings(false);
   }
+}
+
+// Bind settings auto-save on all setting form controls
+[
+  'settings-temp-format',
+  'settings-default-quality',
+  'settings-default-sublang',
+  'settings-video-format',
+  'settings-audio-format',
+  'settings-cookies-browser',
+  'settings-musicfinder-service',
+  'settings-ytdlp-channel'
+].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('change', () => {
+      if (id === 'settings-cookies-browser') updateCookiesSettingsVisibility();
+      if (id === 'settings-musicfinder-service') toggleCredentialsContainers(el.value);
+      if (id === 'settings-ytdlp-channel') refreshYtDlpChannelInfo();
+      triggerAutoSave(0);
+    });
+  }
+});
+
+[
+  'settings-sound-enabled',
+  'settings-auto-open'
+].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('change', () => triggerAutoSave(0));
+  }
+});
+
+[
+  'settings-user-name',
+  'settings-weather-city',
+  'settings-cookies-profile',
+  'settings-acoustid-key',
+  'settings-acrcloud-key',
+  'settings-acrcloud-secret',
+  'settings-acrcloud-host'
+].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', () => triggerAutoSave(400));
+    el.addEventListener('change', () => triggerAutoSave(0));
+  }
+});
+
+const scanIntervalSlider = document.getElementById('settings-scan-interval');
+if (scanIntervalSlider) {
+  scanIntervalSlider.addEventListener('input', (e) => {
+    const val = e.target.value;
+    const label = document.getElementById('label-scan-interval-val');
+    if (label) label.textContent = `${val}s`;
+    const mfInput = document.getElementById('musicfinder-scan-interval');
+    if (mfInput) mfInput.value = val;
+    const mfLabel = document.getElementById('label-musicfinder-scan-interval-val');
+    if (mfLabel) mfLabel.textContent = `${val}s`;
+  });
+  scanIntervalSlider.addEventListener('change', () => {
+    triggerAutoSave(0);
+  });
+}
+
+// Manual Save button handler
+document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
+  await performSaveSettings(true);
 });
 
 function escapeHtml(text) {
@@ -792,9 +912,10 @@ function hideCookiesTestStatus() {
   }
 }
 
-function renderYtDlpChannelStatus(result, isLoading = false) {
+function renderYtDlpChannelStatus(result, isLoading = false, actionType = 'switch') {
   const statusEl = document.getElementById('ytdlp-channel-status');
   const switchBtn = document.getElementById('btn-switch-ytdlp-channel');
+  const forceBtn = document.getElementById('btn-force-update-ytdlp');
   if (!statusEl) return;
 
   statusEl.style.display = 'block';
@@ -802,13 +923,18 @@ function renderYtDlpChannelStatus(result, isLoading = false) {
 
   if (isLoading) {
     statusEl.classList.add('testing');
+    const actionTitle = actionType === 'force' ? 'Forcefully updating yt-dlp...' : 'Switching yt-dlp build...';
     statusEl.innerHTML = `
-      <div class="cookies-test-status-title">Switching yt-dlp channel...</div>
-      <div class="cookies-test-status-detail">Downloading or updating the selected build. This may take up to a minute.</div>
+      <div class="cookies-test-status-title">${actionTitle}</div>
+      <div class="cookies-test-status-detail">Downloading and installing the latest release binary. This may take a moment.</div>
     `;
     if (switchBtn) {
       switchBtn.disabled = true;
       switchBtn.textContent = 'Switching...';
+    }
+    if (forceBtn) {
+      forceBtn.disabled = true;
+      forceBtn.textContent = 'Updating...';
     }
     return;
   }
@@ -817,12 +943,16 @@ function renderYtDlpChannelStatus(result, isLoading = false) {
     switchBtn.disabled = false;
     switchBtn.textContent = 'Switch Channel Now';
   }
+  if (forceBtn) {
+    forceBtn.disabled = false;
+    forceBtn.textContent = 'Force Update yt-dlp';
+  }
 
   if (!result) return;
 
   statusEl.classList.add(result.level || (result.ok ? 'success' : 'error'));
 
-  let html = `<div class="cookies-test-status-title">${escapeHtml(result.message || 'Channel switch finished.')}</div>`;
+  let html = `<div class="cookies-test-status-title">${escapeHtml(result.message || 'Operation completed.')}</div>`;
   if (result.detail) {
     html += `<div class="cookies-test-status-detail">${escapeHtml(result.detail)}</div>`;
   }
@@ -858,10 +988,10 @@ const btnSwitchYtDlpChannel = document.getElementById('btn-switch-ytdlp-channel'
 if (btnSwitchYtDlpChannel) {
   btnSwitchYtDlpChannel.addEventListener('click', async () => {
     const channel = document.getElementById('settings-ytdlp-channel')?.value || 'master';
-    renderYtDlpChannelStatus(null, true);
+    renderYtDlpChannelStatus(null, true, 'switch');
     try {
       const result = await window.electronAPI.switchYtDlpChannel(channel);
-      renderYtDlpChannelStatus(result);
+      renderYtDlpChannelStatus(result, false, 'switch');
       if (result?.ok) {
         currentSettings = {
           ...currentSettings,
@@ -878,7 +1008,36 @@ if (btnSwitchYtDlpChannel) {
         level: 'error',
         message: 'Channel switch could not be completed.',
         tip: err.message || 'Try again in a moment.'
-      });
+      }, false, 'switch');
+    }
+  });
+}
+
+const btnForceUpdateYtDlp = document.getElementById('btn-force-update-ytdlp');
+if (btnForceUpdateYtDlp) {
+  btnForceUpdateYtDlp.addEventListener('click', async () => {
+    const channel = document.getElementById('settings-ytdlp-channel')?.value || currentSettings.ytDlpChannel || 'master';
+    renderYtDlpChannelStatus(null, true, 'force');
+    try {
+      const result = await window.electronAPI.forceUpdateYtDlp(channel);
+      renderYtDlpChannelStatus(result, false, 'force');
+      if (result?.ok) {
+        currentSettings = {
+          ...currentSettings,
+          ytDlpChannel: result.targetChannel || channel,
+          ytDlpInstalledChannel: result.channel,
+          ytDlpInstalledVersion: result.version
+        };
+      }
+      await refreshYtDlpChannelInfo();
+      await updateYtDlpChannelHintLabels();
+    } catch (err) {
+      renderYtDlpChannelStatus({
+        ok: false,
+        level: 'error',
+        message: 'Force update could not be completed.',
+        tip: err.message || 'Try again in a moment.'
+      }, false, 'force');
     }
   });
 }
@@ -896,7 +1055,7 @@ if (window.electronAPI.onYtDlpChannelChanged) {
       renderYtDlpChannelStatus({
         ok: false,
         level: 'error',
-        message: data.error || 'Failed to switch channel.',
+        message: data.error || 'Failed to update build.',
         tip: 'Check your internet connection and try again.'
       });
       return;
@@ -1061,6 +1220,15 @@ function openYtDlpChannelSettings() {
   }, 120);
 }
 
+function isYtDlpChannelHintDismissed() {
+  if (currentSettings && currentSettings.dismissedYtDlpChannelHint) return true;
+  try {
+    return localStorage.getItem('dismissedYtDlpChannelHint') === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+
 function createYtDlpChannelHint(variant = 'default') {
   const hint = document.createElement('div');
   hint.className = 'ytdlp-channel-hint';
@@ -1077,13 +1245,25 @@ function createYtDlpChannelHint(variant = 'default') {
     </button>
   `;
   hint.querySelector('.ytdlp-channel-hint-link')?.addEventListener('click', openYtDlpChannelSettings);
-  hint.querySelector('.ytdlp-channel-hint-close')?.addEventListener('click', () => {
-    hint.remove();
+  hint.querySelector('.ytdlp-channel-hint-close')?.addEventListener('click', async () => {
+    // Remove all hint banners across all tabs immediately
+    document.querySelectorAll('.ytdlp-channel-hint').forEach((el) => el.remove());
+    // Persist dismissed preference in settings and localStorage permanently
+    currentSettings.dismissedYtDlpChannelHint = true;
+    try {
+      localStorage.setItem('dismissedYtDlpChannelHint', 'true');
+    } catch (e) {}
+    await window.electronAPI.saveSettings({ dismissedYtDlpChannelHint: true });
   });
   return hint;
 }
 
 function initYtDlpChannelHints() {
+  if (isYtDlpChannelHintDismissed()) {
+    document.querySelectorAll('.ytdlp-channel-hint').forEach((el) => el.remove());
+    return;
+  }
+
   YTDLP_HINT_TABS.forEach(({ tabId, variant, placement }) => {
     const tab = document.getElementById(tabId);
     if (!tab || tab.querySelector('.ytdlp-channel-hint')) return;
@@ -1177,6 +1357,7 @@ document.getElementById('settings-audio-format').addEventListener('change', (e) 
 
 // Load settings on startup
 async function initSettingsUI() {
+  isInitializingSettingsUI = true;
   try {
     currentSettings = await window.electronAPI.getSettings();
     selectedAccent = currentSettings.accentColor || 'default';
@@ -1256,14 +1437,17 @@ async function initSettingsUI() {
     } else {
       initAppDashboard();
     }
+
+    initYtDlpChannelHints();
   } catch (err) {
     console.error('Failed to init settings UI:', err);
+  } finally {
+    isInitializingSettingsUI = false;
   }
 }
 
 // Run settings loader
 initSettingsUI();
-initYtDlpChannelHints();
 
 // Open Video / Audio save location buttons in Recents
 const openVideoDirBtn = document.getElementById('btn-open-video-dir');

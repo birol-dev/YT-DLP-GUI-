@@ -174,14 +174,112 @@ function formatInstagramDownloadError(code, stderr, label) {
   return msg;
 }
 
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function cleanupOldBinaries(dir) {
+  try {
+    if (!fs.existsSync(dir)) return;
+    const entries = fs.readdirSync(dir);
+    for (const file of entries) {
+      if (file.includes('.old_') || file.endsWith('.tmp') || file.includes('.tmp_')) {
+        const fullPath = path.join(dir, file);
+        try {
+          fs.unlinkSync(fullPath);
+        } catch (e) {
+          // File may still be locked by another process
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+async function replaceLocalBinary(tempPath, destPath, { minSizeBytes = 500000, maxRetries = 6, retryDelayMs = 300 } = {}) {
+  if (!fs.existsSync(tempPath)) {
+    throw new Error(`Replacement failed: temporary binary not found at ${tempPath}`);
+  }
+
+  const stat = fs.statSync(tempPath);
+  if (stat.size < minSizeBytes) {
+    try { fs.unlinkSync(tempPath); } catch (e) {}
+    throw new Error(`Downloaded binary appears incomplete or corrupted (${stat.size} bytes). Expected at least ${minSizeBytes} bytes.`);
+  }
+
+  const dir = path.dirname(destPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  // If destination binary already exists, handle replacement safely
+  let backupPath = null;
+  if (fs.existsSync(destPath)) {
+    backupPath = path.join(dir, `${path.basename(destPath)}.old_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`);
+    let replaced = false;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        fs.renameSync(destPath, backupPath);
+        replaced = true;
+        break;
+      } catch (err) {
+        lastError = err;
+        if (err.code === 'EPERM' || err.code === 'EBUSY' || err.code === 'EACCES') {
+          try {
+            fs.unlinkSync(destPath);
+            replaced = true;
+            break;
+          } catch (delErr) {
+            lastError = delErr;
+          }
+        }
+        if (attempt < maxRetries) {
+          await sleep(retryDelayMs * attempt);
+        }
+      }
+    }
+
+    if (!replaced && fs.existsSync(destPath)) {
+      try { fs.unlinkSync(tempPath); } catch (e) {}
+      throw new Error(`Cannot replace binary: ${path.basename(destPath)} is currently locked or in use by a background process. (${lastError?.message || 'File locked'})`);
+    }
+  }
+
+  try {
+    fs.renameSync(tempPath, destPath);
+  } catch (renameErr) {
+    if (backupPath && fs.existsSync(backupPath) && !fs.existsSync(destPath)) {
+      try {
+        fs.renameSync(backupPath, destPath);
+      } catch (restoreErr) {
+        console.error('Failed to restore backup binary:', restoreErr);
+      }
+    }
+    throw new Error(`Failed to place new binary into target destination: ${renameErr.message}`);
+  }
+
+  makeExecutable(destPath);
+
+  if (backupPath && fs.existsSync(backupPath)) {
+    try {
+      fs.unlinkSync(backupPath);
+    } catch (e) {}
+  }
+
+  cleanupOldBinaries(dir);
+  return true;
+}
+
 async function getYtDlpVersionInfo() {
-  if (!fs.existsSync(localYtDlp) && !(await isCommandInPath('yt-dlp'))) {
+  const localExists = fs.existsSync(localYtDlp);
+  if (!localExists && !(await isCommandInPath('yt-dlp'))) {
     return {
       available: false,
       version: '',
       channel: normalizeYtDlpChannel(settings.ytDlpChannel),
       installedChannel: '',
-      local: fs.existsSync(localYtDlp),
+      local: false,
       path: getYtDlpPath()
     };
   }
@@ -190,36 +288,39 @@ async function getYtDlpVersionInfo() {
   const versionResult = await runYtDlpProcess(['-v'], false, 10000);
   const combined = `${versionResult.stdout}\n${versionResult.stderr}`;
   
-  // Format example: [debug] yt-dlp version master@2026.07.06.214832 from yt-dlp/yt-dlp-master-builds [b3854cc41] (win_exe)
-  const match = combined.match(/\[debug\] yt-dlp version (?:(\w+)@)?([\d\.]+)/i);
   let version = '';
   let installedChannel = '';
-  
-  if (match) {
-    installedChannel = match[1] ? normalizeYtDlpChannel(match[1]) : '';
-    version = match[2];
+
+  // Format example: [debug] yt-dlp version master@2026.07.06.214832 from yt-dlp/yt-dlp-master-builds [b3854cc41] (win_exe)
+  // or: [debug] yt-dlp version 2026.01.26 from yt-dlp/yt-dlp [b3854cc41]
+  const debugMatch = combined.match(/\[debug\]\s+yt-dlp\s+version\s+(?:(\w+)@)?([^\s\[]+)/i);
+  if (debugMatch) {
+    if (debugMatch[1]) {
+      installedChannel = normalizeYtDlpChannel(debugMatch[1]);
+    }
+    version = debugMatch[2].trim();
   }
-  
-  // If no channel parsed, check repo patterns in the debug headers
+
+  // If no channel parsed directly from version tag, inspect repo sources in debug lines
   if (!installedChannel) {
-    if (combined.includes('yt-dlp-master-builds')) {
+    if (/yt-dlp-master-builds/i.test(combined)) {
       installedChannel = 'master';
-    } else if (combined.includes('yt-dlp-nightly-builds')) {
+    } else if (/yt-dlp-nightly-builds/i.test(combined)) {
       installedChannel = 'nightly';
-    } else if (combined.includes('yt-dlp/yt-dlp') || combined.includes('github.com/yt-dlp/yt-dlp')) {
+    } else if (/yt-dlp\/yt-dlp/i.test(combined) || /github\.com\/yt-dlp\/yt-dlp/i.test(combined)) {
       installedChannel = 'stable';
     }
   }
 
-  // Fallback to basic version check if -v parsing was unsuccessful
+  // Fallback to basic version check if -v parsing didn't get version
   if (!version) {
     const fallbackResult = await runYtDlpProcess(['--version'], false, 5000);
-    version = (fallbackResult.stdout || '').trim();
+    version = (fallbackResult.stdout || '').trim().split('\n')[0].trim();
   }
-  
-  // Fallback to saved setting if we still couldn't determine the channel
+
+  // Fallback to saved settings if channel could not be identified from output
   if (!installedChannel) {
-    installedChannel = settings.ytDlpInstalledChannel || 'stable';
+    installedChannel = settings.ytDlpInstalledChannel || settings.ytDlpChannel || 'master';
   }
 
   return {
@@ -227,57 +328,23 @@ async function getYtDlpVersionInfo() {
     version,
     channel: normalizeYtDlpChannel(settings.ytDlpChannel),
     installedChannel: normalizeYtDlpChannel(installedChannel),
-    local: fs.existsSync(localYtDlp),
+    local: localExists,
     path: getYtDlpPath()
   };
 }
 
-async function downloadYtDlpFromChannel(win, channel) {
+async function downloadYtDlpFromChannel(win, channel, { onProgress } = {}) {
   if (!fs.existsSync(localBinDir)) {
     fs.mkdirSync(localBinDir, { recursive: true });
   }
 
   const targetChannel = normalizeYtDlpChannel(channel);
-  const tempPath = `${localYtDlp}.tmp`;
+  const tempPath = path.join(localBinDir, `yt-dlp.tmp_${Date.now()}`);
 
-  // Clean up any old leftover temp file if exists
-  try {
-    if (fs.existsSync(tempPath)) {
-      fs.unlinkSync(tempPath);
-    }
-  } catch (e) {}
+  const downloadUrl = getYtDlpDownloadUrl(targetChannel);
+  await downloadFile(downloadUrl, tempPath, win, 'yt-dlp', onProgress);
 
-  await downloadFile(getYtDlpDownloadUrl(targetChannel), tempPath, win, 'yt-dlp');
-
-  try {
-    if (fs.existsSync(localYtDlp)) {
-      fs.unlinkSync(localYtDlp);
-    }
-  } catch (err) {
-    if (err.code === 'EPERM' || err.code === 'EBUSY') {
-      throw new Error('The yt-dlp binary is currently locked or in use. Please close any background video downloads/scans or other applications using it and try again.');
-    }
-    throw err;
-  }
-
-  try {
-    fs.renameSync(tempPath, localYtDlp);
-  } catch (err) {
-    if (err.code === 'EPERM' || err.code === 'EBUSY') {
-      throw new Error('Could not replace the yt-dlp binary because it is locked by another process. Please close any background yt-dlp processes and try again.');
-    }
-    throw err;
-  }
-
-  // Clean up any old files from previous updates
-  const oldPath = `${localYtDlp}.old`;
-  try {
-    if (fs.existsSync(oldPath)) {
-      fs.unlinkSync(oldPath);
-    }
-  } catch (e) {}
-
-  makeExecutable(localYtDlp);
+  await replaceLocalBinary(tempPath, localYtDlp, { minSizeBytes: 1000000 });
   return targetChannel;
 }
 
@@ -288,8 +355,8 @@ async function switchYtDlpChannel(win, channel, { silent = false } = {}) {
     return {
       ok: false,
       level: 'warning',
-      message: 'Cannot switch channel while a download, search, or scan is in progress.',
-      tip: 'Please wait for all current tasks to finish and try again.',
+      message: 'Cannot switch build while a download, search, or scan is currently in progress.',
+      tip: 'Please wait for current tasks to finish and try again.',
       channel: targetChannel
     };
   }
@@ -298,66 +365,48 @@ async function switchYtDlpChannel(win, channel, { silent = false } = {}) {
     return {
       ok: false,
       level: 'warning',
-      message: 'A yt-dlp channel switch is already in progress.',
+      message: 'A yt-dlp build update or channel switch is already in progress.',
       channel: targetChannel
     };
   }
 
   ytDlpChannelSwitchInProgress = true;
   const log = (message) => {
-    if (!silent) {
-      win?.webContents?.send('update-log', message);
+    if (!silent && win && !win.isDestroyed()) {
+      win.webContents.send('update-log', message);
     }
   };
 
   try {
-    let installedChannel = targetChannel;
-    let combinedOutput = '';
-
-    const actualInfo = await getYtDlpVersionInfo();
-    const channelChanged = !actualInfo.available || actualInfo.installedChannel !== targetChannel;
-
-    if (channelChanged) {
-      log(`[yt-dlp] Performing clean download of ${targetChannel} build...`);
-      installedChannel = await downloadYtDlpFromChannel(win, targetChannel);
-    } else {
-      log(`[yt-dlp] Checking for updates on ${targetChannel} channel...`);
-      const updateResult = await runYtDlpProcess(['--update-to', targetChannel], false, 180000);
-      combinedOutput = `${updateResult.stdout}\n${updateResult.stderr}`;
-      const updateSucceeded = updateResult.code === 0 ||
-        /updated yt-dlp to/i.test(combinedOutput) ||
-        /is up to date/i.test(combinedOutput);
-
-      if (!updateSucceeded) {
-        log(`[yt-dlp] Update failed, downloading fresh ${targetChannel} build...`);
-        installedChannel = await downloadYtDlpFromChannel(win, targetChannel);
-      }
-    }
+    log(`[yt-dlp] Downloading clean ${targetChannel} release build...`);
+    await downloadYtDlpFromChannel(win, targetChannel);
 
     const versionInfo = await getYtDlpVersionInfo();
     if (!versionInfo.available || !versionInfo.version) {
-      throw new Error('yt-dlp version verification failed after channel switch.');
+      throw new Error('yt-dlp binary verification failed after channel switch.');
     }
 
     saveSettingsInternal({
       ytDlpChannel: targetChannel,
-      ytDlpInstalledChannel: versionInfo.installedChannel,
+      ytDlpInstalledChannel: versionInfo.installedChannel || targetChannel,
       ytDlpInstalledVersion: versionInfo.version
     });
 
     const message = `yt-dlp is now on the ${versionInfo.installedChannel} channel (${versionInfo.version}).`;
     log(`[yt-dlp] ${message}`);
-    win?.webContents?.send('yt-dlp-channel-changed', {
-      channel: versionInfo.installedChannel,
-      targetChannel,
-      version: versionInfo.version
-    });
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('yt-dlp-channel-changed', {
+        ok: true,
+        channel: versionInfo.installedChannel,
+        targetChannel,
+        version: versionInfo.version
+      });
+    }
 
     return {
       ok: true,
       level: 'success',
       message,
-      detail: combinedOutput.trim() || undefined,
       channel: versionInfo.installedChannel,
       targetChannel,
       version: versionInfo.version
@@ -366,16 +415,104 @@ async function switchYtDlpChannel(win, channel, { silent = false } = {}) {
     console.error('Failed to switch yt-dlp channel:', err);
     const message = `Failed to switch yt-dlp to ${targetChannel}: ${err.message}`;
     log(`[yt-dlp] ${message}`);
-    win?.webContents?.send('yt-dlp-channel-changed', {
-      ok: false,
-      error: message,
-      targetChannel
-    });
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('yt-dlp-channel-changed', {
+        ok: false,
+        error: message,
+        targetChannel
+      });
+    }
     return {
       ok: false,
       level: 'error',
       message,
-      tip: err.message.includes('locked') ? err.message : 'Check your internet connection and try again.',
+      tip: err.message.includes('locked') ? err.message : 'Please check your internet connection and try again.',
+      channel: targetChannel
+    };
+  } finally {
+    ytDlpChannelSwitchInProgress = false;
+  }
+}
+
+async function forceUpdateYtDlp(win, channel, { silent = false } = {}) {
+  const targetChannel = normalizeYtDlpChannel(channel || settings.ytDlpChannel);
+
+  if (activeYtDlpProcesses.size > 0) {
+    return {
+      ok: false,
+      level: 'warning',
+      message: 'Cannot update yt-dlp forcefully while a download, search, or scan is in progress.',
+      tip: 'Please wait for current tasks to finish and try again.',
+      channel: targetChannel
+    };
+  }
+
+  if (ytDlpChannelSwitchInProgress) {
+    return {
+      ok: false,
+      level: 'warning',
+      message: 'A yt-dlp update or channel switch is already in progress.',
+      channel: targetChannel
+    };
+  }
+
+  ytDlpChannelSwitchInProgress = true;
+  const log = (message) => {
+    if (!silent && win && !win.isDestroyed()) {
+      win.webContents.send('update-log', message);
+    }
+  };
+
+  try {
+    log(`[yt-dlp] Forcefully downloading latest release build for ${targetChannel} channel...`);
+    await downloadYtDlpFromChannel(win, targetChannel);
+
+    const versionInfo = await getYtDlpVersionInfo();
+    if (!versionInfo.available || !versionInfo.version) {
+      throw new Error('yt-dlp binary verification failed after force update.');
+    }
+
+    saveSettingsInternal({
+      ytDlpChannel: targetChannel,
+      ytDlpInstalledChannel: versionInfo.installedChannel || targetChannel,
+      ytDlpInstalledVersion: versionInfo.version
+    });
+
+    const message = `yt-dlp forcefully updated to latest ${versionInfo.installedChannel} build (${versionInfo.version}).`;
+    log(`[yt-dlp] ${message}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('yt-dlp-channel-changed', {
+        ok: true,
+        channel: versionInfo.installedChannel,
+        targetChannel,
+        version: versionInfo.version
+      });
+    }
+
+    return {
+      ok: true,
+      level: 'success',
+      message,
+      channel: versionInfo.installedChannel,
+      targetChannel,
+      version: versionInfo.version
+    };
+  } catch (err) {
+    console.error('Failed to force update yt-dlp:', err);
+    const message = `Failed to force update yt-dlp (${targetChannel}): ${err.message}`;
+    log(`[yt-dlp] ${message}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('yt-dlp-channel-changed', {
+        ok: false,
+        error: message,
+        targetChannel
+      });
+    }
+    return {
+      ok: false,
+      level: 'error',
+      message,
+      tip: err.message.includes('locked') ? err.message : 'Please check your internet connection and try again.',
       channel: targetChannel
     };
   } finally {
@@ -1151,7 +1288,8 @@ function initSettings() {
     cookiesFile: '',
     ytDlpChannel: 'master',
     ytDlpInstalledChannel: '',
-    ytDlpInstalledVersion: ''
+    ytDlpInstalledVersion: '',
+    dismissedYtDlpChannelHint: false
   };
   
   settings = { ...defaultSettings };
@@ -1298,61 +1436,100 @@ function getDependencyUrls() {
   return urls;
 }
 
-function downloadFile(url, destPath, win, itemName) {
+function downloadFile(url, destPath, win, itemName, onProgress) {
   return new Promise((resolve, reject) => {
     const dir = path.dirname(destPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    const file = fs.createWriteStream(destPath);
-    const request = https.get(url, (response) => {
-      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-        file.close();
-        fs.unlink(destPath, () => {});
-        return downloadFile(response.headers.location, destPath, win, itemName).then(resolve).catch(reject);
-      }
+    let file = fs.createWriteStream(destPath);
+    let redirectsCount = 0;
 
-      if (response.statusCode !== 200) {
-        file.close();
-        fs.unlink(destPath, () => {});
-        return reject(new Error(`Server returned status code ${response.statusCode}`));
-      }
+    const executeDownload = (currentUrl) => {
+      let isSettled = false;
+      const finishWithError = (err) => {
+        if (isSettled) return;
+        isSettled = true;
+        try { file.close(); } catch (e) {}
+        try { if (fs.existsSync(destPath)) fs.unlinkSync(destPath); } catch (e) {}
+        reject(err);
+      };
 
-      const totalBytes = parseInt(response.headers['content-length'], 10);
-      let downloadedBytes = 0;
-
-      response.on('data', (chunk) => {
-        downloadedBytes += chunk.length;
-        if (totalBytes) {
-          const progress = Math.round((downloadedBytes / totalBytes) * 100);
-          win.webContents.send('dependency-status', {
-            type: 'progress',
-            item: itemName,
-            progress: progress
-          });
+      const options = {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) YT-DLP-GUI/1.8.2',
+          'Accept': '*/*'
         }
+      };
+
+      const request = https.get(currentUrl, options, (response) => {
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          redirectsCount++;
+          if (redirectsCount > 10) {
+            return finishWithError(new Error('Too many redirects while downloading dependency.'));
+          }
+          try { file.close(); } catch (e) {}
+          file = fs.createWriteStream(destPath);
+          return executeDownload(response.headers.location);
+        }
+
+        if (response.statusCode !== 200) {
+          return finishWithError(new Error(`Server returned status code ${response.statusCode}`));
+        }
+
+        const totalBytes = parseInt(response.headers['content-length'], 10) || 0;
+        let downloadedBytes = 0;
+
+        response.on('data', (chunk) => {
+          downloadedBytes += chunk.length;
+          let progress = 0;
+          if (totalBytes > 0) {
+            progress = Math.min(100, Math.round((downloadedBytes / totalBytes) * 100));
+          }
+          if (win && !win.isDestroyed() && win.webContents) {
+            try {
+              win.webContents.send('dependency-status', {
+                type: 'progress',
+                item: itemName,
+                progress: progress,
+                downloadedBytes,
+                totalBytes
+              });
+            } catch (e) {}
+          }
+          if (typeof onProgress === 'function') {
+            try {
+              onProgress({ progress, downloadedBytes, totalBytes });
+            } catch (e) {}
+          }
+        });
+
+        response.pipe(file);
+
+        file.on('finish', () => {
+          if (isSettled) return;
+          isSettled = true;
+          file.close(() => {
+            resolve();
+          });
+        });
       });
 
-      response.pipe(file);
-
-      file.on('finish', () => {
-        file.close();
-        resolve();
+      request.setTimeout(60000, () => {
+        request.destroy(new Error('Download timed out after 60s of inactivity.'));
       });
-    });
 
-    request.on('error', (err) => {
-      file.close();
-      fs.unlink(destPath, () => {});
-      reject(err);
-    });
+      request.on('error', (err) => {
+        finishWithError(err);
+      });
 
-    file.on('error', (err) => {
-      file.close();
-      fs.unlink(destPath, () => {});
-      reject(err);
-    });
+      file.on('error', (err) => {
+        finishWithError(err);
+      });
+    };
+
+    executeDownload(url);
   });
 }
 
@@ -1420,14 +1597,10 @@ async function setupDependencies(win) {
 
     if (needYtDlp) {
       win.webContents.send('dependency-status', { type: 'download-start', item: 'yt-dlp' });
-      const tempPath = localYtDlp + '.tmp';
+      const tempPath = path.join(localBinDir, `yt-dlp.tmp_${Date.now()}`);
       await downloadFile(urls.ytDlp, tempPath, win, 'yt-dlp');
-      
-      if (fs.existsSync(localYtDlp)) {
-        fs.unlinkSync(localYtDlp);
-      }
-      fs.renameSync(tempPath, localYtDlp);
-      makeExecutable(localYtDlp);
+      await replaceLocalBinary(tempPath, localYtDlp, { minSizeBytes: 1000000 });
+
       const versionResult = await runYtDlpProcess(['--version'], false, 15000);
       const version = (versionResult.stdout || '').trim();
       saveSettingsInternal({
@@ -1923,17 +2096,8 @@ ipcMain.handle('get-settings', () => {
   return settings;
 });
 
-ipcMain.handle('save-settings', async (event, newSettings) => {
-  const previousChannel = normalizeYtDlpChannel(settings.ytDlpChannel);
-  const saved = saveSettingsInternal(newSettings);
-  if (!saved) return false;
-
-  const nextChannel = normalizeYtDlpChannel(settings.ytDlpChannel);
-  if (nextChannel !== previousChannel) {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    await switchYtDlpChannel(win, nextChannel);
-  }
-  return true;
+ipcMain.handle('save-settings', async (_event, newSettings) => {
+  return saveSettingsInternal(newSettings);
 });
 
 ipcMain.handle('get-yt-dlp-info', async () => {
@@ -1945,6 +2109,12 @@ ipcMain.handle('switch-yt-dlp-channel', async (event, channel) => {
   const targetChannel = normalizeYtDlpChannel(channel || settings.ytDlpChannel);
   saveSettingsInternal({ ytDlpChannel: targetChannel });
   return switchYtDlpChannel(win, targetChannel);
+});
+
+ipcMain.handle('force-update-yt-dlp', async (event, channel) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const targetChannel = normalizeYtDlpChannel(channel || settings.ytDlpChannel);
+  return forceUpdateYtDlp(win, targetChannel);
 });
 
 ipcMain.handle('get-system-info', () => {
