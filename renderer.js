@@ -883,7 +883,7 @@ function renderYtDlpChannelStatus(result, isLoading = false, actionType = 'switc
     const actionTitle = actionType === 'force' ? 'Forcefully updating yt-dlp...' : 'Switching yt-dlp build...';
     statusEl.innerHTML = `
       <div class="cookies-test-status-title">${actionTitle}</div>
-      <div class="cookies-test-status-detail">Downloading and installing the latest release binary. This may take a moment.</div>
+      <div class="cookies-test-status-detail">Stopping any blocking tasks, downloading and installing the clean release binary. This may take a moment.</div>
     `;
     if (switchBtn) {
       switchBtn.disabled = true;
@@ -945,6 +945,7 @@ const btnSwitchYtDlpChannel = document.getElementById('btn-switch-ytdlp-channel'
 if (btnSwitchYtDlpChannel) {
   btnSwitchYtDlpChannel.addEventListener('click', async () => {
     const channel = document.getElementById('settings-ytdlp-channel')?.value || 'master';
+    stopDownloadIndicator();
     renderYtDlpChannelStatus(null, true, 'switch');
     try {
       const result = await window.electronAPI.switchYtDlpChannel(channel);
@@ -974,6 +975,7 @@ const btnForceUpdateYtDlp = document.getElementById('btn-force-update-ytdlp');
 if (btnForceUpdateYtDlp) {
   btnForceUpdateYtDlp.addEventListener('click', async () => {
     const channel = document.getElementById('settings-ytdlp-channel')?.value || currentSettings.ytDlpChannel || 'master';
+    stopDownloadIndicator();
     renderYtDlpChannelStatus(null, true, 'force');
     try {
       const result = await window.electronAPI.forceUpdateYtDlp(channel);

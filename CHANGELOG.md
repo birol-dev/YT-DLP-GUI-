@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.5] - 2026-08-21
+
+### Fixed
+- Forcefully terminate all blocking tasks (active downloads, scans, video dividers, gif conversions, stream captures, and background child processes) when clicking **Switch Channel Now** or **Force Update yt-dlp**, immediately freeing file locks on the executable and safely hot-swapping builds.
+- Enhance binary replacement recovery on Windows by terminating lingering locked processes during retry loops.
+
+### Added
+- Process tracking and process-tree termination registry (`activeProcesses`, `killProcessTree`, `stopAllBlockingTasks`) in `main.js`.
+- Automated test coverage in `test/channel-switching.test.js` verifying forceful task cancellation, IPC contracts, and clean UI state reset.
+
 ## [1.8.4] - 2026-08-21
 
 ### Fixed

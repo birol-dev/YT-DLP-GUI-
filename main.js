@@ -19,16 +19,77 @@ function getYtDlpPath() {
   return 'yt-dlp';
 }
 
+const activeProcesses = new Set();
 const activeYtDlpProcesses = new Set();
 
-function registerYtDlpProcess(proc) {
-  activeYtDlpProcesses.add(proc);
+function registerProcess(proc, meta = {}) {
+  if (!proc) return;
+  activeProcesses.add(proc);
+  if (meta.isYtDlp !== false) {
+    activeYtDlpProcesses.add(proc);
+  }
   const cleanUp = () => {
+    activeProcesses.delete(proc);
     activeYtDlpProcesses.delete(proc);
   };
   proc.on('close', cleanUp);
   proc.on('exit', cleanUp);
   proc.on('error', cleanUp);
+}
+
+function registerYtDlpProcess(proc) {
+  registerProcess(proc, { isYtDlp: true });
+}
+
+async function killProcessTree(proc) {
+  if (!proc) return;
+  const pid = proc.pid;
+  if (!pid) {
+    try { proc.kill('SIGKILL'); } catch (e) { try { proc.kill(); } catch (e2) {} }
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    try {
+      await new Promise((resolve) => {
+        exec(`taskkill /F /T /PID ${pid}`, { windowsHide: true }, () => resolve());
+      });
+    } catch (e) {}
+  }
+
+  try {
+    proc.kill('SIGKILL');
+  } catch (e) {
+    try { proc.kill(); } catch (e2) {}
+  }
+}
+
+async function stopAllBlockingTasks(win, reason = 'yt-dlp channel switch') {
+  const allProcs = Array.from(new Set([...activeProcesses, ...activeYtDlpProcesses]));
+  for (const proc of allProcs) {
+    await killProcessTree(proc);
+  }
+  activeProcesses.clear();
+  activeYtDlpProcesses.clear();
+
+  if (process.platform === 'win32') {
+    try {
+      await new Promise((resolve) => {
+        exec('taskkill /F /IM yt-dlp.exe', { windowsHide: true }, () => resolve());
+      });
+    } catch (e) {}
+  }
+
+  // Grace period for OS file system handles to unlock
+  await sleep(150);
+
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('download-error', `Operation stopped: ${reason}.`);
+    win.webContents.send('scan-error', `Scan stopped: ${reason}.`);
+    win.webContents.send('divide-error', `Task stopped: ${reason}.`);
+    win.webContents.send('gif-finished', { success: false, error: `Task stopped: ${reason}.` });
+    win.webContents.send('update-log', `[yt-dlp] Forcefully stopped all active tasks (${reason}).`);
+  }
 }
 
 function isYtDlpSwitchInProgress(win, errorChannel = 'download-error') {
@@ -226,6 +287,11 @@ async function replaceLocalBinary(tempPath, destPath, { minSizeBytes = 500000, m
       } catch (err) {
         lastError = err;
         if (err.code === 'EPERM' || err.code === 'EBUSY' || err.code === 'EACCES') {
+          if (process.platform === 'win32' && attempt >= 2) {
+            try {
+              exec(`taskkill /F /IM ${path.basename(destPath)}`, { windowsHide: true }, () => {});
+            } catch (kErr) {}
+          }
           try {
             fs.unlinkSync(destPath);
             replaced = true;
@@ -348,17 +414,11 @@ async function downloadYtDlpFromChannel(win, channel, { onProgress } = {}) {
   return targetChannel;
 }
 
-async function switchYtDlpChannel(win, channel, { silent = false } = {}) {
+async function switchYtDlpChannel(win, channel, { silent = false, force = true } = {}) {
   const targetChannel = normalizeYtDlpChannel(channel);
 
-  if (activeYtDlpProcesses.size > 0) {
-    return {
-      ok: false,
-      level: 'warning',
-      message: 'Cannot switch build while a download, search, or scan is currently in progress.',
-      tip: 'Please wait for current tasks to finish and try again.',
-      channel: targetChannel
-    };
+  if (force) {
+    await stopAllBlockingTasks(win, `switching yt-dlp to ${targetChannel} channel`);
   }
 
   if (ytDlpChannelSwitchInProgress) {
@@ -434,17 +494,11 @@ async function switchYtDlpChannel(win, channel, { silent = false } = {}) {
   }
 }
 
-async function forceUpdateYtDlp(win, channel, { silent = false } = {}) {
+async function forceUpdateYtDlp(win, channel, { silent = false, force = true } = {}) {
   const targetChannel = normalizeYtDlpChannel(channel || settings.ytDlpChannel);
 
-  if (activeYtDlpProcesses.size > 0) {
-    return {
-      ok: false,
-      level: 'warning',
-      message: 'Cannot update yt-dlp forcefully while a download, search, or scan is in progress.',
-      tip: 'Please wait for current tasks to finish and try again.',
-      channel: targetChannel
-    };
+  if (force) {
+    await stopAllBlockingTasks(win, `force updating yt-dlp on ${targetChannel} channel`);
   }
 
   if (ytDlpChannelSwitchInProgress) {
@@ -2793,6 +2847,7 @@ function probeLocalVideo(filePath, headers = null) {
     }
     args.push('-i', filePath);
     const proc = spawn(ffmpegPath, args);
+    registerProcess(proc, { isYtDlp: false });
 
     let settled = false;
     let stderr = '';
@@ -2923,6 +2978,7 @@ function runSingleFfmpegJob(job, win, jobIndex, totalJobs) {
     
     win.webContents.send('divide-status', `[FFmpeg] Spawning: ${ffmpegPath} ${args.join(' ')}`);
     const proc = spawn(ffmpegPath, args);
+    registerProcess(proc, { isYtDlp: false });
     let stderr = '';
     
     proc.stderr.on('data', (data) => {
@@ -3302,6 +3358,7 @@ function runFpcalc(filePath) {
   return new Promise((resolve, reject) => {
     const fpcalcPath = getFpcalcPath();
     const proc = spawn(fpcalcPath, [filePath]);
+    registerProcess(proc, { isYtDlp: false });
     let stdout = '';
     let stderr = '';
     
@@ -3422,15 +3479,20 @@ async function performLocalFileRecognition(inputPath, win) {
 
       try {
         await new Promise((resolve, reject) => {
-          ffmpeg(inputPath)
+          const cmd = ffmpeg(inputPath)
             .seekInput(startTime)
             .duration(sliceLen)
             .noVideo()
             .audioChannels(1)
             .audioFrequency(16000)
-            .save(slicePath)
+            .on('start', () => {
+              if (cmd && cmd.ffmpegProc) {
+                registerProcess(cmd.ffmpegProc, { isYtDlp: false });
+              }
+            })
             .on('end', () => resolve())
             .on('error', (err) => reject(new Error(`FFmpeg slice failed: ${err.message}`)));
+          cmd.save(slicePath);
         });
       } catch (err) {
         throw new Error(`Failed to extract audio slice at ${secondsToHHMMSS(startTime)}: ${err.message}`);
@@ -3932,6 +3994,7 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
       const proc = spawn(ffmpegPath, args, {
         windowsHide: true
       });
+      registerProcess(proc, { isYtDlp: false });
       
       let stderr = '';
       
@@ -4058,6 +4121,7 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
   let proc;
   try {
     proc = spawn(ffmpegPath, args);
+    registerProcess(proc, { isYtDlp: false });
   } catch (err) {
     win.webContents.send('download-error', `[STREAM] FFmpeg failed to start: ${err.message}`);
     return;
