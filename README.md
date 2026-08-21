@@ -11,17 +11,17 @@ A premium, open-source desktop application that wraps the powerful `yt-dlp` comm
 - 🎥 **High-Quality Video Downloads**: Support for multiple format containers (MP4, MKV, WebM) with H.264/H.265 video paired with AAC/Opus audio (MP4 is default and pre-optimized for Adobe Premiere/After Effects compatibility).
 - 🎵 **Variable Bitrate & Lossless Audio Extraction**: Extract audio streams directly to MP3 (up to 320kbps Level 0 VBR), M4A, FLAC (lossless compressed), or WAV (PCM uncompressed, 24-bit 48kHz for high-fidelity studio editing) via `ffmpeg`.
 - 💬 **Subtitle Extraction**: Download YouTube closed-captions and standard subtitles in English and other languages instantly without downloading the video itself.
-- ✂️ **Video Divider Wizard**: Split local videos or remote YouTube streams into custom clips. Features four split modes (Fast keyframe copy, Precise frame-accurate re-encode, Equal length segments, and Spatial canvas cropping to Left/Right/Top/Bottom halves) with a 2-step wizard flow and an interactive drag-to-scrub timeline player.
+- ✂️ **Video Clipper & Divider Wizards**: Trim precise clips or split local videos and remote streams. Features four split modes (Fast keyframe copy, Precise frame-accurate re-encode, Equal length segments, and Spatial canvas cropping) with interactive timeline scrubbers.
+- 📦 **In-Page Download Complete Components**: Every download tab (**Video**, **Audio**, **Instagram**, **Subtitles**, **Video Clipper**, **Video Divider**, and **Video to GIF**) features a modern completion card with prominent **"Open Folder"**, **"Play / Open"**, **"Copy Path"**, and drag-and-drop thumbnail import actions.
 - 📊 **Probed File Specifications Card**: Renders granular video details (file size, resolution, aspect ratio, frame rate, video codec, audio codec, and absolute file path) dynamically in the side pane, fully updated upon load and cleared upon reset.
 - ⚙️ **Real-Time Settings Auto-Save**: All changes in Settings (base save locations, pre-selected video qualities, subtitle languages, container/codec formats, theme colors, notification sounds, and API keys) auto-save automatically in real-time.
 - 🔄 **yt-dlp Hot-Swapping & Force Update**: Easily switch between **Stable**, **Nightly**, and **Master** builds with zero app restarts, or use the **Force Update yt-dlp** button to forcefully reinstall the latest release build anytime.
+- ⚡ **Robust Asynchronous Auto-Checker**: Automatically checks for yt-dlp and ffmpeg updates on launch without browser cookie conflicts, featuring automatic direct GitHub release download fallbacks if built-in updater commands encounter Windows file locks.
 - 🎨 **Dynamic Theme Accent Palettes**: Re-theme the entire application instantly with one of six curated color scheme styles (Silver, YouTube Red, Cyan Spark, Emerald, Velvet Purple, and Gold Mine) featuring dynamic CSS variables.
 - 🔊 **Dynamic Sound Synthesizer**: Premium double-tone completion chimes synthesized dynamically in real-time using the Web Audio API on successful downloads.
 - 📂 **Auto-Reveal Downloads**: Optional setting to automatically open the download folder in Windows Explorer and highlight the file once the download completes.
 - 🎨 **Shadcn-Inspired Design**: A sleek, fully responsive true dark-mode dashboard featuring modern glassmorphism elements, Lucide UI icons, and smooth micro-animations.
-- ⚡ **Asynchronous Background Checkers**: Instant verification of `yt-dlp` updates and `ffmpeg` availability on application launch, keeping the UI fully interactive.
-- 🕒 **Cached Recents History**: Locally cached history (via `localStorage`) showing active YouTube thumbnails fetched dynamically from video IDs.
-- 📁 **Direct Folder Navigation**: Click a Recents thumbnail to reveal the file in Explorer, double-click to open it, or drag it into Premiere Pro and other editors.
+- 🕒 **Cached Recents History**: Locally cached history (via `localStorage`) showing active YouTube thumbnails fetched dynamically from video IDs with double-click opening and drag-out import.
 
 ---
 

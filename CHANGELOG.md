@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.6] - 2026-08-21
+
+### Added
+- Dedicated **Download Complete component** with prominent **"Open Folder"** action buttons across all media download pages (**Video**, **Audio**, **Instagram**, **Subtitles**, **Video Clipper**, **Video Divider**, and **Video to GIF**).
+- Direct file playback via **"Play / Open"** action and instant file path clipboard copy with animated feedback.
+- Native drag-to-import support directly from the completion card thumbnail preview into Premiere Pro, After Effects, DaVinci Resolve, or File Explorer.
+- Automated test coverage in `test/download-complete-ui.test.js` auditing all completion components, open-folder buttons, and renderer state managers.
+
+### Fixed
+- Fix startup auto-update checker (`checkUpdates`): eliminate unawaited Promise passed into child process spawn arguments that caused `[object Promise]` command line crashes on update checks.
+- Add automatic direct GitHub Release fallback download to the auto-checker when built-in `--update-to` fails due to Windows file locks, rate limits, or permission restrictions.
+- Prevent browser cookie injection into updater commands on startup, eliminating cookie database lock errors when browsers are open.
+
 ## [1.8.5] - 2026-08-21
 
 ### Fixed

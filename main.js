@@ -1512,7 +1512,7 @@ function downloadFile(url, destPath, win, itemName, onProgress) {
 
       const options = {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) YT-DLP-GUI/1.8.2',
+          'User-Agent': BROWSER_USER_AGENT,
           'Accept': '*/*'
         }
       };
@@ -1824,74 +1824,98 @@ async function checkUpdates(win, retryCount = 0) {
       : `active tasks: ${activeCommands.join(', ')}`;
 
     if (retryCount < 3) {
-      win.webContents.send('update-log', `[yt-dlp update] Update check postponed (${reason}). Retrying in 5 seconds...`);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('update-log', `[yt-dlp update] Update check postponed (${reason}). Retrying in 5 seconds...`);
+      }
       setTimeout(() => {
         checkUpdates(win, retryCount + 1);
       }, 5000);
     } else {
-      win.webContents.send('update-log', `[yt-dlp update] Update check postponed: yt-dlp is currently busy (${reason}).`);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('update-log', `[yt-dlp update] Update check postponed: yt-dlp is currently busy (${reason}).`);
+      }
     }
     return;
   }
 
-  win.webContents.send('update-log', `[yt-dlp update] Checking for updates on the ${targetChannel} channel...`);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('update-log', `[yt-dlp update] Checking for updates on the ${targetChannel} channel...`);
+  }
 
-  const ytDlpPath = getYtDlpPath();
-  const args = appendYtDlpCookieArgs(['--update-to', targetChannel]);
-  const ytUpdate = spawn(ytDlpPath, args);
-  registerYtDlpProcess(ytUpdate);
+  try {
+    // 1. Try yt-dlp built-in update check first without passing browser cookies
+    const updateResult = await runYtDlpProcess(['--update-to', targetChannel], false, 35000);
+    const combined = `${updateResult.stdout}\n${updateResult.stderr}`;
 
-  let stdout = '';
-  let stderr = '';
-
-  ytUpdate.stdout.on('data', (data) => {
-    stdout += data.toString();
-    win.webContents.send('update-log', `[yt-dlp update] ${data.toString().trim()}`);
-  });
-
-  ytUpdate.stderr.on('data', (data) => {
-    stderr += data.toString();
-    win.webContents.send('update-log', `[yt-dlp stderr] ${data.toString().trim()}`);
-  });
-
-  ytUpdate.on('error', (err) => {
-    win.webContents.send('update-log', `[yt-dlp update check failed] ${err.message}`);
-  });
-
-  ytUpdate.on('close', async (code) => {
-    const combined = `${stdout}\n${stderr}`;
-    const updateSucceeded = code === 0 ||
+    const updateSucceeded = updateResult.code === 0 ||
       /updated yt-dlp to/i.test(combined) ||
       /is up to date/i.test(combined);
 
     if (updateSucceeded) {
-      win.webContents.send('update-log', '[yt-dlp update] Update check completed successfully.');
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('update-log', '[yt-dlp update] Update check completed successfully.');
+      }
       const info = await getYtDlpVersionInfo();
       if (info.available) {
         saveSettingsInternal({
           ytDlpInstalledChannel: info.installedChannel,
           ytDlpInstalledVersion: info.version
         });
-        win.webContents.send('yt-dlp-channel-changed', {
-          channel: info.installedChannel,
-          targetChannel,
-          version: info.version
-        });
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('yt-dlp-channel-changed', {
+            channel: info.installedChannel,
+            targetChannel,
+            version: info.version
+          });
+        }
       }
     } else {
-      win.webContents.send('update-log', `[yt-dlp update] Update failed with code ${code}.`);
+      // 2. Built-in --update-to failed (common on Windows with file locks or GitHub API limitations).
+      // Fall back to direct binary download from official GitHub release assets.
+      if (win && !win.isDestroyed()) {
+        const errorSummary = cleanYtDlpError(combined) || `exit code ${updateResult.code}`;
+        win.webContents.send('update-log', `[yt-dlp update] Built-in update check encountered: ${errorSummary}. Downloading latest ${targetChannel} build directly from GitHub Releases...`);
+      }
+
+      await downloadYtDlpFromChannel(win, targetChannel);
+      const info = await getYtDlpVersionInfo();
+      if (info.available && info.version) {
+        saveSettingsInternal({
+          ytDlpInstalledChannel: info.installedChannel || targetChannel,
+          ytDlpInstalledVersion: info.version
+        });
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('update-log', `[yt-dlp update] Auto-update completed successfully: yt-dlp updated to latest ${info.installedChannel || targetChannel} build (${info.version}).`);
+          win.webContents.send('yt-dlp-channel-changed', {
+            channel: info.installedChannel || targetChannel,
+            targetChannel,
+            version: info.version
+          });
+        }
+      } else {
+        throw new Error('Downloaded binary could not be verified.');
+      }
     }
-  });
+  } catch (err) {
+    console.error('Auto update check failed:', err);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('update-log', `[yt-dlp update] Auto-update check failed: ${err.message}`);
+    }
+  }
 
   // Verify FFmpeg is available
   const ffmpegPath = getFfmpegPath();
   const ffmpegCheck = spawn(ffmpegPath, ['-version']);
   ffmpegCheck.stdout.once('data', (data) => {
     const versionLine = data.toString().split('\n')[0];
-    win.webContents.send('update-log', `[ffmpeg check] ${versionLine}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('update-log', `[ffmpeg check] ${versionLine}`);
+    }
   });
   ffmpegCheck.on('error', () => {
-    win.webContents.send('update-log', `[ffmpeg error] ffmpeg not found in PATH! Audio extraction and video merging may fail.`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('update-log', `[ffmpeg error] ffmpeg not found in PATH! Audio extraction and video merging may fail.`);
+    }
   });
 }
 

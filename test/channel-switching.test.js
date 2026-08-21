@@ -99,4 +99,17 @@ describe('Forceful yt-dlp Channel Switching & Blocking Task Termination Audit', 
     assert.strictEqual(activeProcesses.size, 0);
     assert.strictEqual(activeYtDlpProcesses.size, 0);
   });
+
+  test('checkUpdates function definition in main.js must use clean process execution and direct release fallback', () => {
+    const checkFuncMatch = mainCode.match(/async\s+function\s+checkUpdates\s*\([\s\S]*?\n\}/);
+    assert.ok(checkFuncMatch, 'checkUpdates function definition not found');
+    const body = checkFuncMatch[0];
+
+    // Must not pass unawaited cookie Promise or browser cookies to yt-dlp update command
+    assert.doesNotMatch(body, /spawn\(ytDlpPath,\s*appendYtDlpCookieArgs/, 'Must not pass un-awaited appendYtDlpCookieArgs into spawn');
+    
+    // Must contain direct GitHub release download fallback
+    assert.match(body, /downloadYtDlpFromChannel/, 'checkUpdates must fall back to downloadYtDlpFromChannel on update failure');
+    assert.match(body, /getYtDlpVersionInfo/, 'checkUpdates must sync version info after update');
+  });
 });

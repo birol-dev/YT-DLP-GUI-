@@ -269,6 +269,8 @@ document.getElementById('btn-download-video').addEventListener('click', async ()
   const quality = document.getElementById('video-quality').value;
   if (!url) return;
 
+  hideDownloadCompleteCard('video');
+
   await beginMediaDownload({
     url,
     type: 'video',
@@ -287,6 +289,8 @@ document.getElementById('btn-download-audio').addEventListener('click', async ()
   }
   const url = document.getElementById('audio-url').value.trim();
   if (!url) return;
+
+  hideDownloadCompleteCard('audio');
 
   await beginMediaDownload({
     url,
@@ -307,6 +311,8 @@ document.getElementById('btn-download-subs').addEventListener('click', () => {
   const lang = document.getElementById('subs-lang').value;
   if (!url) return;
   
+  hideDownloadCompleteCard('subtitles');
+
   startDownloadIndicator('Extracting subtitles...');
   window.electronAPI.downloadSubtitles({ url, lang });
   document.getElementById('subs-url').value = '';
@@ -322,6 +328,8 @@ document.getElementById('btn-download-all-subs').addEventListener('click', () =>
   const url = document.getElementById('subs-url').value;
   if (!url) return;
   
+  hideDownloadCompleteCard('subtitles');
+
   startDownloadIndicator('Extracting all subtitles...');
   window.electronAPI.downloadSubtitles({ url, lang: 'all' });
   document.getElementById('subs-url').value = '';
@@ -340,11 +348,208 @@ if (btnDownloadInstagram) {
     const format = document.getElementById('instagram-format').value;
     if (!url) return;
     
+    hideDownloadCompleteCard('instagram');
+
     const label = format === 'audio' ? 'audio' : 'video';
     startDownloadIndicator(`Downloading Instagram ${label}...`);
     window.electronAPI.downloadInstagram({ url, format });
     document.getElementById('instagram-url').value = '';
   });
+}
+
+// Download Complete Component Controller
+const downloadCompleteCards = {
+  video: {
+    card: document.getElementById('video-download-complete-card'),
+    badge: document.getElementById('video-complete-badge'),
+    dismiss: document.getElementById('btn-video-dismiss-complete'),
+    thumbWrap: document.getElementById('video-complete-thumb-wrap'),
+    thumb: document.getElementById('video-complete-thumb'),
+    icon: document.getElementById('video-complete-icon'),
+    title: document.getElementById('video-complete-title'),
+    path: document.getElementById('video-complete-path'),
+    openFolder: document.getElementById('btn-video-open-folder'),
+    openFile: document.getElementById('btn-video-open-file'),
+    copyPath: document.getElementById('btn-video-copy-path')
+  },
+  audio: {
+    card: document.getElementById('audio-download-complete-card'),
+    badge: document.getElementById('audio-complete-badge'),
+    dismiss: document.getElementById('btn-audio-dismiss-complete'),
+    thumbWrap: document.getElementById('audio-complete-thumb-wrap'),
+    thumb: document.getElementById('audio-complete-thumb'),
+    icon: document.getElementById('audio-complete-icon'),
+    title: document.getElementById('audio-complete-title'),
+    path: document.getElementById('audio-complete-path'),
+    openFolder: document.getElementById('btn-audio-open-folder'),
+    openFile: document.getElementById('btn-audio-open-file'),
+    copyPath: document.getElementById('btn-audio-copy-path')
+  },
+  instagram: {
+    card: document.getElementById('instagram-download-complete-card'),
+    badge: document.getElementById('instagram-complete-badge'),
+    dismiss: document.getElementById('btn-instagram-dismiss-complete'),
+    thumbWrap: document.getElementById('instagram-complete-thumb-wrap'),
+    thumb: document.getElementById('instagram-complete-thumb'),
+    icon: document.getElementById('instagram-complete-icon'),
+    title: document.getElementById('instagram-complete-title'),
+    path: document.getElementById('instagram-complete-path'),
+    openFolder: document.getElementById('btn-instagram-open-folder'),
+    openFile: document.getElementById('btn-instagram-open-file'),
+    copyPath: document.getElementById('btn-instagram-copy-path')
+  },
+  subtitles: {
+    card: document.getElementById('subtitles-download-complete-card'),
+    badge: document.getElementById('subtitles-complete-badge'),
+    dismiss: document.getElementById('btn-subtitles-dismiss-complete'),
+    thumbWrap: document.getElementById('subtitles-complete-thumb-wrap'),
+    thumb: document.getElementById('subtitles-complete-thumb'),
+    icon: document.getElementById('subtitles-complete-icon'),
+    title: document.getElementById('subtitles-complete-title'),
+    path: document.getElementById('subtitles-complete-path'),
+    openFolder: document.getElementById('btn-subtitles-open-folder'),
+    openFile: document.getElementById('btn-subtitles-open-file'),
+    copyPath: document.getElementById('btn-subtitles-copy-path')
+  },
+  clipper: {
+    card: document.getElementById('clipper-download-complete-card'),
+    badge: document.getElementById('clipper-complete-badge'),
+    dismiss: document.getElementById('btn-clipper-dismiss-complete'),
+    thumbWrap: document.getElementById('clipper-complete-thumb-wrap'),
+    thumb: document.getElementById('clipper-complete-thumb'),
+    icon: document.getElementById('clipper-complete-icon'),
+    title: document.getElementById('clipper-complete-title'),
+    path: document.getElementById('clipper-complete-path'),
+    openFolder: document.getElementById('btn-clipper-open-folder'),
+    openFile: document.getElementById('btn-clipper-open-file'),
+    copyPath: document.getElementById('btn-clipper-copy-path')
+  }
+};
+
+function hideDownloadCompleteCard(targetTab) {
+  if (targetTab && downloadCompleteCards[targetTab] && downloadCompleteCards[targetTab].card) {
+    downloadCompleteCards[targetTab].card.style.display = 'none';
+  }
+}
+
+function showDownloadCompleteCard({ type, url, filePath, title }) {
+  let targetKey = 'video';
+  if (type === 'audio') targetKey = 'audio';
+  else if (type === 'subtitles') targetKey = 'subtitles';
+  else if (type === 'ig-video' || type === 'ig-audio' || type === 'instagram') targetKey = 'instagram';
+  else if (type === 'clip' || type === 'clip-audio') targetKey = 'clipper';
+  else {
+    const activeTab = document.querySelector('.nav-btn.active')?.dataset.tab;
+    if (activeTab === 'audio-tab') targetKey = 'audio';
+    else if (activeTab === 'instagram-tab') targetKey = 'instagram';
+    else if (activeTab === 'subtitles-tab') targetKey = 'subtitles';
+    else if (activeTab === 'clipper-tab') targetKey = 'clipper';
+    else targetKey = 'video';
+  }
+
+  const elements = downloadCompleteCards[targetKey];
+  if (!elements || !elements.card) return;
+
+  // Extract clean filename or title
+  let displayTitle = title;
+  if (!displayTitle && filePath) {
+    const parts = filePath.split(/[/\\]/);
+    displayTitle = parts[parts.length - 1];
+  }
+  if (!displayTitle) {
+    displayTitle = url || 'Downloaded Media';
+  }
+
+  // Extract thumbnail if YouTube URL or ID
+  const videoId = extractVideoId(url || '');
+  if (videoId && elements.thumb && elements.icon) {
+    elements.thumb.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    elements.thumb.style.display = 'block';
+    elements.icon.style.display = 'none';
+  } else if (elements.thumb && elements.icon) {
+    elements.thumb.style.display = 'none';
+    elements.icon.style.display = 'flex';
+  }
+
+  // Update Title and Path
+  if (elements.title) elements.title.textContent = displayTitle;
+  if (elements.path) {
+    elements.path.textContent = filePath ? `Saved to: ${filePath}` : 'Saved to Downloads';
+    elements.path.title = filePath || '';
+  }
+
+  // Update Badge
+  if (elements.badge) {
+    if (targetKey === 'video') {
+      elements.badge.textContent = (currentSettings.videoFormat || 'mp4').toUpperCase();
+    } else if (targetKey === 'audio') {
+      elements.badge.textContent = (currentSettings.audioFormat || 'mp3').toUpperCase();
+    } else if (targetKey === 'subtitles') {
+      elements.badge.textContent = 'VTT / SRT';
+    } else if (targetKey === 'instagram') {
+      elements.badge.textContent = (type && type.includes('audio')) ? 'IG MP3' : 'IG MP4';
+    } else if (targetKey === 'clipper') {
+      elements.badge.textContent = (type && type.includes('audio')) ? 'CLIP MP3' : 'CLIP MP4';
+    }
+  }
+
+  // Wire Open Folder button
+  if (elements.openFolder) {
+    elements.openFolder.onclick = () => {
+      if (filePath) {
+        window.electronAPI.openFolder(filePath);
+      } else {
+        window.electronAPI.openDownloadFolder(targetKey);
+      }
+    };
+  }
+
+  // Wire Open File button
+  if (elements.openFile) {
+    elements.openFile.onclick = () => {
+      if (filePath && window.electronAPI.openFile) {
+        window.electronAPI.openFile(filePath);
+      } else if (filePath) {
+        window.electronAPI.openFolder(filePath);
+      }
+    };
+  }
+
+  // Wire Copy Path button
+  if (elements.copyPath) {
+    elements.copyPath.onclick = async () => {
+      if (filePath) {
+        try {
+          await navigator.clipboard.writeText(filePath);
+          const originalHTML = elements.copyPath.innerHTML;
+          elements.copyPath.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #22c55e;"><polyline points="20 6 9 17 4 12"/></svg>
+            Copied!
+          `;
+          setTimeout(() => {
+            elements.copyPath.innerHTML = originalHTML;
+          }, 1500);
+        } catch (e) {
+          console.error('Failed to copy path:', e);
+        }
+      }
+    };
+  }
+
+  // Wire Dismiss button
+  if (elements.dismiss) {
+    elements.dismiss.onclick = () => {
+      elements.card.style.display = 'none';
+    };
+  }
+
+  // Wire native file drag on thumb wrap
+  if (elements.thumbWrap && filePath) {
+    bindRecentThumbnailActions(elements.thumbWrap, filePath);
+  }
+
+  // Display card with animation
+  elements.card.style.display = 'flex';
 }
 
 // Terminal Output
@@ -409,8 +614,7 @@ window.electronAPI.onDownloadComplete((data) => {
     playSuccessChime();
   }
   stopDownloadIndicator();
-
-
+  showDownloadCompleteCard(data);
 });
 
 // Recents Logic
@@ -2000,6 +2204,8 @@ function startClipperDownload(format) {
   
   if (!url) return;
   
+  hideDownloadCompleteCard('clipper');
+
   const startStr = secondsToHHMMSS(clipperStartVal);
   const endStr = secondsToHHMMSS(clipperEndVal);
   

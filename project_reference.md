@@ -145,8 +145,18 @@ Settings are stored locally in `settings.json` within the app's `userData` folde
 ### Weather Widget
 Featured dynamically in headers of main downloading screens. Resolves user coordinates dynamically to render a custom weather card with automatic search suggestions.
 
+### Download Complete Components
+Dedicated, theme-adaptive completion cards (`.download-complete-card`) integrated into every download tab (**Video**, **Audio**, **Instagram**, **Subtitles**, **Video Clipper**, **Video Divider**, and **Video to GIF**).
+- **Triggers**: When `window.electronAPI.onDownloadComplete` receives payload `{ type, url, filePath, status, title }`, `showDownloadCompleteCard()` renders the card on the appropriate tab pane.
+- **Features**:
+  - **Open Folder Button**: Directly invokes `window.electronAPI.openFolder(filePath)` to reveal the file in the OS file manager via Electron's `shell.showItemInFolder()`.
+  - **Play / Open Button**: Launches the downloaded media immediately via `window.electronAPI.openFile(filePath)`.
+  - **Copy Path Button**: Copies the full file path to the clipboard with visual checkmark feedback.
+  - **Drag-and-Drop Thumbnail**: Supports native OS dragging from the preview container directly into Premiere Pro, After Effects, DaVinci Resolve, or File Explorer.
+  - **Dismiss**: Hides the card. Starting a new download automatically resets/hides previous completion cards.
+
 ### Recents Log
-Maintains a log of finished downloads in browser `localStorage`. Uses regular expressions to extract YouTube 11-character video IDs and render thumbnails asynchronously. Clicking thumbnails invokes native platform folder highlights via Electron's `shell.showItemInFolder()`.
+Maintains a log of finished downloads in browser `localStorage`. Uses regular expressions to extract YouTube 11-character video IDs and render thumbnails asynchronously. Clicking thumbnails invokes native platform folder highlights via Electron's `shell.showItemInFolder()`. Double-clicking opens the file, and dragging allows direct import into video editing applications.
 
 ---
 
