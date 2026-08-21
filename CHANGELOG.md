@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.8] - 2026-08-21
+
+### Fixed
+- Replaced hardcoded multi-color gradient accents on download completion cards with theme-adaptive styling (`hsl(var(--primary))`), ensuring top border lines, status icons, and badges seamlessly match the selected settings theme (or clean monochrome on default Zinc).
+- Removed inline multi-color gradients on Instagram download completion icons and recent thumbnails for consistent visual harmony.
+
 ## [1.8.7] - 2026-08-21
 
 ### Added

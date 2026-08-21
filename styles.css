@@ -1835,7 +1835,7 @@ option {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #22c55e 0%, hsl(var(--primary)) 50%, #3b82f6 100%);
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.4), hsl(var(--primary)));
 }
 
 @keyframes downloadCardPop {
@@ -1872,16 +1872,16 @@ option {
 }
 
 .download-complete-status-icon {
-  color: #22c55e;
+  color: hsl(var(--primary));
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .download-complete-badge {
-  background: rgba(34, 197, 94, 0.12);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 0.3);
   font-size: 0.7rem;
   font-weight: 600;
   padding: 2px 8px;
