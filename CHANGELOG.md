@@ -5,13 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.7] - 2026-08-21
+
+### Added
+- Rich **Active In-Progress Download Card**: Users now see comprehensive live media metadata while downloading, including the dynamic video thumbnail preview, format & resolution badge (`VIDEO • 1080P MP4`, `AUDIO • MP3`, `INSTAGRAM • REEL`, `SUBTITLES • EN`, `CLIP`), live parsed video title/destination filename, transfer metrics (downloaded/total size, download speed, ETA), and active operation phase.
+- Automated unit test coverage in `test/download-complete-ui.test.js` validating the active download banner DOM elements, thumbnail rendering, and progress metrics state.
+
 ## [1.8.6] - 2026-08-21
 
 ### Added
 - Dedicated **Download Complete component** with prominent **"Open Folder"** action buttons across all media download pages (**Video**, **Audio**, **Instagram**, **Subtitles**, **Video Clipper**, **Video Divider**, and **Video to GIF**).
 - Direct file playback via **"Play / Open"** action and instant file path clipboard copy with animated feedback.
 - Native drag-to-import support directly from the completion card thumbnail preview into Premiere Pro, After Effects, DaVinci Resolve, or File Explorer.
-- Automated test coverage in `test/download-complete-ui.test.js` auditing all completion components, open-folder buttons, and renderer state managers.
+- Automated test coverage in `test/download-complete-ui.test.js` auditing all completion components, open-folder buttons, active download banners, and renderer state managers.
 
 ### Fixed
 - Fix startup auto-update checker (`checkUpdates`): eliminate unawaited Promise passed into child process spawn arguments that caused `[object Promise]` command line crashes on update checks.

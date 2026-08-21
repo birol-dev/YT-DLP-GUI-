@@ -11,6 +11,19 @@ let downloadProgressState = {
   playlistTitle: ''
 };
 
+let activeDownloadInfo = {
+  url: '',
+  type: 'video',
+  quality: '',
+  badge: '',
+  title: '',
+  phase: '',
+  speed: '',
+  eta: '',
+  size: '',
+  percent: 0
+};
+
 function resetDownloadProgressState() {
   downloadProgressState = {
     mode: 'single',
@@ -22,14 +35,78 @@ function resetDownloadProgressState() {
   };
 }
 
+function resetActiveDownloadInfo() {
+  activeDownloadInfo = {
+    url: '',
+    type: 'video',
+    quality: '',
+    badge: '',
+    title: '',
+    phase: '',
+    speed: '',
+    eta: '',
+    size: '',
+    percent: 0
+  };
+}
+
+function updateActiveDownloadBanner() {
+  const badgeEl = document.getElementById('active-download-badge');
+  const titleEl = document.getElementById('active-download-title');
+  const thumbEl = document.getElementById('active-download-thumb');
+  const iconEl = document.getElementById('active-download-icon');
+  const statsEl = document.getElementById('active-download-stats');
+  const phaseEl = document.getElementById('progress-status-text');
+
+  if (badgeEl && activeDownloadInfo.badge) {
+    badgeEl.textContent = activeDownloadInfo.badge;
+  }
+  if (titleEl && activeDownloadInfo.title) {
+    titleEl.textContent = activeDownloadInfo.title;
+  }
+
+  // Thumbnail handling
+  const videoId = extractVideoId(activeDownloadInfo.url || '');
+  if (videoId && thumbEl && iconEl) {
+    thumbEl.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    thumbEl.style.display = 'block';
+    iconEl.style.display = 'none';
+  } else if (thumbEl && iconEl) {
+    thumbEl.style.display = 'none';
+    iconEl.style.display = 'flex';
+  }
+
+  // Live Stats handling (Size, Speed, ETA)
+  if (statsEl) {
+    const statsParts = [];
+    if (activeDownloadInfo.size) statsParts.push(activeDownloadInfo.size);
+    if (activeDownloadInfo.speed) statsParts.push(activeDownloadInfo.speed);
+    if (activeDownloadInfo.eta) statsParts.push(`ETA ${activeDownloadInfo.eta}`);
+
+    if (statsParts.length > 0) {
+      statsEl.textContent = statsParts.join(' • ');
+      statsEl.style.display = 'inline-block';
+    } else {
+      statsEl.style.display = 'none';
+    }
+  }
+
+  if (phaseEl && activeDownloadInfo.phase) {
+    phaseEl.textContent = activeDownloadInfo.phase;
+  }
+}
+
 function isLikelyPlaylistUrl(url) {
   return /[?&]list=/.test(url) || /youtube\.com\/playlist/i.test(url);
 }
 
 async function beginMediaDownload({ url, type, quality, statusMsg }) {
   resetDownloadProgressState();
+  resetActiveDownloadInfo();
 
   let initialStatus = statusMsg;
+  let detectedTitle = '';
+
   if (isLikelyPlaylistUrl(url)) {
     try {
       const probe = await window.electronAPI.probePlaylist(url);
@@ -37,6 +114,7 @@ async function beginMediaDownload({ url, type, quality, statusMsg }) {
         downloadProgressState.mode = 'playlist';
         downloadProgressState.totalItems = probe.playlistCount || 1;
         downloadProgressState.playlistTitle = probe.title || '';
+        detectedTitle = probe.title || '';
         const countLabel = probe.playlistCount ? `${probe.playlistCount} items` : 'playlist';
         initialStatus = probe.title
           ? `Downloading playlist: ${probe.title} (${countLabel})`
@@ -50,7 +128,18 @@ async function beginMediaDownload({ url, type, quality, statusMsg }) {
     }
   }
 
-  startDownloadIndicator(initialStatus, { preserveProgressState: true });
+  const badge = type === 'video'
+    ? `VIDEO • ${(quality ? quality + 'P ' : '') + (currentSettings.videoFormat || 'mp4').toUpperCase()}`
+    : `AUDIO • ${(currentSettings.audioFormat || 'mp3').toUpperCase()}`;
+
+  startDownloadIndicator(initialStatus, {
+    preserveProgressState: true,
+    url,
+    type,
+    quality,
+    badge,
+    title: detectedTitle || url
+  });
 
   if (type === 'video') {
     window.electronAPI.downloadVideo({ url, quality });
@@ -97,9 +186,11 @@ function updateProgressUI(percentage, isDivider) {
   if (substatusText) substatusText.style.display = 'none';
 
   if (percentage === 100) {
+    activeDownloadInfo.phase = 'Processing and finalizing files...';
     statusText.textContent = 'Processing and finalizing files...';
-  } else {
-    statusText.textContent = 'Downloading media...';
+  } else if (!activeDownloadInfo.phase || activeDownloadInfo.phase.includes('Connecting')) {
+    activeDownloadInfo.phase = 'Downloading media stream...';
+    statusText.textContent = 'Downloading media stream...';
   }
 }
 
@@ -112,29 +203,63 @@ function parseDownloadProgressOutput(progress) {
     downloadProgressState.itemPercent = 0;
   }
 
-  const destMatch = progress.match(/Destination:\s*(.+)/);
+  const destMatch = progress.match(/(?:Destination|\[download\] Destination):\s*(.+)/i);
   if (destMatch) {
     const dest = destMatch[1].trim();
     const fileName = dest.split(/[/\\]/).pop().replace(/\.[^.]+$/, '');
-    if (fileName) downloadProgressState.itemTitle = fileName;
+    if (fileName) {
+      downloadProgressState.itemTitle = fileName;
+      activeDownloadInfo.title = fileName;
+      updateActiveDownloadBanner();
+    }
   }
 
-  const percentMatch = progress.match(/\[download\]\s+([0-9.]+)%/);
-  if (!percentMatch) return;
+  // Parse yt-dlp download stats: "[download]  45.2% of ~  85.40MiB at    4.25MiB/s ETA 00:11"
+  const statsMatch = progress.match(/\[download\]\s+([0-9.]+)%(?:\s+of\s+~?\s*([0-9.]+\s*[A-Za-z]+))?(?:\s+at\s+([0-9.]+\s*[A-Za-z/]+))?(?:\s+ETA\s+([0-9:]+))?/i);
+  if (statsMatch) {
+    const percent = parseFloat(statsMatch[1]);
+    const size = statsMatch[2] ? statsMatch[2].trim() : '';
+    const speed = statsMatch[3] ? statsMatch[3].trim() : '';
+    const eta = statsMatch[4] ? statsMatch[4].trim() : '';
 
-  const itemPercent = parseFloat(percentMatch[1]);
-  downloadProgressState.itemPercent = itemPercent;
+    if (size) activeDownloadInfo.size = size;
+    if (speed) activeDownloadInfo.speed = speed;
+    if (eta) activeDownloadInfo.eta = eta;
 
-  const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
-  const isDivider = currentTab === 'divider-tab';
+    downloadProgressState.itemPercent = percent;
+    activeDownloadInfo.percent = percent;
 
-  let displayPercent = itemPercent;
-  if (downloadProgressState.mode === 'playlist' && downloadProgressState.totalItems > 1) {
-    const { currentItem, totalItems } = downloadProgressState;
-    displayPercent = ((currentItem - 1) + itemPercent / 100) / totalItems * 100;
+    if (percent < 100) {
+      activeDownloadInfo.phase = 'Downloading media stream...';
+    } else {
+      activeDownloadInfo.phase = 'Processing and finalizing...';
+    }
+
+    updateActiveDownloadBanner();
+
+    const currentTab = document.querySelector('.nav-btn.active')?.dataset.tab;
+    const isDivider = currentTab === 'divider-tab';
+
+    let displayPercent = percent;
+    if (downloadProgressState.mode === 'playlist' && downloadProgressState.totalItems > 1) {
+      const { currentItem, totalItems } = downloadProgressState;
+      displayPercent = ((currentItem - 1) + percent / 100) / totalItems * 100;
+    }
+
+    updateProgressUI(displayPercent, isDivider);
+    return;
   }
 
-  updateProgressUI(displayPercent, isDivider);
+  if (progress.includes('[Merger]')) {
+    activeDownloadInfo.phase = 'Merging video and audio streams...';
+    updateActiveDownloadBanner();
+  } else if (progress.includes('[ExtractAudio]')) {
+    activeDownloadInfo.phase = 'Extracting audio track...';
+    updateActiveDownloadBanner();
+  } else if (progress.includes('[VideoConvertor]')) {
+    activeDownloadInfo.phase = 'Converting video format...';
+    updateActiveDownloadBanner();
+  }
 }
 
 // Tab switching logic
@@ -199,10 +324,38 @@ navBtns.forEach(btn => {
 function startDownloadIndicator(statusMsg, options = {}) {
   if (!options.preserveProgressState) {
     resetDownloadProgressState();
+    resetActiveDownloadInfo();
   }
   isDownloading = true;
+
+  if (options.url) activeDownloadInfo.url = options.url;
+  if (options.type) activeDownloadInfo.type = options.type;
+  if (options.badge) activeDownloadInfo.badge = options.badge;
+  if (options.title) activeDownloadInfo.title = options.title;
+  activeDownloadInfo.phase = statusMsg || 'Downloading media...';
+
+  if (!activeDownloadInfo.title) {
+    if (options.url) {
+      const vid = extractVideoId(options.url);
+      activeDownloadInfo.title = vid ? `YouTube (${vid})` : options.url;
+    } else {
+      activeDownloadInfo.title = statusMsg || 'Active Download';
+    }
+  }
+
+  if (!activeDownloadInfo.badge) {
+    const activeTab = document.querySelector('.nav-btn.active')?.dataset.tab;
+    if (activeTab === 'audio-tab') activeDownloadInfo.badge = `AUDIO • ${(currentSettings.audioFormat || 'mp3').toUpperCase()}`;
+    else if (activeTab === 'instagram-tab') activeDownloadInfo.badge = 'INSTAGRAM';
+    else if (activeTab === 'subtitles-tab') activeDownloadInfo.badge = 'SUBTITLES';
+    else if (activeTab === 'clipper-tab') activeDownloadInfo.badge = 'CLIP';
+    else activeDownloadInfo.badge = `VIDEO • ${(currentSettings.videoFormat || 'mp4').toUpperCase()}`;
+  }
+
+  updateActiveDownloadBanner();
+
   const progressEl = document.getElementById('download-progress-container');
-  const currentTab = document.querySelector('.nav-btn.active').dataset.tab;
+  const currentTab = document.querySelector('.nav-btn.active')?.dataset.tab;
   const substatusText = document.getElementById('progress-substatus-text');
   
   if (currentTab === 'divider-tab') {
@@ -242,12 +395,19 @@ function startDownloadIndicator(statusMsg, options = {}) {
 function stopDownloadIndicator() {
   isDownloading = false;
   resetDownloadProgressState();
+  resetActiveDownloadInfo();
   const progressEl = document.getElementById('download-progress-container');
   if (progressEl) {
     progressEl.classList.remove('active');
     progressEl.style.display = 'none';
   }
   
+  const statsEl = document.getElementById('active-download-stats');
+  if (statsEl) {
+    statsEl.style.display = 'none';
+    statsEl.textContent = '';
+  }
+
   const progressBox = document.getElementById('divider-progress-box');
   if (progressBox) progressBox.style.display = 'none';
 
@@ -307,13 +467,18 @@ document.getElementById('btn-download-subs').addEventListener('click', () => {
     appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
     return;
   }
-  const url = document.getElementById('subs-url').value;
+  const url = document.getElementById('subs-url').value.trim();
   const lang = document.getElementById('subs-lang').value;
   if (!url) return;
   
   hideDownloadCompleteCard('subtitles');
 
-  startDownloadIndicator('Extracting subtitles...');
+  startDownloadIndicator('Extracting subtitles...', {
+    url,
+    type: 'subtitles',
+    badge: `SUBTITLES • ${(lang || 'EN').toUpperCase()}`,
+    title: url
+  });
   window.electronAPI.downloadSubtitles({ url, lang });
   document.getElementById('subs-url').value = '';
 });
@@ -325,12 +490,17 @@ document.getElementById('btn-download-all-subs').addEventListener('click', () =>
     appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
     return;
   }
-  const url = document.getElementById('subs-url').value;
+  const url = document.getElementById('subs-url').value.trim();
   if (!url) return;
   
   hideDownloadCompleteCard('subtitles');
 
-  startDownloadIndicator('Extracting all subtitles...');
+  startDownloadIndicator('Extracting all subtitles...', {
+    url,
+    type: 'subtitles',
+    badge: 'SUBTITLES • ALL',
+    title: url
+  });
   window.electronAPI.downloadSubtitles({ url, lang: 'all' });
   document.getElementById('subs-url').value = '';
 });
@@ -351,7 +521,12 @@ if (btnDownloadInstagram) {
     hideDownloadCompleteCard('instagram');
 
     const label = format === 'audio' ? 'audio' : 'video';
-    startDownloadIndicator(`Downloading Instagram ${label}...`);
+    startDownloadIndicator(`Downloading Instagram ${label}...`, {
+      url,
+      type: 'instagram',
+      badge: `INSTAGRAM • ${format.toUpperCase()}`,
+      title: url
+    });
     window.electronAPI.downloadInstagram({ url, format });
     document.getElementById('instagram-url').value = '';
   });
@@ -2215,7 +2390,12 @@ function startClipperDownload(format) {
 
 
   
-  startDownloadIndicator(`Downloading clip as ${format} (${startStr} - ${endStr})...`);
+  startDownloadIndicator(`Downloading clip as ${format} (${startStr} - ${endStr})...`, {
+    url,
+    type: 'clip',
+    badge: `CLIP • ${format.toUpperCase()} (${startStr} - ${endStr})`,
+    title: url
+  });
   window.electronAPI.downloadClip({ url, quality, startTime: startStr, endTime: endStr, format });
 }
 

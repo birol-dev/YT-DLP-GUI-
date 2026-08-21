@@ -135,4 +135,40 @@ describe('Download Complete UI & Open Folder Button Audit', () => {
       'styles.css must contain @keyframes downloadCardPop animation'
     );
   });
+
+  test('active download progress card defines thumbnail, format badge, title, and live stats', () => {
+    const activeElements = [
+      'download-progress-container',
+      'active-download-thumb-wrap',
+      'active-download-thumb',
+      'active-download-icon',
+      'active-download-badge',
+      'active-download-title',
+      'progress-status-text',
+      'active-download-stats',
+      'progress-percent-text',
+      'progress-substatus-text',
+      'progress-fill'
+    ];
+
+    for (const elId of activeElements) {
+      assert.ok(
+        htmlContent.includes(`id="${elId}"`),
+        `Expected active download element #${elId} to exist in index.html`
+      );
+    }
+
+    assert.ok(
+      rendererCode.includes('updateActiveDownloadBanner'),
+      'renderer.js must define updateActiveDownloadBanner'
+    );
+    assert.ok(
+      rendererCode.includes('activeDownloadInfo'),
+      'renderer.js must maintain activeDownloadInfo state'
+    );
+    assert.ok(
+      cssContent.includes('.active-download-card'),
+      'styles.css must contain .active-download-card styling'
+    );
+  });
 });

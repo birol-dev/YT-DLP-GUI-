@@ -145,6 +145,13 @@ Settings are stored locally in `settings.json` within the app's `userData` folde
 ### Weather Widget
 Featured dynamically in headers of main downloading screens. Resolves user coordinates dynamically to render a custom weather card with automatic search suggestions.
 
+### Active In-Progress Download Card
+A real-time progress banner (`.active-download-card`) that replaces the basic progress bar during downloads to inform users what is downloading:
+- **Thumbnail / Media Icon**: Renders the video thumbnail dynamically from extracted YouTube video IDs or an animated spinner icon.
+- **Format & Quality Badge**: Dynamically indicates the chosen configuration (e.g. `VIDEO • 1080P MP4`, `AUDIO • MP3`, `INSTAGRAM • REEL`, `SUBTITLES • EN`, `CLIP`).
+- **Live Video Title & Phase**: Displays the video title/filename and current pipeline phase (`Downloading media stream...`, `Merging video and audio...`, `Extracting audio track...`).
+- **Live Transfer Metrics**: Formats `yt-dlp` stdout progress data to display download file size, transfer speed, and estimated time remaining (ETA).
+
 ### Download Complete Components
 Dedicated, theme-adaptive completion cards (`.download-complete-card`) integrated into every download tab (**Video**, **Audio**, **Instagram**, **Subtitles**, **Video Clipper**, **Video Divider**, and **Video to GIF**).
 - **Triggers**: When `window.electronAPI.onDownloadComplete` receives payload `{ type, url, filePath, status, title }`, `showDownloadCompleteCard()` renders the card on the appropriate tab pane.
