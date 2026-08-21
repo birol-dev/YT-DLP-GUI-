@@ -544,49 +544,6 @@ function renderRecents() {
 
 // Initial render
 renderRecents();
-
-// Settings Variables and State
-let currentSettings = {};
-let selectedAccent = 'default';
-
-// Success Sound Synthesizer
-function playSuccessChime() {
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // First tone (C5)
-    const osc1 = audioCtx.createOscillator();
-    const gain1 = audioCtx.createGain();
-    
-    osc1.connect(gain1);
-    gain1.connect(audioCtx.destination);
-    
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
-    gain1.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-    
-    osc1.start(audioCtx.currentTime);
-    osc1.stop(audioCtx.currentTime + 0.3);
-    
-    // Second tone (E5, delayed by 0.1s)
-    const osc2 = audioCtx.createOscillator();
-    const gain2 = audioCtx.createGain();
-    
-    osc2.connect(gain2);
-    gain2.connect(audioCtx.destination);
-    
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
-    gain2.gain.setValueAtTime(0, audioCtx.currentTime);
-    gain2.gain.setValueAtTime(0.08, audioCtx.currentTime + 0.1);
-    gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-    
-    osc2.start(audioCtx.currentTime + 0.1);
-    osc2.stop(audioCtx.currentTime + 0.5);
-  } catch (err) {
-    console.error('Failed to play success chime:', err);
-  }
 // Settings Variables and State
 let currentSettings = {};
 let selectedAccent = 'default';

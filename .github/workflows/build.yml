@@ -38,6 +38,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Run Automated Regression Tests
+        run: npm test
+
       # For a tag push (e.g. v1.1.1), build and publish directly to GitHub Releases.
       # For a push to main or workflow_dispatch, just build the exe without publishing, and upload it as a workflow artifact.
       - name: Build and Publish (Tags or Manual Publish)

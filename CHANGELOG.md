@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.4] - 2026-08-21
+
+### Fixed
+- Fix syntax error in `renderer.js` caused by an unclosed duplicate function block that broke all UI interactions and event handlers on startup.
+- Add `dev` script alias to `package.json` (`npm run dev` / `npm start`).
+
+### Added
+- Comprehensive automated regression test suite (`npm test`) using Node's native test runner (`node:test`):
+  - **Syntax & Compilation Validation**: Asserts 0 compilation errors across `main.js`, `preload.js`, and `renderer.js`.
+  - **Delimiter Balance Audit**: Strict delimiter tokenizer checking balanced braces, brackets, and parentheses across all scripts.
+  - **IPC Contract Audit**: Guarantees all `window.electronAPI` methods used in `renderer.js` are exposed in `preload.js`, and all IPC channels in `preload.js` are handled in `main.js`.
+  - **DOM & Element Integrity Audit**: Ensures all 270+ element IDs queried in `renderer.js` exist in `index.html` and all navigation tabs have matching panes.
+  - **Package & Config Audit**: Verifies script definitions and version parity between `package.json` and `CHANGELOG.md`.
+- Automated test execution in GitHub Actions CI workflow to block broken builds prior to release.
+
 ## [1.8.3] - 2026-08-20
 
 ### Added
