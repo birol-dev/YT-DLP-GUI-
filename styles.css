@@ -79,7 +79,7 @@ nav {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
   font-family: inherit;
 }
 
@@ -2217,3 +2217,26 @@ option {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* Performance Optimizations: Hardware containment & GPU acceleration */
+#progress-fill,
+#divider-progress-fill,
+#dep-progress-fill,
+#onboarding-dep-progress-fill,
+#musicfinder-progress-fill {
+  contain: strict;
+  will-change: width;
+}
+
+#terminal-output {
+  contain: content;
+}
+
+.sniffer-media-item {
+  contain: layout style paint;
+}
+
+.custom-range-slider-wrapper {
+  contain: layout paint;
+}
+

@@ -148,49 +148,82 @@ async function beginMediaDownload({ url, type, quality, statusMsg }) {
   }
 }
 
+let cachedProgressEls = null;
+
+function getProgressElements() {
+  if (!cachedProgressEls) {
+    cachedProgressEls = {
+      fill: document.getElementById('progress-fill'),
+      percentText: document.getElementById('progress-percent-text'),
+      statusText: document.getElementById('progress-status-text'),
+      substatusText: document.getElementById('progress-substatus-text'),
+      dividerFill: document.getElementById('divider-progress-fill'),
+      dividerPercentText: document.getElementById('divider-progress-percent-text'),
+      dividerStatusText: document.getElementById('divider-progress-status-text')
+    };
+  }
+  return cachedProgressEls;
+}
+
+let pendingProgressRaf = false;
+let pendingProgressPercent = 0;
+let pendingProgressIsDivider = false;
+
 function updateProgressUI(percentage, isDivider) {
-  const fill = document.getElementById(isDivider ? 'divider-progress-fill' : 'progress-fill');
-  const percentText = document.getElementById(isDivider ? 'divider-progress-percent-text' : 'progress-percent-text');
-  const statusText = document.getElementById(isDivider ? 'divider-progress-status-text' : 'progress-status-text');
-  const substatusText = document.getElementById('progress-substatus-text');
+  pendingProgressPercent = percentage;
+  pendingProgressIsDivider = isDivider;
 
-  if (!fill || !percentText) return;
+  if (!pendingProgressRaf) {
+    pendingProgressRaf = true;
+    requestAnimationFrame(() => {
+      pendingProgressRaf = false;
+      const els = getProgressElements();
+      const isDiv = pendingProgressIsDivider;
+      const pct = pendingProgressPercent;
+      const fill = isDiv ? els.dividerFill : els.fill;
+      const percentText = isDiv ? els.dividerPercentText : els.percentText;
+      const statusText = isDiv ? els.dividerStatusText : els.statusText;
+      const substatusText = els.substatusText;
 
-  fill.style.width = `${percentage}%`;
-  percentText.textContent = `${Math.round(percentage)}%`;
+      if (!fill || !percentText) return;
 
-  if (isDivider) {
-    if (statusText) {
-      statusText.textContent = percentage === 100
-        ? 'Processing and finalizing files...'
-        : 'Downloading media...';
-    }
-    return;
-  }
+      fill.style.width = `${pct}%`;
+      percentText.textContent = `${Math.round(pct)}%`;
 
-  if (!statusText) return;
+      if (isDiv) {
+        if (statusText) {
+          statusText.textContent = pct === 100
+            ? 'Processing and finalizing files...'
+            : 'Downloading media...';
+        }
+        return;
+      }
 
-  if (downloadProgressState.mode === 'playlist' && downloadProgressState.totalItems > 1) {
-    const { currentItem, totalItems, itemPercent, itemTitle, playlistTitle } = downloadProgressState;
-    statusText.textContent = `Downloading playlist (${currentItem}/${totalItems})`;
-    if (substatusText) {
-      substatusText.style.display = 'block';
-      const titlePart = itemTitle || playlistTitle || 'Current item';
-      substatusText.textContent = itemPercent >= 100
-        ? `Item ${currentItem}: ${titlePart} — finalizing...`
-        : `Item ${currentItem}: ${titlePart} — ${Math.round(itemPercent)}%`;
-    }
-    return;
-  }
+      if (!statusText) return;
 
-  if (substatusText) substatusText.style.display = 'none';
+      if (downloadProgressState.mode === 'playlist' && downloadProgressState.totalItems > 1) {
+        const { currentItem, totalItems, itemPercent, itemTitle, playlistTitle } = downloadProgressState;
+        statusText.textContent = `Downloading playlist (${currentItem}/${totalItems})`;
+        if (substatusText) {
+          substatusText.style.display = 'block';
+          const titlePart = itemTitle || playlistTitle || 'Current item';
+          substatusText.textContent = itemPercent >= 100
+            ? `Item ${currentItem}: ${titlePart} — finalizing...`
+            : `Item ${currentItem}: ${titlePart} — ${Math.round(itemPercent)}%`;
+        }
+        return;
+      }
 
-  if (percentage === 100) {
-    activeDownloadInfo.phase = 'Processing and finalizing files...';
-    statusText.textContent = 'Processing and finalizing files...';
-  } else if (!activeDownloadInfo.phase || activeDownloadInfo.phase.includes('Connecting')) {
-    activeDownloadInfo.phase = 'Downloading media stream...';
-    statusText.textContent = 'Downloading media stream...';
+      if (substatusText) substatusText.style.display = 'none';
+
+      if (pct === 100) {
+        activeDownloadInfo.phase = 'Processing and finalizing files...';
+        statusText.textContent = 'Processing and finalizing files...';
+      } else if (!activeDownloadInfo.phase || activeDownloadInfo.phase.includes('Connecting')) {
+        activeDownloadInfo.phase = 'Downloading media stream...';
+        statusText.textContent = 'Downloading media stream...';
+      }
+    });
   }
 }
 
@@ -729,13 +762,27 @@ function showDownloadCompleteCard({ type, url, filePath, title }) {
 
 // Terminal Output
 const terminal = document.getElementById('terminal-output');
+const MAX_TERMINAL_LINES = 500;
+let pendingTerminalScrollRaf = false;
 
 function appendLog(message, className = '') {
+  if (!terminal) return;
   const div = document.createElement('div');
   div.textContent = message;
   if (className) div.classList.add(className);
   terminal.appendChild(div);
-  terminal.scrollTop = terminal.scrollHeight;
+
+  while (terminal.childElementCount > MAX_TERMINAL_LINES) {
+    terminal.removeChild(terminal.firstElementChild);
+  }
+
+  if (!pendingTerminalScrollRaf) {
+    pendingTerminalScrollRaf = true;
+    requestAnimationFrame(() => {
+      terminal.scrollTop = terminal.scrollHeight;
+      pendingTerminalScrollRaf = false;
+    });
+  }
 }
 
 window.electronAPI.onDownloadStatus((status) => {
@@ -2131,15 +2178,21 @@ function updateClipperSliderUI() {
   }
 }
 
+let cachedClipperRect = null;
+let pendingClipperRaf = false;
+
 // Dragging start/end handles
 function handleMouseDown(type) {
   return function(e) {
     e.preventDefault();
     e.stopPropagation();
     activeDragHandle = type;
-    document.addEventListener('mousemove', handleMouseMove);
+    if (clipperSliderWrapper) {
+      cachedClipperRect = clipperSliderWrapper.getBoundingClientRect();
+    }
+    document.addEventListener('mousemove', handleMouseMove, { passive: true });
     document.addEventListener('mouseup', handleMouseUp);
-  }
+  };
 }
 
 if (handleStart) handleStart.addEventListener('mousedown', handleMouseDown('start'));
@@ -2147,30 +2200,44 @@ if (handleEnd) handleEnd.addEventListener('mousedown', handleMouseDown('end'));
 
 function handleMouseMove(e) {
   if (!activeDragHandle || clipperDuration <= 0) return;
-  
-  const rect = clipperSliderWrapper.getBoundingClientRect();
-  const clickX = e.clientX - rect.left;
-  const pct = Math.max(0, Math.min(1, clickX / rect.width));
-  const timeVal = pct * clipperDuration;
-  
-  // Instant visual feedback for playhead positioning during drag
-  clipperSliderPlayhead.style.left = `${pct * 100}%`;
-  clipperLabelCurrent.textContent = secondsToHHMMSS(timeVal);
-  
-  if (activeDragHandle === 'start') {
-    clipperStartVal = Math.min(timeVal, clipperEndVal);
-    clipperStartInput.value = secondsToHHMMSS(clipperStartVal);
-    seekVideoPlayer(clipperStartVal);
-  } else if (activeDragHandle === 'end') {
-    clipperEndVal = Math.max(timeVal, clipperStartVal);
-    clipperEndInput.value = secondsToHHMMSS(clipperEndVal);
-    seekVideoPlayer(clipperEndVal);
+  if (!cachedClipperRect && clipperSliderWrapper) {
+    cachedClipperRect = clipperSliderWrapper.getBoundingClientRect();
   }
-  updateClipperSliderUI();
+  if (!cachedClipperRect) return;
+
+  const clientX = e.clientX;
+  if (!pendingClipperRaf) {
+    pendingClipperRaf = true;
+    requestAnimationFrame(() => {
+      pendingClipperRaf = false;
+      if (!activeDragHandle || !cachedClipperRect) return;
+
+      const rect = cachedClipperRect;
+      const clickX = clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / (rect.width || 1)));
+      const timeVal = pct * clipperDuration;
+      
+      // Instant visual feedback for playhead positioning during drag
+      clipperSliderPlayhead.style.left = `${pct * 100}%`;
+      clipperLabelCurrent.textContent = secondsToHHMMSS(timeVal);
+      
+      if (activeDragHandle === 'start') {
+        clipperStartVal = Math.min(timeVal, clipperEndVal);
+        clipperStartInput.value = secondsToHHMMSS(clipperStartVal);
+        seekVideoPlayer(clipperStartVal);
+      } else if (activeDragHandle === 'end') {
+        clipperEndVal = Math.max(timeVal, clipperStartVal);
+        clipperEndInput.value = secondsToHHMMSS(clipperEndVal);
+        seekVideoPlayer(clipperEndVal);
+      }
+      updateClipperSliderUI();
+    });
+  }
 }
 
 function handleMouseUp() {
   activeDragHandle = null;
+  cachedClipperRect = null;
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('mouseup', handleMouseUp);
 }
@@ -4817,16 +4884,17 @@ function updateSnifferUI() {
   detectedMediaList.forEach((media, index) => {
     const item = document.createElement('div');
     item.className = 'sniffer-media-item';
+    item.dataset.mediaUrl = media.url;
     
     let iconSvg = '';
     const isAudio = media.contentType && media.contentType.toLowerCase().startsWith('audio/');
     if (isAudio) {
-      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #10b981; flex-shrink: 0;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+      iconSvg = `<div class="sniffer-icon audio" style="color: hsl(var(--accent-cyan)); margin-right: 6px; display: flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>`;
     } else {
-      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #3b82f6; flex-shrink: 0;"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="m22 8-6 4 6 4V8Z"/></svg>`;
+      iconSvg = `<div class="sniffer-icon video" style="color: hsl(var(--primary)); margin-right: 6px; display: flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg></div>`;
     }
     
-    let displayTitle = media.title;
+    let displayTitle = media.title || 'Media Stream';
     try {
       const cleanUrl = media.url.split('?')[0].split('#')[0];
       const filename = cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
@@ -4869,7 +4937,7 @@ function updateSnifferUI() {
       </div>
       <div class="sniffer-media-actions" style="display: flex; gap: 4px; align-items: center;">
         <button class="sniffer-action-btn btn-preview" title="Preview Stream" style="display: flex; align-items: center; justify-content: center; width: 1.65rem; height: 1.65rem; padding: 0; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); border-radius: 4px; color: hsl(var(--foreground)); cursor: pointer;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 3"/></svg>
         </button>
         <button class="sniffer-action-btn btn-dl" title="Download Media" style="display: flex; align-items: center; justify-content: center; width: 1.65rem; height: 1.65rem; padding: 0; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); border-radius: 4px; color: hsl(var(--foreground)); cursor: pointer;">
           <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
@@ -4966,6 +5034,38 @@ window.electronAPI.onMediaProbed((probedData) => {
       vcodec: probedData.vcodec,
       fps: probedData.fps
     };
+    
+    const existingItem = snifferMediaList?.querySelector(`[data-media-url="${CSS.escape(probedData.url)}"]`);
+    if (existingItem) {
+      const metaContainer = existingItem.querySelector('.sniffer-media-meta');
+      if (metaContainer) {
+        const isHls = probedData.url.includes('.m3u8');
+        const isAudio = detectedMediaList[index].contentType && detectedMediaList[index].contentType.toLowerCase().startsWith('audio/');
+        const badgeText = isHls ? 'HLS Stream' : (isAudio ? 'Audio' : 'Video');
+        let resolutionText = '';
+        let durationText = '';
+        let codecText = '';
+        
+        if (probedData.width && probedData.height) {
+          resolutionText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); border: 1px solid hsl(var(--primary) / 0.3); font-weight: 600;">${probedData.width}x${probedData.height}</span>`;
+        }
+        if (probedData.duration) {
+          durationText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">${secondsToHHMMSS(probedData.duration)}</span>`;
+        } else if (isHls) {
+          durationText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">Live / Adaptive</span>`;
+        }
+        if (probedData.vcodec && probedData.vcodec !== 'Unknown') {
+          codecText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">${probedData.vcodec}</span>`;
+        }
+        metaContainer.innerHTML = `
+          <span class="badge" style="padding: 1px 4px; font-size: 0.6rem;">${badgeText}</span>
+          ${resolutionText}
+          ${durationText}
+          ${codecText}
+        `;
+        return;
+      }
+    }
     updateSnifferUI();
   }
 });
@@ -5348,41 +5448,61 @@ if (gifVideoPlayer) {
   });
 }
 
+let cachedGifTimelineRect = null;
+let pendingGifDragRaf = false;
+
 function handleGifMouseDown(type) {
   return function(e) {
     e.preventDefault();
     e.stopPropagation();
     activeGifDragHandle = type;
-    document.addEventListener('mousemove', handleGifMouseMove);
+    if (gifTimelineWrapper) {
+      cachedGifTimelineRect = gifTimelineWrapper.getBoundingClientRect();
+    }
+    document.addEventListener('mousemove', handleGifMouseMove, { passive: true });
     document.addEventListener('mouseup', handleGifMouseUp);
-  }
+  };
 }
 
 function handleGifMouseMove(e) {
-  if (!activeGifDragHandle || gifDuration <= 0 || !gifTimelineWrapper) return;
-  
-  const rect = gifTimelineWrapper.getBoundingClientRect();
-  const clickX = e.clientX - rect.left;
-  const pct = Math.max(0, Math.min(1, clickX / rect.width));
-  const timeVal = pct * gifDuration;
-  
-  if (gifSliderPlayhead) gifSliderPlayhead.style.left = `${pct * 100}%`;
-  if (gifLabelCurrent) gifLabelCurrent.textContent = secondsToHHMMSSWithMs(timeVal);
-  
-  if (activeGifDragHandle === 'start') {
-    gifStartVal = Math.min(timeVal, gifEndVal);
-    if (gifStartInput) gifStartInput.value = secondsToHHMMSSWithMs(gifStartVal);
-    seekGifVideoPlayer(gifStartVal);
-  } else if (activeGifDragHandle === 'end') {
-    gifEndVal = Math.max(timeVal, gifStartVal);
-    if (gifEndInput) gifEndInput.value = secondsToHHMMSSWithMs(gifEndVal);
-    seekGifVideoPlayer(gifEndVal);
+  if (!activeGifDragHandle || gifDuration <= 0) return;
+  if (!cachedGifTimelineRect && gifTimelineWrapper) {
+    cachedGifTimelineRect = gifTimelineWrapper.getBoundingClientRect();
   }
-  updateGifSliderUI();
+  if (!cachedGifTimelineRect) return;
+
+  const clientX = e.clientX;
+  if (!pendingGifDragRaf) {
+    pendingGifDragRaf = true;
+    requestAnimationFrame(() => {
+      pendingGifDragRaf = false;
+      if (!activeGifDragHandle || !cachedGifTimelineRect) return;
+
+      const rect = cachedGifTimelineRect;
+      const clickX = clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / (rect.width || 1)));
+      const timeVal = pct * gifDuration;
+
+      if (gifSliderPlayhead) gifSliderPlayhead.style.left = `${pct * 100}%`;
+      if (gifLabelCurrent) gifLabelCurrent.textContent = secondsToHHMMSSWithMs(timeVal);
+
+      if (activeGifDragHandle === 'start') {
+        gifStartVal = Math.min(timeVal, gifEndVal);
+        if (gifStartInput) gifStartInput.value = secondsToHHMMSSWithMs(gifStartVal);
+        seekGifVideoPlayer(gifStartVal);
+      } else if (activeGifDragHandle === 'end') {
+        gifEndVal = Math.max(timeVal, gifStartVal);
+        if (gifEndInput) gifEndInput.value = secondsToHHMMSSWithMs(gifEndVal);
+        seekGifVideoPlayer(gifEndVal);
+      }
+      updateGifSliderUI();
+    });
+  }
 }
 
 function handleGifMouseUp() {
   activeGifDragHandle = null;
+  cachedGifTimelineRect = null;
   document.removeEventListener('mousemove', handleGifMouseMove);
   document.removeEventListener('mouseup', handleGifMouseUp);
 }
@@ -5392,16 +5512,31 @@ const gifEndHandleEl = document.getElementById('gif-handle-end');
 if (gifStartHandleEl) gifStartHandleEl.addEventListener('mousedown', handleGifMouseDown('start'));
 if (gifEndHandleEl) gifEndHandleEl.addEventListener('mousedown', handleGifMouseDown('end'));
 
+let pendingGifScrubRaf = false;
+
 function handleGifPlayheadScrub(e) {
-  if (gifDuration <= 0 || !gifTimelineWrapper) return;
-  const rect = gifTimelineWrapper.getBoundingClientRect();
-  const clickX = e.clientX - rect.left;
-  const pct = Math.max(0, Math.min(1, clickX / rect.width));
-  const timeVal = pct * gifDuration;
-  
-  seekGifVideoPlayer(timeVal);
-  if (gifSliderPlayhead) gifSliderPlayhead.style.left = `${pct * 100}%`;
-  if (gifLabelCurrent) gifLabelCurrent.textContent = secondsToHHMMSSWithMs(timeVal);
+  if (gifDuration <= 0) return;
+  if (!cachedGifTimelineRect && gifTimelineWrapper) {
+    cachedGifTimelineRect = gifTimelineWrapper.getBoundingClientRect();
+  }
+  if (!cachedGifTimelineRect) return;
+
+  const clientX = e.clientX;
+  if (!pendingGifScrubRaf) {
+    pendingGifScrubRaf = true;
+    requestAnimationFrame(() => {
+      pendingGifScrubRaf = false;
+      if (!cachedGifTimelineRect) return;
+      const rect = cachedGifTimelineRect;
+      const clickX = clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / (rect.width || 1)));
+      const timeVal = pct * gifDuration;
+
+      seekGifVideoPlayer(timeVal);
+      if (gifSliderPlayhead) gifSliderPlayhead.style.left = `${pct * 100}%`;
+      if (gifLabelCurrent) gifLabelCurrent.textContent = secondsToHHMMSSWithMs(timeVal);
+    });
+  }
 }
 
 function handleGifPlayheadMouseMove(e) {
@@ -5412,6 +5547,7 @@ function handleGifPlayheadMouseMove(e) {
 
 function handleGifPlayheadMouseUp() {
   isScrubbingGifPlayhead = false;
+  cachedGifTimelineRect = null;
   document.removeEventListener('mousemove', handleGifPlayheadMouseMove);
   document.removeEventListener('mouseup', handleGifPlayheadMouseUp);
 }
@@ -5423,9 +5559,10 @@ if (gifTimelineWrapper) {
     if (e.target === startHandle || e.target === endHandle) return;
     
     e.preventDefault();
+    cachedGifTimelineRect = gifTimelineWrapper.getBoundingClientRect();
     isScrubbingGifPlayhead = true;
     handleGifPlayheadScrub(e);
-    document.addEventListener('mousemove', handleGifPlayheadMouseMove);
+    document.addEventListener('mousemove', handleGifPlayheadMouseMove, { passive: true });
     document.addEventListener('mouseup', handleGifPlayheadMouseUp);
   });
 }

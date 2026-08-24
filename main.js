@@ -4,6 +4,88 @@ const { spawn, exec } = require('child_process');
 const fs = require('fs');
 const https = require('https');
 const os = require('os');
+let fluentFfmpeg = null;
+try {
+  fluentFfmpeg = require('fluent-ffmpeg');
+} catch (e) {}
+
+// High-performance LRU Cache for memory-bounded caching
+class SimpleLRUCache {
+  constructor(maxSize = 100) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+  }
+  get(key) {
+    if (!this.cache.has(key)) return null;
+    const val = this.cache.get(key);
+    this.cache.delete(key);
+    this.cache.set(key, val);
+    return val;
+  }
+  set(key, val) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    this.cache.set(key, val);
+  }
+  has(key) {
+    return this.cache.has(key);
+  }
+  delete(key) {
+    return this.cache.delete(key);
+  }
+  clear() {
+    this.cache.clear();
+  }
+}
+
+// Global LRU Caches to eliminate redundant child process spawns
+const probeMetadataCache = new SimpleLRUCache(150);
+const probePlaylistCache = new SimpleLRUCache(100);
+const videoInfoCache = new SimpleLRUCache(100);
+const inFlightProbes = new Map();
+const detectedMediaUrlCache = new SimpleLRUCache(300);
+const inFlightMediaProbes = new Set();
+
+// Throttled IPC progress sender to prevent bus saturation and layout thrashing
+function createThrottledProgressSender(win, channel = 'download-progress', intervalMs = 60) {
+  let lastEmit = 0;
+  let pendingData = '';
+  let timer = null;
+
+  return {
+    push(chunk) {
+      pendingData = chunk;
+      const now = Date.now();
+      if (now - lastEmit >= intervalMs) {
+        lastEmit = now;
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(channel, pendingData);
+        }
+      } else if (!timer) {
+        timer = setTimeout(() => {
+          timer = null;
+          lastEmit = Date.now();
+          if (win && !win.isDestroyed() && pendingData) {
+            win.webContents.send(channel, pendingData);
+          }
+        }, intervalMs);
+      }
+    },
+    flush() {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (win && !win.isDestroyed() && pendingData) {
+        win.webContents.send(channel, pendingData);
+      }
+    }
+  };
+}
 
 // Local binary path definitions
 const localBinDir = path.join(app.getPath('userData'), 'bin');
@@ -1242,19 +1324,39 @@ function startEmbedIframeHydration(webContents) {
     embedIframeFirstSeen.clear();
   };
 
+  let scanTimer = null;
+  let remainingScans = 0;
+
+  const triggerScanCycle = (count = 5) => {
+    remainingScans = count;
+    if (!scanTimer) {
+      scan();
+      scanTimer = setInterval(() => {
+        remainingScans--;
+        if (remainingScans <= 0 || !webContents || webContents.isDestroyed()) {
+          clearInterval(scanTimer);
+          scanTimer = null;
+          return;
+        }
+        scan();
+      }, 800);
+    }
+  };
+
   webContents.on('did-finish-load', () => {
     resetHydration();
-    scan();
+    triggerScanCycle(6);
   });
   webContents.on('did-navigate', resetHydration);
   webContents.on('did-navigate-in-page', () => {
     resetHydration();
-    scan();
+    triggerScanCycle(5);
   });
 
-  const timer = setInterval(scan, 800);
-  webContents.once('destroyed', () => clearInterval(timer));
-  scan();
+  webContents.once('destroyed', () => {
+    if (scanTimer) clearInterval(scanTimer);
+  });
+  triggerScanCycle(5);
 }
 
 function setupGuestNetworkHooks(webContents) {
@@ -1362,10 +1464,43 @@ function initSettings() {
   }
 }
 
+let pendingSettingsTimer = null;
+
+async function flushSettingsToDisk() {
+  if (pendingSettingsTimer) {
+    clearTimeout(pendingSettingsTimer);
+    pendingSettingsTimer = null;
+  }
+  if (!settingsFilePath) return;
+  try {
+    const data = JSON.stringify(settings, null, 2);
+    await fs.promises.writeFile(settingsFilePath, data, 'utf8');
+  } catch (err) {
+    console.error('Failed to write settings to disk:', err);
+  }
+}
+
+function flushSettingsSync() {
+  if (pendingSettingsTimer) {
+    clearTimeout(pendingSettingsTimer);
+    pendingSettingsTimer = null;
+  }
+  if (!settingsFilePath) return;
+  try {
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+  } catch (e) {}
+}
+
 function saveSettingsInternal(newSettings) {
   try {
     settings = { ...settings, ...newSettings };
-    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+    if (pendingSettingsTimer) {
+      clearTimeout(pendingSettingsTimer);
+    }
+    pendingSettingsTimer = setTimeout(() => {
+      pendingSettingsTimer = null;
+      flushSettingsToDisk();
+    }, 120);
     return true;
   } catch (err) {
     console.error('Failed to save settings:', err);
@@ -1385,17 +1520,27 @@ function findNewestCompletedFile(dirPath, startedAtMs) {
     if (!fs.existsSync(dirPath)) return '';
 
     const minModifiedAt = startedAtMs - 2000;
-    const files = fs.readdirSync(dirPath, { withFileTypes: true })
-      .filter((entry) => entry.isFile())
-      .map((entry) => {
-        const filePath = path.join(dirPath, entry.name);
-        const stat = fs.statSync(filePath);
-        return { filePath, modifiedAt: stat.mtimeMs };
-      })
-      .filter((file) => file.modifiedAt >= minModifiedAt && !isTemporaryDownloadPath(file.filePath))
-      .sort((a, b) => b.modifiedAt - a.modifiedAt);
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    let newestPath = '';
+    let newestMtime = minModifiedAt;
 
-    return files[0]?.filePath || '';
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (!entry.isFile()) continue;
+      const fileName = entry.name;
+      if (isTemporaryDownloadPath(fileName)) continue;
+
+      const fullPath = path.join(dirPath, fileName);
+      try {
+        const stat = fs.statSync(fullPath);
+        if (stat.mtimeMs >= newestMtime) {
+          newestMtime = stat.mtimeMs;
+          newestPath = fullPath;
+        }
+      } catch (e) {}
+    }
+
+    return newestPath;
   } catch (err) {
     console.error('Failed to resolve newest completed file:', err);
     return '';
@@ -2051,7 +2196,12 @@ app.whenReady().then(() => {
   });
 });
 
+app.on('before-quit', () => {
+  flushSettingsSync();
+});
+
 app.on('window-all-closed', () => {
+  flushSettingsSync();
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -2304,6 +2454,12 @@ ipcMain.handle('probe-playlist', async (_event, url) => {
     return { isPlaylist: false, playlistCount: 0, title: '' };
   }
 
+  const cleanUrl = url.trim();
+  const cached = probePlaylistCache.get(cleanUrl);
+  if (cached) {
+    return cached;
+  }
+
   const result = await runYtDlpProcess([
     '--flat-playlist',
     '--dump-single-json',
@@ -2313,21 +2469,27 @@ ipcMain.handle('probe-playlist', async (_event, url) => {
 
   if (result.code !== 0) {
     const isLikelyPlaylist = /[?&]list=/.test(url) || /youtube\.com\/playlist/i.test(url);
-    return { isPlaylist: isLikelyPlaylist, playlistCount: 0, title: '' };
+    const fallback = { isPlaylist: isLikelyPlaylist, playlistCount: 0, title: '' };
+    probePlaylistCache.set(cleanUrl, fallback);
+    return fallback;
   }
 
   try {
     const parsed = JSON.parse(result.stdout);
     const playlistCount = parsed.playlist_count || parsed.n_entries || 0;
     const isPlaylist = parsed._type === 'playlist' || playlistCount > 1;
-    return {
+    const probeRes = {
       isPlaylist,
       playlistCount: isPlaylist ? playlistCount : 0,
       title: parsed.title || parsed.playlist_title || ''
     };
+    probePlaylistCache.set(cleanUrl, probeRes);
+    return probeRes;
   } catch {
     const isLikelyPlaylist = /[?&]list=/.test(url) || /youtube\.com\/playlist/i.test(url);
-    return { isPlaylist: isLikelyPlaylist, playlistCount: 0, title: '' };
+    const fallback = { isPlaylist: isLikelyPlaylist, playlistCount: 0, title: '' };
+    probePlaylistCache.set(cleanUrl, fallback);
+    return fallback;
   }
 });
 
@@ -2373,11 +2535,12 @@ ipcMain.on('download-video', async (event, { url, quality }) => {
   const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, args);
   registerYtDlpProcess(ytProcess);
+  const throttledProgress = createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
-    win.webContents.send('download-progress', text);
+    throttledProgress.push(text);
     const lines = text.split('\n');
     for (const line of lines) {
       const destMatch = line.match(/Destination:\s*(.+)/);
@@ -2395,8 +2558,9 @@ ipcMain.on('download-video', async (event, { url, quality }) => {
       if (existMatch) finalPath = existMatch[1].trim();
     }
   });
-  ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
+  ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
   ytProcess.on('close', (code) => {
+    throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: 'video', url, status: 'Success', filePath: finalPath });
@@ -2451,11 +2615,12 @@ ipcMain.on('download-audio', async (event, { url }) => {
   const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, finalArgs);
   registerYtDlpProcess(ytProcess);
+  const throttledProgress = createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
-    win.webContents.send('download-progress', text);
+    throttledProgress.push(text);
     const lines = text.split('\n');
     for (const line of lines) {
       const destMatch = line.match(/Destination:\s*(.+)/);
@@ -2473,8 +2638,9 @@ ipcMain.on('download-audio', async (event, { url }) => {
       if (existMatch) finalPath = existMatch[1].trim();
     }
   });
-  ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
+  ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
   ytProcess.on('close', (code) => {
+    throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, audioDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: 'audio', url, status: 'Success', filePath: finalPath });
@@ -2529,11 +2695,12 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
   const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, finalArgs);
   registerYtDlpProcess(ytProcess);
+  const throttledProgress = createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
-    win.webContents.send('download-progress', text);
+    throttledProgress.push(text);
     const lines = text.split('\n');
     for (const line of lines) {
       const subMatch = line.match(/Writing video subtitles to:\s*(.+)/);
@@ -2542,8 +2709,9 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
       if (existMatch) finalPath = existMatch[1].trim();
     }
   });
-  ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
+  ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
   ytProcess.on('close', (code) => {
+    throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, subsDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: 'subtitles', url, status: 'Success', filePath: finalPath });
@@ -2630,12 +2798,13 @@ ipcMain.on('download-instagram', async (event, { url, format }) => {
   const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, finalArgs);
   registerYtDlpProcess(ytProcess);
+  const throttledProgress = createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
   let stderrOutput = '';
   
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
-    win.webContents.send('download-progress', text);
+    throttledProgress.push(text);
     const lines = text.split('\n');
     for (const line of lines) {
       const destMatch = line.match(/Destination:\s*(.+)/);
@@ -2656,9 +2825,10 @@ ipcMain.on('download-instagram', async (event, { url, format }) => {
   ytProcess.stderr.on('data', (data) => {
     const text = data.toString();
     stderrOutput += text;
-    win.webContents.send('download-progress', text);
+    throttledProgress.push(text);
   });
   ytProcess.on('close', (code) => {
+    throttledProgress.flush();
     if (code === 0) {
       const type = format === 'audio' ? 'ig-audio' : 'ig-video';
       finalPath = resolveFinalDownloadPath(finalPath, path.join(baseDir, subFolder), downloadStartedAt);
@@ -2681,14 +2851,24 @@ ipcMain.handle('fetch-video-info', async (event, url) => {
   if (ytDlpChannelSwitchInProgress) {
     throw new Error('A yt-dlp update or channel switch is currently in progress. Please try again in a moment.');
   }
+  if (!url || typeof url !== 'string') {
+    return { success: false, error: 'Invalid URL provided.' };
+  }
+
+  const cleanUrl = url.trim();
+  const cached = videoInfoCache.get(cleanUrl);
+  if (cached) {
+    return cached;
+  }
+
   const runYtDlp = (args) => runYtDlpProcess(args);
 
-  // Try with mp4 format filter first for small info payload and direct stream URL
-  let result = await runYtDlp(['--dump-json', '-f', '18/best[ext=mp4]', url]);
+  // Try with mp4 format filter first and --no-playlist for fast lightweight payload
+  let result = await runYtDlp(['--no-playlist', '--dump-json', '-f', '18/best[ext=mp4]', cleanUrl]);
   
   // If it fails (some non-YT sites don't have format 18), fallback to dump full json
   if (result.code !== 0) {
-    result = await runYtDlp(['--dump-json', url]);
+    result = await runYtDlp(['--no-playlist', '--dump-json', cleanUrl]);
   }
 
   if (result.code === 0) {
@@ -2721,13 +2901,15 @@ ipcMain.handle('fetch-video-info', async (event, url) => {
         }
       }
 
-      return {
+      const infoResult = {
         success: true,
         title: parsed.title || 'Unknown Video',
         duration: parsed.duration || 0,
         thumbnail: parsed.thumbnail || (parsed.thumbnails && parsed.thumbnails.length > 0 ? parsed.thumbnails[parsed.thumbnails.length - 1].url : ''),
         streamUrl: streamUrl
       };
+      videoInfoCache.set(cleanUrl, infoResult);
+      return infoResult;
     } catch (e) {
       return { success: false, error: 'JSON parse error: ' + e.message };
     }
@@ -2806,11 +2988,12 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
   const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, finalArgs);
   registerYtDlpProcess(ytProcess);
+  const throttledProgress = createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
-    win.webContents.send('download-progress', text);
+    throttledProgress.push(text);
     const lines = text.split('\n');
     for (const line of lines) {
       const destMatch = line.match(/Destination:\s*(.+)/);
@@ -2829,9 +3012,10 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
     }
   });
   
-  ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
+  ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
   
   ytProcess.on('close', (code) => {
+    throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: isAudio ? 'clip-audio' : 'clip', url, status: 'Success', filePath: finalPath });
@@ -2863,7 +3047,48 @@ function buildDivideOutputDir(inputPath) {
 }
 
 function probeLocalVideo(filePath, headers = null) {
-  return new Promise((resolve, reject) => {
+  if (!filePath) {
+    return Promise.resolve({
+      duration: 0,
+      width: 0,
+      height: 0,
+      vcodec: 'Unknown',
+      fps: 0,
+      acodec: 'None',
+      filename: '',
+      size: 0,
+      filePath: ''
+    });
+  }
+
+  const isRemote = filePath.startsWith('http://') || filePath.startsWith('https://');
+  let cacheKey = filePath;
+  let currentMtime = 0;
+  let currentSize = 0;
+
+  if (!isRemote) {
+    try {
+      const stat = fs.statSync(filePath);
+      currentMtime = stat.mtimeMs;
+      currentSize = stat.size;
+      cacheKey = `${filePath}:${currentMtime}:${currentSize}`;
+    } catch (e) {
+      cacheKey = filePath;
+    }
+  }
+
+  // Check LRU cache
+  const cached = probeMetadataCache.get(cacheKey);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+
+  // Check if identical probe is already in-flight
+  if (inFlightProbes.has(cacheKey)) {
+    return inFlightProbes.get(cacheKey);
+  }
+
+  const probePromise = new Promise((resolve, reject) => {
     const ffmpegPath = getFfmpegPath();
     const args = [];
     if (headers && headers.length > 0) {
@@ -2884,7 +3109,7 @@ function probeLocalVideo(filePath, headers = null) {
       fps: 0,
       acodec: 'None',
       filename: path.basename(filePath || ''),
-      size: 0,
+      size: currentSize,
       filePath
     });
 
@@ -2892,6 +3117,8 @@ function probeLocalVideo(filePath, headers = null) {
       if (settled) return;
       settled = true;
       clearTimeout(killTimeout);
+      inFlightProbes.delete(cacheKey);
+      probeMetadataCache.set(cacheKey, result);
       resolve(result);
     };
 
@@ -2950,10 +3177,12 @@ function probeLocalVideo(filePath, headers = null) {
         }
       }
 
-      let size = 0;
-      try {
-        size = fs.statSync(filePath).size;
-      } catch (e) {}
+      let size = currentSize;
+      if (!size && !isRemote) {
+        try {
+          size = fs.statSync(filePath).size;
+        } catch (e) {}
+      }
 
       finish({
         duration,
@@ -2968,12 +3197,16 @@ function probeLocalVideo(filePath, headers = null) {
       });
     });
     proc.on('error', (err) => {
+      inFlightProbes.delete(cacheKey);
       if (settled) return;
       settled = true;
       clearTimeout(killTimeout);
       reject(err);
     });
   });
+
+  inFlightProbes.set(cacheKey, probePromise);
+  return probePromise;
 }
 
 function parseFfmpegProgress(stderrLine, totalDuration) {
@@ -3112,11 +3345,12 @@ ipcMain.on('divider-import-url', async (event, { url, quality }) => {
   const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, args);
   registerYtDlpProcess(ytProcess);
+  const throttledProgress = createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
-    win.webContents.send('download-progress', text);
+    throttledProgress.push(text);
     const lines = text.split('\n');
     for (const line of lines) {
       const destMatch = line.match(/Destination:\s*(.+)/);
@@ -3135,9 +3369,10 @@ ipcMain.on('divider-import-url', async (event, { url, quality }) => {
     }
   });
 
-  ytProcess.stderr.on('data', (data) => win.webContents.send('download-progress', data.toString()));
+  ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
   
   ytProcess.on('close', async (code) => {
+    throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, sourcesDir, downloadStartedAt);
       if (finalPath && fs.existsSync(finalPath)) {
@@ -3186,7 +3421,7 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
       const duration = options.endTimeSeconds - options.startTimeSeconds;
       jobs.push({
         label: 'Precise Split (Re-encode)',
-        args: ['-y', '-i', inputPath, '-ss', options.startTimeStr, '-to', options.endTimeStr, '-c:v', 'libx264', '-crf', '18', '-c:a', 'aac', outputPath],
+        args: ['-y', '-i', inputPath, '-ss', options.startTimeStr, '-to', options.endTimeStr, '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'aac', outputPath],
         outputPath,
         duration: duration
       });
@@ -3224,7 +3459,7 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
         const outputPath = path.join(outputDir, `${sanitizedBase}_left${ext}`);
         jobs.push({
           label: 'Spatial Split: Left',
-          args: ['-y', '-i', inputPath, '-vf', 'crop=iw/2:ih:0:0', '-c:v', 'libx264', '-crf', '18', '-c:a', 'copy', outputPath],
+          args: ['-y', '-i', inputPath, '-vf', 'crop=iw/2:ih:0:0', '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'copy', outputPath],
           outputPath,
           duration: meta.duration
         });
@@ -3233,7 +3468,7 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
         const outputPath = path.join(outputDir, `${sanitizedBase}_right${ext}`);
         jobs.push({
           label: 'Spatial Split: Right',
-          args: ['-y', '-i', inputPath, '-vf', 'crop=iw/2:ih:iw/2:0', '-c:v', 'libx264', '-crf', '18', '-c:a', 'copy', outputPath],
+          args: ['-y', '-i', inputPath, '-vf', 'crop=iw/2:ih:iw/2:0', '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'copy', outputPath],
           outputPath,
           duration: meta.duration
         });
@@ -3242,7 +3477,7 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
         const outputPath = path.join(outputDir, `${sanitizedBase}_top${ext}`);
         jobs.push({
           label: 'Spatial Split: Top',
-          args: ['-y', '-i', inputPath, '-vf', 'crop=iw:ih/2:0:0', '-c:v', 'libx264', '-crf', '18', '-c:a', 'copy', outputPath],
+          args: ['-y', '-i', inputPath, '-vf', 'crop=iw:ih/2:0:0', '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'copy', outputPath],
           outputPath,
           duration: meta.duration
         });
@@ -3251,7 +3486,7 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
         const outputPath = path.join(outputDir, `${sanitizedBase}_bottom${ext}`);
         jobs.push({
           label: 'Spatial Split: Bottom',
-          args: ['-y', '-i', inputPath, '-vf', 'crop=iw:ih/2:0:ih/2', '-c:v', 'libx264', '-crf', '18', '-c:a', 'copy', outputPath],
+          args: ['-y', '-i', inputPath, '-vf', 'crop=iw:ih/2:0:ih/2', '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'copy', outputPath],
           outputPath,
           duration: meta.duration
         });
@@ -3488,7 +3723,7 @@ async function performLocalFileRecognition(inputPath, win) {
 
     win.webContents.send('scan-status', `Scanning at ${slicePoints.length} interval(s) across the track...`);
 
-    const ffmpeg = require('fluent-ffmpeg');
+    const ffmpeg = fluentFfmpeg || require('fluent-ffmpeg');
     ffmpeg.setFfmpegPath(getFfmpegPath());
 
     const allResults = [];
@@ -3768,38 +4003,34 @@ ipcMain.on('scan-youtube-url', async (event, url) => {
   });
 });
 
+const MEDIA_EXTENSIONS = ['.mp4', '.mkv', '.mp3', '.aac', '.m3u8', '.mpd', '.webm', '.wav', '.ogg'];
+const MEDIA_MIME_TYPES = ['video/', 'audio/', 'application/x-mpegurl', 'application/vnd.apple.mpegurl', 'application/dash+xml'];
+
 function isMedia(urlStr, contentType) {
   if (!urlStr) return false;
   
-  let cleanUrl = urlStr.split('?')[0].split('#')[0].toLowerCase();
-  
+  const qIdx = urlStr.indexOf('?');
+  const hIdx = urlStr.indexOf('#');
+  let endIdx = urlStr.length;
+  if (qIdx !== -1) endIdx = qIdx;
+  if (hIdx !== -1 && hIdx < endIdx) endIdx = hIdx;
+  const cleanUrl = urlStr.slice(0, endIdx).toLowerCase();
+
   if (cleanUrl.endsWith('.ts') || cleanUrl.endsWith('.ts/')) {
     return false;
   }
   
-  const mediaExtensions = [
-    '.mp4', '.mkv', '.mp3', '.aac', '.m3u8', '.mpd', '.webm', '.wav', '.ogg'
-  ];
-  if (mediaExtensions.some(ext => cleanUrl.endsWith(ext))) {
-    return true;
+  for (let i = 0; i < MEDIA_EXTENSIONS.length; i++) {
+    if (cleanUrl.endsWith(MEDIA_EXTENSIONS[i])) return true;
   }
   
   if (contentType) {
     const cType = contentType.toLowerCase();
-    
     if (cType.includes('video/mp2t')) {
       return false;
     }
-    
-    const mediaMimeTypes = [
-      'video/',
-      'audio/',
-      'application/x-mpegurl',
-      'application/vnd.apple.mpegurl',
-      'application/dash+xml'
-    ];
-    if (mediaMimeTypes.some(type => cType.includes(type))) {
-      return true;
+    for (let i = 0; i < MEDIA_MIME_TYPES.length; i++) {
+      if (cType.includes(MEDIA_MIME_TYPES[i])) return true;
     }
   }
   
@@ -3913,32 +4144,41 @@ ipcMain.on('browser-view-init', (event, bounds) => {
 
       const url = details.url;
       if (isMedia(url, contentType)) {
-        if (!win.isDestroyed()) {
-          // Send immediately to UI
-          const pageUrl = getGuestPageUrl();
-          win.webContents.send('media-detected', {
-            url: url,
-            title: guestBrowserView.webContents.getTitle() || 'Media Stream',
-            contentType: contentType,
-            pageUrl: pageUrl
-          });
+        const cleanBaseUrl = url.split('?')[0];
+        if (!detectedMediaUrlCache.has(cleanBaseUrl)) {
+          detectedMediaUrlCache.set(cleanBaseUrl, true);
+          if (!win.isDestroyed()) {
+            // Send immediately to UI
+            const pageUrl = getGuestPageUrl();
+            win.webContents.send('media-detected', {
+              url: url,
+              title: guestBrowserView.webContents.getTitle() || 'Media Stream',
+              contentType: contentType,
+              pageUrl: pageUrl
+            });
 
-          const headers = buildStreamRequestHeaders(pageUrl);
+            if (!inFlightMediaProbes.has(cleanBaseUrl)) {
+              inFlightMediaProbes.add(cleanBaseUrl);
+              const headers = buildStreamRequestHeaders(pageUrl);
 
-          probeLocalVideo(url, headers).then(meta => {
-            if (!win.isDestroyed()) {
-              win.webContents.send('media-probed', {
-                url: url,
-                width: meta.width || 0,
-                height: meta.height || 0,
-                duration: meta.duration || 0,
-                vcodec: meta.vcodec || 'Unknown',
-                fps: meta.fps || 0
+              probeLocalVideo(url, headers).then(meta => {
+                inFlightMediaProbes.delete(cleanBaseUrl);
+                if (!win.isDestroyed()) {
+                  win.webContents.send('media-probed', {
+                    url: url,
+                    width: meta.width || 0,
+                    height: meta.height || 0,
+                    duration: meta.duration || 0,
+                    vcodec: meta.vcodec || 'Unknown',
+                    fps: meta.fps || 0
+                  });
+                }
+              }).catch(err => {
+                inFlightMediaProbes.delete(cleanBaseUrl);
+                console.log('Background stream probe failed:', err.message);
               });
             }
-          }).catch(err => {
-            console.log('Background stream probe failed:', err.message);
-          });
+          }
         }
       }
       callback({ cancel: false, responseHeaders: responseHeaders });
@@ -4007,7 +4247,8 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
       '-ss', startTime.toString(),
       '-t', duration.toString(),
       '-i', inputPath,
-      '-vf', `fps=${fps},scale=${scaleWidth}:-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3`,
+      '-vf', `fps=${fps},scale=${scaleWidth}:-1:flags=bicubic,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3`,
+      '-threads', '0',
       '-y',
       outputPath
     ];
@@ -4021,6 +4262,7 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
       registerProcess(proc, { isYtDlp: false });
       
       let stderr = '';
+      let lastProgress = -1;
       
       proc.stderr.on('data', (data) => {
         const text = data.toString();
@@ -4028,7 +4270,11 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
         
         const progress = parseFfmpegProgress(text, duration);
         if (progress !== null) {
-          win.webContents.send('gif-progress', Math.min(100, Math.max(0, Math.round(progress))));
+          const rounded = Math.min(100, Math.max(0, Math.round(progress)));
+          if (rounded !== lastProgress) {
+            lastProgress = rounded;
+            win.webContents.send('gif-progress', rounded);
+          }
         }
       });
       
