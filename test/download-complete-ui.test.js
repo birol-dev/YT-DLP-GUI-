@@ -3,11 +3,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const rootDir = path.resolve(__dirname, '..');
+const { rootDir, getMainSource, getRendererSource } = require('./helpers/source');
 
 describe('Download Complete UI & Open Folder Button Audit', () => {
   const htmlContent = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
-  const rendererCode = fs.readFileSync(path.join(rootDir, 'renderer.js'), 'utf8');
+  const rendererCode = getRendererSource();
   const cssContent = fs.readFileSync(path.join(rootDir, 'styles.css'), 'utf8');
 
   test('every download tab in index.html defines a download complete card with an open folder button', () => {

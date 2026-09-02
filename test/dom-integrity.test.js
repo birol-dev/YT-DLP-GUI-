@@ -3,11 +3,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const rootDir = path.resolve(__dirname, '..');
+const { rootDir, getMainSource, getRendererSource } = require('./helpers/source');
 
 describe('DOM & UI Element Integrity Audit', () => {
   const htmlContent = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
-  const rendererCode = fs.readFileSync(path.join(rootDir, 'renderer.js'), 'utf8');
+  const rendererCode = getRendererSource();
 
   test('all document.getElementById IDs in renderer.js should exist in index.html', () => {
     // Extract document.getElementById('id') calls

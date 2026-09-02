@@ -3,12 +3,12 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const rootDir = path.resolve(__dirname, '..');
+const { rootDir, getMainSource, getRendererSource } = require('./helpers/source');
 
 describe('IPC Contract and Preload Exposure Audit', () => {
   const preloadCode = fs.readFileSync(path.join(rootDir, 'preload.js'), 'utf8');
-  const rendererCode = fs.readFileSync(path.join(rootDir, 'renderer.js'), 'utf8');
-  const mainCode = fs.readFileSync(path.join(rootDir, 'main.js'), 'utf8');
+  const rendererCode = getRendererSource();
+  const mainCode = getMainSource();
 
   test('all window.electronAPI method calls in renderer.js should be exposed in preload.js', () => {
     // Extract exposed properties in contextBridge

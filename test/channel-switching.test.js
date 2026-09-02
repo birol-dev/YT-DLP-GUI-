@@ -4,9 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 
-const rootDir = path.resolve(__dirname, '..');
-const mainCode = fs.readFileSync(path.join(rootDir, 'main.js'), 'utf8');
-const rendererCode = fs.readFileSync(path.join(rootDir, 'renderer.js'), 'utf8');
+const { rootDir, getMainSource, getRendererSource } = require('./helpers/source');
+const mainCode = getMainSource();
+const rendererCode = getRendererSource();
 
 describe('Forceful yt-dlp Channel Switching & Blocking Task Termination Audit', () => {
   test('main.js must define active process tracking and forceful termination functions', () => {
