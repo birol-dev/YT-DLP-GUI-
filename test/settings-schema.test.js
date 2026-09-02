@@ -3,11 +3,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const rootDir = path.resolve(__dirname, '..');
+const { rootDir, getMainSource, getRendererSource } = require('./helpers/source');
 
 describe('Settings Schema & UI Synchronicity Audit', () => {
-  const mainCode = fs.readFileSync(path.join(rootDir, 'main.js'), 'utf8');
-  const rendererCode = fs.readFileSync(path.join(rootDir, 'renderer.js'), 'utf8');
+  const mainCode = getMainSource();
+  const rendererCode = getRendererSource();
   const htmlContent = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
 
   test('defaultSettings in main.js defines core required configuration keys', () => {
