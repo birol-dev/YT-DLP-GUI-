@@ -398,14 +398,14 @@
         </section>
 
         <!-- CLIPPER TAB -->
-        <section id="clipper-tab" class="tab-content h-full">
-          <div class="card h-full flex-col">
+        <section id="clipper-tab" class="tab-content">
+          <div class="card">
             <div class="card-header">
               <h2 class="card-title">Video Clipper</h2>
               <p class="card-description">Fetch video metadata, preview the stream, set start/end markers, and download only the selected portion.</p>
             </div>
             
-            <div class="card-content flex-1 overflow-auto flex-col" style="gap: 1.25rem; display: flex; padding-bottom: 2rem;">
+            <div class="card-content flex-col" style="gap: 1.25rem; display: flex; padding-bottom: 2.5rem;">
               <!-- URL Input Group -->
               <div class="form-group" style="margin-bottom: 0;">
                 <label for="clipper-url">Video URL</label>
@@ -422,7 +422,7 @@
               </div>
 
               <!-- Clipper Workspace (Hidden until video is loaded) -->
-              <div id="clipper-workspace" class="flex-col flex-1" style="display: none; gap: 1.25rem; min-height: 0;">
+              <div id="clipper-workspace" class="flex-col" style="display: none; gap: 1.25rem;">
                 
                 <!-- Video Title & Details -->
                 <div class="clipper-video-info" style="display: flex; gap: 1rem; align-items: center; background-color: hsl(var(--muted) / 0.2); padding: 0.75rem; border-radius: var(--radius); border: 1px solid hsl(var(--border)); flex-shrink: 0;">
@@ -521,7 +521,7 @@
                 </div>
 
                 <!-- Clipper Download Complete Card -->
-                <div id="clipper-download-complete-card" class="download-complete-card" style="display: none; margin-top: 0.75rem;">
+                <div id="clipper-download-complete-card" class="download-complete-card" style="display: none; margin-top: 1.25rem; margin-bottom: 1.5rem;">
                   <div class="download-complete-header">
                     <div class="download-complete-title-wrap">
                       <span class="download-complete-status-icon">
@@ -963,7 +963,7 @@
                             <input type="number" id="divider-chunk-sec" min="0" max="59" value="30" style="padding: 0.25rem; height: 1.75rem; font-size: 0.8rem;">
                           </div>
                           <div style="font-size: 0.725rem; color: hsl(var(--muted-foreground)); padding-bottom: 0.25rem; flex: 1.5; text-align: right;">
-                            Est: <span id="divider-chunks-preview-count" style="font-weight: 600; color: hsl(var(--primary));">0</span> files
+                            Est: <span id="divider-chunks-preview-count" style="font-weight: 600; color: hsl(var(--primary));">0</span> files (keyframe-aligned)
                           </div>
                         </div>
                       </div>
@@ -1619,8 +1619,12 @@
               </div>
             </div>
           </div>
-          <div class="active-download-percent-wrap">
+          <div class="active-download-actions-wrap" style="display: flex; align-items: center; gap: 10px;">
             <span id="progress-percent-text" class="active-download-percent">0%</span>
+            <button id="btn-cancel-download" class="btn-cancel-download" title="Cancel Download" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Cancel
+            </button>
           </div>
         </div>
 

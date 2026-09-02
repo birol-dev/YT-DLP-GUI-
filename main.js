@@ -1,6 +1,7 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, protocol, net, nativeImage, session } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, protocol, net, nativeImage, session, clipboard } = require('electron');
 const path = require('path');
-const { spawn, exec } = require('child_process');
+const { spawn, exec, spawnSync } = require('child_process');
+const { pathToFileURL } = require('url');
 const fs = require('fs');
 const https = require('https');
 const os = require('os');
@@ -541,7 +542,8 @@ async function switchYtDlpChannel(win, channel, { silent = false, force = true }
         ok: true,
         channel: versionInfo.installedChannel,
         targetChannel,
-        version: versionInfo.version
+        version: versionInfo.version,
+        source: 'switch'
       });
     }
 
@@ -621,7 +623,8 @@ async function forceUpdateYtDlp(win, channel, { silent = false, force = true } =
         ok: true,
         channel: versionInfo.installedChannel,
         targetChannel,
-        version: versionInfo.version
+        version: versionInfo.version,
+        source: 'force-update'
       });
     }
 
@@ -2095,6 +2098,29 @@ protocol.registerSchemesAsPrivileged([
 app.whenReady().then(() => {
   initSettings();
 
+  // Configure CORS and Referer for YouTube / GoogleVideo streaming in main renderer (e.g. Clipper preview)
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*.googlevideo.com/*', '*://*.youtube.com/*'] },
+    (details, callback) => {
+      const requestHeaders = { ...details.requestHeaders };
+      requestHeaders['Referer'] = 'https://www.youtube.com/';
+      requestHeaders['Origin'] = 'https://www.youtube.com';
+      callback({ requestHeaders });
+    }
+  );
+
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ['*://*.googlevideo.com/*', '*://*.youtube.com/*'] },
+    (details, callback) => {
+      const responseHeaders = { ...details.responseHeaders };
+      responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+      responseHeaders['Access-Control-Allow-Headers'] = ['Range, Content-Range, Content-Length, Accept, Origin, Referer, Content-Type, Authorization'];
+      responseHeaders['Access-Control-Allow-Methods'] = ['GET, HEAD, OPTIONS'];
+      responseHeaders['Access-Control-Expose-Headers'] = ['Content-Length, Content-Range, Accept-Ranges'];
+      callback({ responseHeaders });
+    }
+  );
+
   protocol.handle('media-preview', async (request) => {
     try {
       const parsed = new URL(request.url);
@@ -2215,6 +2241,102 @@ const FILE_DRAG_ICON_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 let cachedFileDragIconPath = '';
 
+let detectedLinuxFileManager = undefined;
+
+function getLinuxFileManager() {
+  if (detectedLinuxFileManager !== undefined) return detectedLinuxFileManager;
+  if (process.platform !== 'linux') {
+    detectedLinuxFileManager = null;
+    return null;
+  }
+  const fileManagers = [
+    { name: 'nautilus', selectFlag: '--select' },
+    { name: 'dolphin', selectFlag: '--select' },
+    { name: 'nemo', selectFlag: null },
+    { name: 'thunar', selectFlag: null },
+    { name: 'pcmanfm', selectFlag: null }
+  ];
+  for (const fm of fileManagers) {
+    try {
+      const check = spawnSync('which', [fm.name]);
+      if (check.status === 0) {
+        detectedLinuxFileManager = fm;
+        return detectedLinuxFileManager;
+      }
+    } catch (e) {}
+  }
+  detectedLinuxFileManager = null;
+  return null;
+}
+
+function openDirectoryDirectly(dirPath) {
+  if (!dirPath) return;
+  const fm = getLinuxFileManager();
+  if (fm) {
+    try {
+      spawn(fm.name, [dirPath], { detached: true, stdio: 'ignore' }).unref();
+      return;
+    } catch (e) {}
+  }
+  shell.openPath(dirPath).catch((err) => {
+    console.error('shell.openPath failed for directory:', dirPath, err);
+  });
+}
+
+function openFolderOrRevealItem(targetPath) {
+  if (!targetPath || typeof targetPath !== 'string') return;
+  const rawPath = targetPath.trim().replace(/^["']+|["']+$/g, '');
+  if (!rawPath) return;
+  const normalized = path.normalize(rawPath);
+
+  if (fs.existsSync(normalized)) {
+    try {
+      const isDir = fs.statSync(normalized).isDirectory();
+      if (isDir) {
+        openDirectoryDirectly(normalized);
+        return;
+      }
+
+      if (process.platform === 'win32' || process.platform === 'darwin') {
+        shell.showItemInFolder(normalized);
+        return;
+      }
+
+      // Linux handling
+      const fm = getLinuxFileManager();
+      if (fm && fm.selectFlag) {
+        spawn(fm.name, [fm.selectFlag, normalized], { detached: true, stdio: 'ignore' }).unref();
+        return;
+      } else if (fm) {
+        spawn(fm.name, [normalized], { detached: true, stdio: 'ignore' }).unref();
+        return;
+      }
+
+      // If no dedicated file manager is installed on Linux:
+      // DO NOT call shell.showItemInFolder(normalized) because Chromium's fallback
+      // will pass the URI or directory to xdg-open which frequently defaults to $HOME.
+      // Instead, open the containing directory directly!
+      const parentDir = path.dirname(normalized);
+      openDirectoryDirectly(parentDir);
+      return;
+    } catch (err) {
+      console.error('Failed to open/reveal item:', err);
+    }
+  }
+
+  // Fallback if target does not exist
+  const parentDir = path.dirname(normalized);
+  if (fs.existsSync(parentDir)) {
+    openDirectoryDirectly(parentDir);
+    return;
+  }
+
+  const baseDir = settings.downloadDir || app.getPath('downloads');
+  if (fs.existsSync(baseDir)) {
+    openDirectoryDirectly(baseDir);
+  }
+}
+
 function normalizeExistingFilePath(filePath) {
   if (!filePath || typeof filePath !== 'string') return '';
   const normalized = path.normalize(filePath.trim().replace(/^["']+|["']+$/g, ''));
@@ -2273,22 +2395,7 @@ ipcMain.on('open-external-url', (_event, url) => {
 });
 
 ipcMain.on('open-folder', (event, filePath) => {
-  if (filePath) {
-    try {
-      const resolved = normalizeExistingFilePath(filePath);
-      if (resolved) {
-        shell.showItemInFolder(resolved);
-      } else {
-        // Fallback if file itself was moved or deleted - try opening containing folder
-        const dirPath = path.dirname(String(filePath).replace(/^["']+|["']+$/g, ''));
-        if (fs.existsSync(dirPath)) {
-          shell.openPath(dirPath);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to open item in folder:', err);
-    }
-  }
+  openFolderOrRevealItem(filePath);
 });
 
 ipcMain.on('open-file', (_event, filePath) => {
@@ -2314,7 +2421,7 @@ ipcMain.on('open-download-folder', (event, type) => {
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
-    shell.openPath(targetDir);
+    openDirectoryDirectly(targetDir);
   } catch (err) {
     console.error('Failed to open download folder:', err);
   }
@@ -2343,6 +2450,20 @@ ipcMain.handle('force-update-yt-dlp', async (event, channel) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const targetChannel = normalizeYtDlpChannel(channel || settings.ytDlpChannel);
   return forceUpdateYtDlp(win, targetChannel);
+});
+
+ipcMain.handle('cancel-download', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  await stopAllBlockingTasks(win, 'user cancelled download');
+  return { ok: true };
+});
+
+ipcMain.handle('copy-to-clipboard', async (_event, text) => {
+  if (typeof text === 'string') {
+    clipboard.writeText(text);
+    return true;
+  }
+  return false;
 });
 
 ipcMain.handle('get-system-info', () => {
@@ -2565,7 +2686,7 @@ ipcMain.on('download-video', async (event, { url, quality }) => {
       finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: 'video', url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
-        shell.showItemInFolder(finalPath);
+        openFolderOrRevealItem(finalPath);
       }
     }
     else win.webContents.send('download-error', `[VIDEO] Download failed with code ${code}`);
@@ -2645,7 +2766,7 @@ ipcMain.on('download-audio', async (event, { url }) => {
       finalPath = resolveFinalDownloadPath(finalPath, audioDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: 'audio', url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
-        shell.showItemInFolder(finalPath);
+        openFolderOrRevealItem(finalPath);
       }
     }
     else win.webContents.send('download-error', `[AUDIO] Download failed with code ${code}`);
@@ -2673,13 +2794,16 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
   if (subLang === 'all') {
     args.push('--all-subs');
   } else {
-    args.push('--sub-langs', `${subLang}.*`);
+    // Strictly scope subtitles to requested language to avoid 100+ auto-translated sub requests (en-de, etc.) that cause HTTP 429
+    args.push('--sub-langs', `${subLang},${subLang}-orig,${subLang}-${subLang},^${subLang}(?:-[A-Za-z]{2})?$`);
   }
 
   args.push(
     '--skip-download',
     '-o', outPath,
-    '--no-mtime'
+    '--no-mtime',
+    '--compat-options', 'no-live-chat',
+    '--no-abort-on-error'
   );
 
   if (fs.existsSync(localFfmpeg)) {
@@ -2712,11 +2836,12 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
   ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
   ytProcess.on('close', (code) => {
     throttledProgress.flush();
-    if (code === 0) {
-      finalPath = resolveFinalDownloadPath(finalPath, subsDir, downloadStartedAt);
+    finalPath = resolveFinalDownloadPath(finalPath, subsDir, downloadStartedAt);
+    const hasSubtitleFile = !!(finalPath && fs.existsSync(finalPath));
+    if (code === 0 || hasSubtitleFile) {
       win.webContents.send('download-complete', { type: 'subtitles', url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
-        shell.showItemInFolder(finalPath);
+        openFolderOrRevealItem(finalPath);
       }
     }
     else win.webContents.send('download-error', `[SUBS] Download failed with code ${code}`);
@@ -2834,7 +2959,7 @@ ipcMain.on('download-instagram', async (event, { url, format }) => {
       finalPath = resolveFinalDownloadPath(finalPath, path.join(baseDir, subFolder), downloadStartedAt);
       win.webContents.send('download-complete', { type, url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
-        shell.showItemInFolder(finalPath);
+        openFolderOrRevealItem(finalPath);
       }
     }
     else {
@@ -2859,6 +2984,25 @@ ipcMain.handle('fetch-video-info', async (event, url) => {
   const cached = videoInfoCache.get(cleanUrl);
   if (cached) {
     return cached;
+  }
+
+  // Support local media files in Clipper preview
+  if (fs.existsSync(cleanUrl)) {
+    try {
+      const meta = await probeLocalVideo(cleanUrl);
+      const fileName = path.basename(cleanUrl);
+      const localResult = {
+        success: true,
+        title: fileName,
+        duration: meta.duration || 0,
+        thumbnail: '',
+        streamUrl: pathToFileURL(cleanUrl).href
+      };
+      videoInfoCache.set(cleanUrl, localResult);
+      return localResult;
+    } catch (e) {
+      // Continue to yt-dlp fallback
+    }
   }
 
   const runYtDlp = (args) => runYtDlpProcess(args);
@@ -2959,7 +3103,7 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
       formatStr = `bestvideo[height<=${quality}]+bestaudio/best`;
       mergeFormat = 'mkv';
     } else {
-      formatStr = `bestvideo[vcodec^=avc1][height<=${quality}]+bestaudio[ext=m4a]/best[ext=mp4]/best`;
+      formatStr = `bestvideo[height<=${quality}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${quality}][ext=mp4]/best`;
       mergeFormat = 'mp4';
     }
     
@@ -2971,6 +3115,7 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
 
   args.push(
     '--download-sections', sectionStr,
+    '--force-keyframes-at-cuts',
     '-o', outPath,
     '--no-mtime'
   );
@@ -3020,7 +3165,7 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
       finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
       win.webContents.send('download-complete', { type: isAudio ? 'clip-audio' : 'clip', url, status: 'Success', filePath: finalPath });
       if (settings.autoOpenFolder && finalPath) {
-        shell.showItemInFolder(finalPath);
+        openFolderOrRevealItem(finalPath);
       }
     }
     else win.webContents.send('download-error', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Download failed with code ${code}`);
@@ -3028,8 +3173,6 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
 });
 
 // Video Divider Helpers & Handlers
-const { pathToFileURL } = require('url');
-
 function sanitizeFilename(name) {
   return name.replace(/[^a-zA-Z0-9_\-]/g, '_');
 }
@@ -3502,7 +3645,7 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
     win.webContents.send('divide-complete', { filePaths, outputDir });
     
     if (settings.autoOpenFolder) {
-      shell.openPath(outputDir);
+      openFolderOrRevealItem(outputDir);
     }
   } catch (err) {
     console.error('Divide error:', err);
@@ -4425,7 +4568,7 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
         filePath: outputPath
       });
       if (settings.autoOpenFolder) {
-        shell.showItemInFolder(outputPath);
+        openFolderOrRevealItem(outputPath);
       }
     } else {
       win.webContents.send('download-error', `[STREAM] FFmpeg copy failed with code ${code}.\nStderr: ${stderr.slice(-200)}`);

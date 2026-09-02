@@ -63,4 +63,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   convertVideoToGif: (payload) => ipcRenderer.invoke('convert-video-to-gif', payload),
   onGifProgress: (callback) => ipcRenderer.on('gif-progress', (_event, value) => callback(value)),
   onGifFinished: (callback) => ipcRenderer.on('gif-finished', (_event, value) => callback(value)),
+  cancelDownload: () => ipcRenderer.invoke('cancel-download'),
+  copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
 });

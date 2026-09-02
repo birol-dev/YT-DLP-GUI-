@@ -451,6 +451,43 @@ function stopDownloadIndicator() {
   }
 }
 
+// Helper to validate and highlight empty URL inputs with user feedback
+function validateUrlInput(inputEl, label = 'URL') {
+  if (!inputEl) return '';
+  const val = inputEl.value.trim();
+  if (!val) {
+    inputEl.classList.remove('input-error-shake');
+    void inputEl.offsetWidth; // Force DOM reflow to restart animation
+    inputEl.classList.add('input-error-shake');
+    inputEl.focus();
+    appendLog(`[⚠️ Warning] Please enter a valid ${label} before starting.`, 'log-warn');
+    setTimeout(() => {
+      inputEl.classList.remove('input-error-shake');
+    }, 1200);
+    return '';
+  }
+  return val;
+}
+
+// Active Download Cancel Button Handler
+const btnCancelDownload = document.getElementById('btn-cancel-download');
+if (btnCancelDownload) {
+  btnCancelDownload.addEventListener('click', async () => {
+    btnCancelDownload.disabled = true;
+    appendLog('[Download Cancelled] Stopping active download...', 'log-warn');
+    try {
+      if (window.electronAPI && typeof window.electronAPI.cancelDownload === 'function') {
+        await window.electronAPI.cancelDownload();
+      }
+    } catch (err) {
+      console.error('Failed to cancel download:', err);
+    } finally {
+      stopDownloadIndicator();
+      btnCancelDownload.disabled = false;
+    }
+  });
+}
+
 // Download Video
 document.getElementById('btn-download-video').addEventListener('click', async () => {
   if (isDownloading) {
@@ -458,10 +495,11 @@ document.getElementById('btn-download-video').addEventListener('click', async ()
     appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
     return;
   }
-  const url = document.getElementById('video-url').value.trim();
-  const quality = document.getElementById('video-quality').value;
+  const inputEl = document.getElementById('video-url');
+  const url = validateUrlInput(inputEl, 'YouTube video URL');
   if (!url) return;
 
+  const quality = document.getElementById('video-quality').value;
   hideDownloadCompleteCard('video');
 
   await beginMediaDownload({
@@ -470,7 +508,7 @@ document.getElementById('btn-download-video').addEventListener('click', async ()
     quality,
     statusMsg: 'Downloading video...'
   });
-  document.getElementById('video-url').value = '';
+  inputEl.value = '';
 });
 
 // Download Audio
@@ -480,7 +518,8 @@ document.getElementById('btn-download-audio').addEventListener('click', async ()
     appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
     return;
   }
-  const url = document.getElementById('audio-url').value.trim();
+  const inputEl = document.getElementById('audio-url');
+  const url = validateUrlInput(inputEl, 'YouTube audio URL');
   if (!url) return;
 
   hideDownloadCompleteCard('audio');
@@ -490,7 +529,7 @@ document.getElementById('btn-download-audio').addEventListener('click', async ()
     type: 'audio',
     statusMsg: 'Extracting audio...'
   });
-  document.getElementById('audio-url').value = '';
+  inputEl.value = '';
 });
 
 // Download Subtitles
@@ -500,10 +539,11 @@ document.getElementById('btn-download-subs').addEventListener('click', () => {
     appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
     return;
   }
-  const url = document.getElementById('subs-url').value.trim();
-  const lang = document.getElementById('subs-lang').value;
+  const inputEl = document.getElementById('subs-url');
+  const url = validateUrlInput(inputEl, 'YouTube subtitles URL');
   if (!url) return;
   
+  const lang = document.getElementById('subs-lang').value;
   hideDownloadCompleteCard('subtitles');
 
   startDownloadIndicator('Extracting subtitles...', {
@@ -513,7 +553,7 @@ document.getElementById('btn-download-subs').addEventListener('click', () => {
     title: url
   });
   window.electronAPI.downloadSubtitles({ url, lang });
-  document.getElementById('subs-url').value = '';
+  inputEl.value = '';
 });
 
 // Download All Subtitles
@@ -523,7 +563,8 @@ document.getElementById('btn-download-all-subs').addEventListener('click', () =>
     appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
     return;
   }
-  const url = document.getElementById('subs-url').value.trim();
+  const inputEl = document.getElementById('subs-url');
+  const url = validateUrlInput(inputEl, 'YouTube subtitles URL');
   if (!url) return;
   
   hideDownloadCompleteCard('subtitles');
@@ -535,7 +576,7 @@ document.getElementById('btn-download-all-subs').addEventListener('click', () =>
     title: url
   });
   window.electronAPI.downloadSubtitles({ url, lang: 'all' });
-  document.getElementById('subs-url').value = '';
+  inputEl.value = '';
 });
 
 // Download Instagram
@@ -547,10 +588,11 @@ if (btnDownloadInstagram) {
       appendLog('[⚠️ Warning] A download is already in progress. Concurrent downloads are disabled.', 'log-warn');
       return;
     }
-    const url = document.getElementById('instagram-url').value.trim();
-    const format = document.getElementById('instagram-format').value;
+    const inputEl = document.getElementById('instagram-url');
+    const url = validateUrlInput(inputEl, 'Instagram URL');
     if (!url) return;
     
+    const format = document.getElementById('instagram-format').value;
     hideDownloadCompleteCard('instagram');
 
     const label = format === 'audio' ? 'audio' : 'video';
@@ -561,7 +603,7 @@ if (btnDownloadInstagram) {
       title: url
     });
     window.electronAPI.downloadInstagram({ url, format });
-    document.getElementById('instagram-url').value = '';
+    inputEl.value = '';
   });
 }
 
@@ -727,19 +769,31 @@ function showDownloadCompleteCard({ type, url, filePath, title }) {
   if (elements.copyPath) {
     elements.copyPath.onclick = async () => {
       if (filePath) {
+        let copied = false;
         try {
-          await navigator.clipboard.writeText(filePath);
-          const originalHTML = elements.copyPath.innerHTML;
-          elements.copyPath.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #22c55e;"><polyline points="20 6 9 17 4 12"/></svg>
-            Copied!
-          `;
-          setTimeout(() => {
-            elements.copyPath.innerHTML = originalHTML;
-          }, 1500);
+          if (window.electronAPI && typeof window.electronAPI.copyToClipboard === 'function') {
+            copied = await window.electronAPI.copyToClipboard(filePath);
+          }
         } catch (e) {
-          console.error('Failed to copy path:', e);
+          console.warn('Native copyToClipboard failed, trying navigator.clipboard:', e);
         }
+        if (!copied) {
+          try {
+            await navigator.clipboard.writeText(filePath);
+            copied = true;
+          } catch (e) {
+            console.error('Failed to copy path via navigator.clipboard:', e);
+          }
+        }
+
+        const originalHTML = elements.copyPath.innerHTML;
+        elements.copyPath.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span style="color: #22c55e; font-weight: 600;">Copied!</span>
+        `;
+        setTimeout(() => {
+          elements.copyPath.innerHTML = originalHTML;
+        }, 2000);
       }
     };
   }
@@ -758,6 +812,9 @@ function showDownloadCompleteCard({ type, url, filePath, title }) {
 
   // Display card with animation
   elements.card.style.display = 'flex';
+  try {
+    elements.card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {}
 }
 
 // Terminal Output
@@ -1402,6 +1459,15 @@ if (btnForceUpdateYtDlp) {
   btnForceUpdateYtDlp.addEventListener('click', async () => {
     const channel = document.getElementById('settings-ytdlp-channel')?.value || currentSettings.ytDlpChannel || 'master';
     stopDownloadIndicator();
+
+    // Provide immediate visual feedback on the button
+    const originalBtnHTML = btnForceUpdateYtDlp.innerHTML;
+    btnForceUpdateYtDlp.disabled = true;
+    btnForceUpdateYtDlp.innerHTML = `
+      <div class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; margin-right: 6px; display: inline-block; vertical-align: middle;"></div>
+      <span>Updating...</span>
+    `;
+
     renderYtDlpChannelStatus(null, true, 'force');
     try {
       const result = await window.electronAPI.forceUpdateYtDlp(channel);
@@ -1413,6 +1479,9 @@ if (btnForceUpdateYtDlp) {
           ytDlpInstalledChannel: result.channel,
           ytDlpInstalledVersion: result.version
         };
+        showSaveIndicator(result.message || `yt-dlp updated to ${result.version || 'latest'}`, true);
+      } else {
+        showSaveIndicator(result?.message || 'Force update failed', false);
       }
       await refreshYtDlpChannelInfo();
       await updateYtDlpChannelHintLabels();
@@ -1423,6 +1492,10 @@ if (btnForceUpdateYtDlp) {
         message: 'Force update could not be completed.',
         tip: err.message || 'Try again in a moment.'
       }, false, 'force');
+      showSaveIndicator('Force update failed: ' + (err.message || 'Unknown error'), false);
+    } finally {
+      btnForceUpdateYtDlp.disabled = false;
+      btnForceUpdateYtDlp.innerHTML = originalBtnHTML;
     }
   });
 }
@@ -1454,11 +1527,14 @@ if (window.electronAPI.onYtDlpChannelChanged) {
         ytDlpChannel: data.targetChannel || data.channel
       };
 
+      const isForceUpdate = data.source === 'force-update';
       renderYtDlpChannelStatus({
         ok: true,
         level: 'success',
-        message: `yt-dlp is now on the ${data.channel} channel (${data.version}).`
-      });
+        message: isForceUpdate
+          ? `yt-dlp is now up to date on the ${data.channel} channel (${data.version}).`
+          : `yt-dlp is now on the ${data.channel} channel (${data.version}).`
+      }, false, isForceUpdate ? 'force' : 'switch');
     }
     refreshYtDlpChannelInfo();
     updateYtDlpChannelHintLabels();
@@ -2245,7 +2321,7 @@ function handleMouseUp() {
 // Load Video Info Handler
 if (clipperLoadBtn) {
   clipperLoadBtn.addEventListener('click', async () => {
-    const url = clipperUrlInput.value.trim();
+    const url = validateUrlInput(clipperUrlInput, 'YouTube video URL');
     if (!url) return;
     
     clipperLoadBtn.disabled = true;
@@ -3221,6 +3297,9 @@ window.electronAPI.onDivideComplete((data) => {
   dividerOutputFolder = data.outputDir;
   btnDividerOpenFolder.style.display = 'inline-flex';
   
+  const count = Array.isArray(data.filePaths) ? data.filePaths.length : 1;
+  const countLabel = count === 1 ? '1 file created' : `${count} files created`;
+
   // Show clean inline success status
   const inlineStatus = document.getElementById('divider-inline-status-container');
   const resultBox = document.getElementById('divider-result-box');
@@ -3232,7 +3311,7 @@ window.electronAPI.onDivideComplete((data) => {
       <div style="display: flex; align-items: flex-start; gap: 8px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>
         <div>
-          <div style="font-weight: 600;">Video Divided Successfully!</div>
+          <div style="font-weight: 600;">Video Divided Successfully! (${countLabel})</div>
           <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">Outputs saved in the output directory. Click "Open Output" in Step 2 to view.</div>
         </div>
       </div>

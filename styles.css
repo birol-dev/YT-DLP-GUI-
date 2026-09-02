@@ -2240,3 +2240,39 @@ option {
   contain: layout paint;
 }
 
+.btn-cancel-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  height: 1.75rem;
+  padding: 0 0.65rem;
+  background-color: hsl(var(--destructive) / 0.12);
+  color: hsl(var(--destructive));
+  border: 1px solid hsl(var(--destructive) / 0.3);
+  border-radius: calc(var(--radius) - 3px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-cancel-download:hover {
+  background-color: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+  border-color: hsl(var(--destructive));
+  transform: translateY(-1px);
+}
+
+.input-error-shake {
+  animation: inputShake 0.4s ease-in-out !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+}
+
+@keyframes inputShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
