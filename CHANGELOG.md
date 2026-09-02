@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.9] - 2026-09-03
+
+### Added
+- Split `renderer.js` and `main.js` into focused modules so features live in files instead of 5000-line blobs.
+- Cancel in-progress downloads from the active download card.
+- Empty-URL validation with a shake animation and terminal warning on download inputs.
+
+### Fixed
+- Copy Path paints green **Copied!** immediately, before the clipboard IPC, so a slow roundtrip cannot hide the feedback.
+
 ## [1.8.8] - 2026-08-21
 
 ### Fixed

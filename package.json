@@ -1,6 +1,6 @@
 {
   "name": "youtube-downloader",
-  "version": "1.8.8",
+  "version": "1.8.9",
   "main": "main.js",
   "scripts": {
     "test": "node --test test/*.test.js test/performance.benchmark.js",
