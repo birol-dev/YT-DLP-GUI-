@@ -1,1 +1,2 @@
-PLACEHOLDER_USE_FULL_FILE_FROM_/workspace/YT-DLP-GUI-/renderer.js
+// Global State Tracking
+let isDownloading = false;
