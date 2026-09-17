@@ -124,8 +124,9 @@ function getFileDragIconPath() {
 
   const dest = path.join(app.getPath('temp'), 'ytdlp-gui-drag-icon.png');
   const sources = [
-    path.join(__dirname, 'website', 'assets', 'favicon-32.png'),
-    path.join(__dirname, 'website', 'assets', 'icon.png'),
+    path.join(__dirname, '..', '..', 'website', 'assets', 'favicon-32.png'),
+    path.join(__dirname, '..', '..', 'website', 'assets', 'icon.png'),
+    path.join(__dirname, '..', '..', 'build', 'icon.png'),
   ];
 
   for (const src of sources) {
@@ -183,13 +184,19 @@ ipcMain.on('open-file', (_event, filePath) => {
 ipcMain.on('open-download-folder', (event, type) => {
   try {
     const baseDir = ctx.settings.downloadDir || app.getPath('downloads');
-    let subFolder = 'yt-videos';
-    if (type === 'video') subFolder = 'yt-videos';
-    else if (type === 'audio') subFolder = 'yt-audios';
-    else if (type === 'ig-video') subFolder = 'ig-videos';
-    else if (type === 'ig-audio') subFolder = 'ig-audios';
-    else if (type === 'instagram') subFolder = 'ig-videos';
-    
+    const folderMap = {
+      video: 'yt-videos',
+      audio: 'yt-audios',
+      'ig-video': 'ig-videos',
+      'ig-audio': 'ig-audios',
+      instagram: 'ig-videos',
+      subtitles: 'yt-subs',
+      clipper: 'yt-videos',
+      clip: 'yt-videos',
+      'clip-audio': 'yt-audios',
+      gif: 'gif-exports'
+    };
+    const subFolder = folderMap[type] || 'yt-videos';
     const targetDir = path.join(baseDir, subFolder);
     
     if (!fs.existsSync(targetDir)) {

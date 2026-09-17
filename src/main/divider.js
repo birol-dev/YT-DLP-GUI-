@@ -211,7 +211,7 @@ function runSingleFfmpegJob(job, win, jobIndex, totalJobs) {
     const ffmpegPath = ctx.getFfmpegPath();
     const args = job.args;
     
-    win.webContents.send('divide-status', `[FFmpeg] Spawning: ${ffmpegPath} ${args.join(' ')}`);
+    if (win && !win.isDestroyed()) win.webContents.send('divide-status', `[FFmpeg] Spawning: ${ffmpegPath} ${args.join(' ')}`);
     const proc = spawn(ffmpegPath, args);
     ctx.registerProcess(proc, { isYtDlp: false });
     let stderr = '';
@@ -224,7 +224,7 @@ function runSingleFfmpegJob(job, win, jobIndex, totalJobs) {
         const progress = parseFfmpegProgress(text, job.duration);
         if (progress !== null) {
           const overallProgress = (jobIndex / totalJobs) * 100 + (progress / totalJobs);
-          win.webContents.send('divide-progress', Math.round(overallProgress));
+          if (win && !win.isDestroyed()) win.webContents.send('divide-progress', Math.round(overallProgress));
         }
       }
     });
@@ -256,7 +256,7 @@ async function runFfmpegQueue(jobs, win) {
   const filePaths = [];
   for (let i = 0; i < jobs.length; i++) {
     const job = jobs[i];
-    win.webContents.send('divide-status', `[Job ${i+1}/${jobs.length}] Running: ${job.label}`);
+    if (win && !win.isDestroyed()) win.webContents.send('divide-status', `[Job ${i+1}/${jobs.length}] Running: ${job.label}`);
     
     try {
       const outputFilePath = await runSingleFfmpegJob(job, win, i, jobs.length);
@@ -317,7 +317,11 @@ ipcMain.on('divider-import-url', async (event, { url, quality }) => {
   const outPath = path.join(sourcesDir, '%(title)s.%(ext)s');
   const args = await ctx.buildVideoDownloadArgs({ url, quality, outPath });
 
-  win.webContents.send('download-status', `[DIVIDER IMPORT] Starting source download for ${url}...`);
+  const send = (channel, payload) => {
+    if (typeof ctx.safeSend === 'function') ctx.safeSend(win, channel, payload);
+    else if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  };
+  send('download-status', `[DIVIDER IMPORT] Starting source download for ${url}...`);
   
   const ytDlpPath = ctx.getYtDlpPath();
   const downloadStartedAt = Date.now();
@@ -326,6 +330,10 @@ ipcMain.on('divider-import-url', async (event, { url, quality }) => {
   const throttledProgress = ctx.createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
+  ytProcess.on('error', (err) => {
+    throttledProgress.flush();
+    send('download-error', `[DIVIDER IMPORT] Failed to start yt-dlp: ${err.message}`);
+  });
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
     throttledProgress.push(text);
@@ -356,27 +364,31 @@ ipcMain.on('divider-import-url', async (event, { url, quality }) => {
       if (finalPath && fs.existsSync(finalPath)) {
         try {
           const meta = await probeLocalVideo(finalPath);
-          win.webContents.send('divider-import-complete', {
+          send('divider-import-complete', {
             filePath: finalPath,
             title: meta.filename,
             duration: meta.duration
           });
-          win.webContents.send('download-complete', { type: 'divider-import', url, status: 'Success', filePath: finalPath });
+          send('download-complete', { type: 'divider-import', url, status: 'Success', filePath: finalPath });
         } catch (err) {
-          win.webContents.send('download-error', `[DIVIDER IMPORT] Probe failed for downloaded file: ${err.message}`);
+          send('download-error', `[DIVIDER IMPORT] Probe failed for downloaded file: ${err.message}`);
         }
       } else {
-        win.webContents.send('download-error', `[DIVIDER IMPORT] Could not find completed download file.`);
+        send('download-error', `[DIVIDER IMPORT] Could not find completed download file.`);
       }
     } else {
-      win.webContents.send('download-error', `[DIVIDER IMPORT] yt-dlp failed with code ${code}`);
+      send('download-error', `[DIVIDER IMPORT] yt-dlp failed with code ${code}`);
     }
   });
 });
 
 ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  win.webContents.send('divide-status', `[DIVIDER] Initializing video divider in ${mode.toUpperCase()} mode...`);
+  const send = (channel, payload) => {
+    if (typeof ctx.safeSend === 'function') ctx.safeSend(win, channel, payload);
+    else if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  };
+  send('divide-status', `[DIVIDER] Initializing video divider in ${mode.toUpperCase()} mode...`);
   
   try {
     const jobs = [];
@@ -476,15 +488,15 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
     }
     
     const filePaths = await runFfmpegQueue(jobs, win);
-    win.webContents.send('divide-status', `All splitting jobs completed successfully! Saved to: ${outputDir}`);
-    win.webContents.send('divide-complete', { filePaths, outputDir });
+    send('divide-status', `All splitting jobs completed successfully! Saved to: ${outputDir}`);
+    send('divide-complete', { filePaths, outputDir });
     
     if (ctx.settings.autoOpenFolder) {
       ctx.openFolderOrRevealItem(outputDir);
     }
   } catch (err) {
     console.error('Divide error:', err);
-    win.webContents.send('divide-error', err.message || 'An error occurred during division.');
+    send('divide-error', err.message || 'An error occurred during division.');
   }
 });
 

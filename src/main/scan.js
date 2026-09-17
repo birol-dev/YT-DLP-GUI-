@@ -461,7 +461,9 @@ ipcMain.on('scan-youtube-url', async (event, url) => {
   ytProcess.on('error', (err) => {
     if (hasSentError) return;
     hasSentError = true;
-    win.webContents.send('scan-error', `Failed to start YouTube audio downloader: ${err.message}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('scan-error', `Failed to start YouTube audio downloader: ${err.message}`);
+    }
   });
 
   ytProcess.stderr.on('data', (data) => {

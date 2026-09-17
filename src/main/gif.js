@@ -22,11 +22,25 @@ function getGifOutputPath(inputPath) {
 
 ipcMain.handle('convert-video-to-gif', async (event, payload) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  const { inputPath, fps, width, startTime, endTime } = payload;
+  const send = (channel, data) => {
+    if (typeof ctx.safeSend === 'function') ctx.safeSend(win, channel, data);
+    else if (win && !win.isDestroyed()) win.webContents.send(channel, data);
+  };
+  const { inputPath, fps, width, startTime, endTime } = payload || {};
   
   try {
+    if (!inputPath || typeof inputPath !== 'string') {
+      const result = { success: false, error: 'Invalid input path.' };
+      send('gif-finished', result);
+      return result;
+    }
+    const duration = Number(endTime) - Number(startTime);
+    if (!(duration > 0)) {
+      const result = { success: false, error: 'End time must be greater than start time.' };
+      send('gif-finished', result);
+      return result;
+    }
     const outputPath = getGifOutputPath(inputPath);
-    const duration = endTime - startTime;
     let scaleWidth = width;
     if (width === 'Original' || !width) {
       scaleWidth = 'iw';
@@ -63,7 +77,7 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
           const rounded = Math.min(100, Math.max(0, Math.round(progress)));
           if (rounded !== lastProgress) {
             lastProgress = rounded;
-            win.webContents.send('gif-progress', rounded);
+            send('gif-progress', rounded);
           }
         }
       });
@@ -71,13 +85,13 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
       proc.on('close', (code) => {
         if (code === 0) {
           const result = { success: true, outputPath };
-          win.webContents.send('gif-finished', result);
+          send('gif-finished', result);
           resolve(result);
         } else {
           console.error(`ffmpeg failed with code ${code}. Stderr: ${stderr}`);
           const errorMsg = `FFmpeg process exited with code ${code}. Stderr: ${stderr.slice(-300)}`;
           const result = { success: false, error: errorMsg };
-          win.webContents.send('gif-finished', result);
+          send('gif-finished', result);
           resolve(result);
         }
       });
@@ -86,14 +100,14 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
         console.error('ffmpeg spawn error:', err);
         const errorMsg = `Failed to spawn FFmpeg: ${err.message}`;
         const result = { success: false, error: errorMsg };
-        win.webContents.send('gif-finished', result);
+        send('gif-finished', result);
         resolve(result);
       });
     });
   } catch (err) {
     console.error('GIF conversion error:', err);
     const result = { success: false, error: err.message };
-    win.webContents.send('gif-finished', result);
+    send('gif-finished', result);
     return result;
   }
 });
