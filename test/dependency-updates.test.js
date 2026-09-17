@@ -128,24 +128,19 @@ describe('Dependency Auto-Updates & Real-time Notification System', () => {
   });
 
   test('compareVersions accurately compares semver and protects against downgrades', () => {
-    // Pull pure helpers from source — requiring deps.js loads electron and flakes on CI
-    // when the Electron binary postinstall fails on windows-latest.
-    const helpersMatch = mainCode.match(/function parseVersionParts\(v\) \{[\s\S]*?\n\}\n\nfunction compareVersions\(v1, v2\) \{[\s\S]*?\n\}/);
+    // Avoid require('../src/main/deps') — it loads electron and flakes when the Electron
+    // postinstall fails on windows-latest. Normalize CRLF so the extract works on CI.
+    const normalized = mainCode.replace(/\r\n/g, '\n');
+    const helpersMatch = normalized.match(/function parseVersionParts\(v\) \{[\s\S]*?\n\}\n+function compareVersions\(v1, v2\) \{[\s\S]*?\n\}/);
     assert.ok(helpersMatch, 'parseVersionParts/compareVersions not found in deps.js source');
     const compareVersions = new Function(`${helpersMatch[0]}; return compareVersions;`)();
     assert.ok(typeof compareVersions === 'function', 'compareVersions must be a function');
 
-    // 7.1.5 vs 6.1 -> 7.1.5 is newer
     assert.strictEqual(compareVersions('7.1.5', '6.1'), 1);
-    // 7.1 vs 6.1 -> 7.1 is newer
     assert.strictEqual(compareVersions('7.1-essentials_build-www.gyan.dev', '6.1'), 1);
-    // 6.1-static vs 7.1.5 -> 6.1-static is older
     assert.strictEqual(compareVersions('6.1-static', '7.1.5'), -1);
-    // 6.1 vs 6.1 -> equal
     assert.strictEqual(compareVersions('6.1', '6.1'), 0);
-    // 6.0 vs 6.1 -> older
     assert.strictEqual(compareVersions('6.0', '6.1'), -1);
-    // 7.1 vs 7.1.0 -> equal
     assert.strictEqual(compareVersions('7.1', '7.1.0'), 0);
   });
 
