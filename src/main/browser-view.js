@@ -1,7 +1,7 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, protocol, net, nativeImage, session, clipboard } = require('electron');
 const path = require('path');
 const { spawn, exec, spawnSync } = require('child_process');
-const { pathToFileURL } = require('url');
+const { pathToFileURL, fileURLToPath } = require('url');
 const fs = require('fs');
 const https = require('https');
 const os = require('os');
@@ -691,7 +691,7 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
     outputPath = `${baseOut}_${count}${ext}`;
   }
 
-  win.webContents.send('download-status', `[STREAM] Starting direct FFmpeg download...`);
+  if (win && !win.isDestroyed()) win.webContents.send('download-status', `[STREAM] Starting direct FFmpeg download...`);
   
   const ffmpegPath = ctx.getFfmpegPath();
   
@@ -720,7 +720,7 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
     proc = spawn(ffmpegPath, args);
     ctx.registerProcess(proc, { isYtDlp: false });
   } catch (err) {
-    win.webContents.send('download-error', `[STREAM] FFmpeg failed to start: ${err.message}`);
+    if (win && !win.isDestroyed()) win.webContents.send('download-error', `[STREAM] FFmpeg failed to start: ${err.message}`);
     return;
   }
   
@@ -733,17 +733,18 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
     if (totalDuration > 0) {
       const progress = ctx.parseFfmpegProgress(text, totalDuration);
       if (progress !== null) {
-        win.webContents.send('download-progress', `[download]  ${Math.round(progress)}% of stream`);
+        if (win && !win.isDestroyed()) win.webContents.send('download-progress', `[download]  ${Math.round(progress)}% of stream`);
       }
     } else {
       const match = text.match(/time=\s*(\d{2}):(\d{2}):(\d{2})/);
       if (match) {
-        win.webContents.send('download-progress', `[download]  Copied ${match[1]}:${match[2]}:${match[3]} of media`);
+        if (win && !win.isDestroyed()) win.webContents.send('download-progress', `[download]  Copied ${match[1]}:${match[2]}:${match[3]} of media`);
       }
     }
   });
 
   proc.on('close', (code) => {
+    if (!win || win.isDestroyed()) return;
     if (code === 0) {
       win.webContents.send('download-complete', {
         type: isAudioOnly ? 'stream-audio' : 'stream-video',
@@ -760,7 +761,9 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
   });
 
   proc.on('error', (err) => {
-    win.webContents.send('download-error', `[STREAM] FFmpeg failed to start: ${err.message}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('download-error', `[STREAM] FFmpeg failed to start: ${err.message}`);
+    }
   });
 });
 
@@ -777,6 +780,21 @@ function registerMediaProtocols() {
       // Local remuxed Clipper previews: serve the file directly (with Range).
       // Do not attach the guest session / Referer — that breaks large file:// playback.
       if (targetUrl.startsWith('file:')) {
+        let filePath;
+        try {
+          filePath = path.normalize(fileURLToPath(targetUrl));
+        } catch {
+          return new Response('Invalid file URL', { status: 400 });
+        }
+        const allowedRoots = [
+          path.normalize(app.getPath('userData')),
+          path.normalize(ctx.settings.downloadDir || app.getPath('downloads')),
+          path.normalize(app.getPath('temp'))
+        ];
+        const allowed = allowedRoots.some((root) => filePath === root || filePath.startsWith(root + path.sep));
+        if (!allowed) {
+          return new Response('Forbidden local path', { status: 403 });
+        }
         return net.fetch(targetUrl, { method: request.method, headers: request.headers });
       }
 

@@ -7,6 +7,12 @@ const https = require('https');
 const os = require('os');
 const ctx = require('./ctx');
 
+function safeSend(win, channel, payload) {
+  if (win && !win.isDestroyed()) {
+    try { win.webContents.send(channel, payload); } catch (e) {}
+  }
+}
+
 function isTemporaryDownloadPath(filePath) {
   const normalized = filePath.trim().replace(/^"|"$/g, '');
   return normalized.endsWith('.part') ||
@@ -162,7 +168,7 @@ ipcMain.on('download-video', async (event, { url, quality }) => {
   const args = await buildVideoDownloadArgs({ url, quality, outPath });
   const videoFormat = ctx.settings.videoFormat || 'mp4';
 
-  win.webContents.send('download-status', `[VIDEO] Starting download in ${videoFormat.toUpperCase()} format for ${url}...`);
+  safeSend(win, 'download-status', `[VIDEO] Starting download in ${videoFormat.toUpperCase()} format for ${url}...`);
   
   const ytDlpPath = ctx.getYtDlpPath();
   const downloadStartedAt = Date.now();
@@ -171,6 +177,10 @@ ipcMain.on('download-video', async (event, { url, quality }) => {
   const throttledProgress = ctx.createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
+  ytProcess.on('error', (err) => {
+    throttledProgress.flush();
+    safeSend(win, 'download-error', `[VIDEO] Failed to start yt-dlp: ${err.message}`);
+  });
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
     throttledProgress.push(text);
@@ -196,12 +206,12 @@ ipcMain.on('download-video', async (event, { url, quality }) => {
     throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
-      win.webContents.send('download-complete', { type: 'video', url, status: 'Success', filePath: finalPath });
+      safeSend(win, 'download-complete', { type: 'video', url, status: 'Success', filePath: finalPath });
       if (ctx.settings.autoOpenFolder && finalPath) {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
-    else win.webContents.send('download-error', `[VIDEO] Download failed with code ${code}`);
+    else safeSend(win, 'download-error', `[VIDEO] Download failed with code ${code}`);
   });
 });
 
@@ -242,7 +252,7 @@ ipcMain.on('download-audio', async (event, { url }) => {
   args.push(url);
   const finalArgs = await ctx.appendYtDlpCookieArgs(args);
 
-  win.webContents.send('download-status', `[AUDIO] Starting extraction to ${audioFormat.toUpperCase()} format for ${url}...`);
+  safeSend(win, 'download-status', `[AUDIO] Starting extraction to ${audioFormat.toUpperCase()} format for ${url}...`);
   
   const ytDlpPath = ctx.getYtDlpPath();
   const downloadStartedAt = Date.now();
@@ -251,6 +261,10 @@ ipcMain.on('download-audio', async (event, { url }) => {
   const throttledProgress = ctx.createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
+  ytProcess.on('error', (err) => {
+    throttledProgress.flush();
+    safeSend(win, 'download-error', `[AUDIO] Failed to start yt-dlp: ${err.message}`);
+  });
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
     throttledProgress.push(text);
@@ -276,12 +290,12 @@ ipcMain.on('download-audio', async (event, { url }) => {
     throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, audioDir, downloadStartedAt);
-      win.webContents.send('download-complete', { type: 'audio', url, status: 'Success', filePath: finalPath });
+      safeSend(win, 'download-complete', { type: 'audio', url, status: 'Success', filePath: finalPath });
       if (ctx.settings.autoOpenFolder && finalPath) {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
-    else win.webContents.send('download-error', `[AUDIO] Download failed with code ${code}`);
+    else safeSend(win, 'download-error', `[AUDIO] Download failed with code ${code}`);
   });
 });
 
@@ -325,7 +339,7 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
   args.push(url);
   const finalArgs = await ctx.appendYtDlpCookieArgs(args);
 
-  win.webContents.send('download-status', `[SUBS] Starting download for ${url}...`);
+  safeSend(win, 'download-status', `[SUBS] Starting download for ${url}...`);
   
   const ytDlpPath = ctx.getYtDlpPath();
   const downloadStartedAt = Date.now();
@@ -334,6 +348,10 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
   const throttledProgress = ctx.createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
+  ytProcess.on('error', (err) => {
+    throttledProgress.flush();
+    safeSend(win, 'download-error', `[SUBS] Failed to start yt-dlp: ${err.message}`);
+  });
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
     throttledProgress.push(text);
@@ -351,12 +369,12 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
     finalPath = resolveFinalDownloadPath(finalPath, subsDir, downloadStartedAt);
     const hasSubtitleFile = !!(finalPath && fs.existsSync(finalPath));
     if (code === 0 || hasSubtitleFile) {
-      win.webContents.send('download-complete', { type: 'subtitles', url, status: 'Success', filePath: finalPath });
+      safeSend(win, 'download-complete', { type: 'subtitles', url, status: 'Success', filePath: finalPath });
       if (ctx.settings.autoOpenFolder && finalPath) {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
-    else win.webContents.send('download-error', `[SUBS] Download failed with code ${code}`);
+    else safeSend(win, 'download-error', `[SUBS] Download failed with code ${code}`);
   });
 });
 
@@ -429,7 +447,7 @@ ipcMain.on('download-instagram', async (event, { url, format }) => {
   const finalArgs = await ctx.appendYtDlpCookieArgs(args);
   
   const label = format === 'audio' ? 'AUDIO' : 'VIDEO';
-  win.webContents.send('download-status', `[INSTAGRAM ${label}] Starting download in ${format === 'audio' ? (ctx.settings.audioFormat || 'mp3').toUpperCase() : (ctx.settings.videoFormat || 'mp4').toUpperCase()} format for ${url}...`);
+  safeSend(win, 'download-status', `[INSTAGRAM ${label}] Starting download in ${format === 'audio' ? (ctx.settings.audioFormat || 'mp3').toUpperCase() : (ctx.settings.videoFormat || 'mp4').toUpperCase()} format for ${url}...`);
   
   const ytDlpPath = ctx.getYtDlpPath();
   const downloadStartedAt = Date.now();
@@ -438,6 +456,11 @@ ipcMain.on('download-instagram', async (event, { url, format }) => {
   const throttledProgress = ctx.createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
   let stderrOutput = '';
+
+  ytProcess.on('error', (err) => {
+    throttledProgress.flush();
+    safeSend(win, 'download-error', `[INSTAGRAM ${label}] Failed to start yt-dlp: ${err.message}`);
+  });
   
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
@@ -469,13 +492,13 @@ ipcMain.on('download-instagram', async (event, { url, format }) => {
     if (code === 0) {
       const type = format === 'audio' ? 'ig-audio' : 'ig-video';
       finalPath = resolveFinalDownloadPath(finalPath, path.join(baseDir, subFolder), downloadStartedAt);
-      win.webContents.send('download-complete', { type, url, status: 'Success', filePath: finalPath });
+      safeSend(win, 'download-complete', { type, url, status: 'Success', filePath: finalPath });
       if (ctx.settings.autoOpenFolder && finalPath) {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
     else {
-      win.webContents.send('download-error', ctx.formatInstagramDownloadError(code, stderrOutput, label));
+      safeSend(win, 'download-error', ctx.formatInstagramDownloadError(code, stderrOutput, label));
     }
   });
 });
@@ -488,4 +511,5 @@ ctx.isTemporaryDownloadPath = isTemporaryDownloadPath;
 ctx.findNewestCompletedFile = findNewestCompletedFile;
 ctx.resolveFinalDownloadPath = resolveFinalDownloadPath;
 ctx.buildVideoDownloadArgs = buildVideoDownloadArgs;
-module.exports = { isTemporaryDownloadPath, findNewestCompletedFile, resolveFinalDownloadPath, buildVideoDownloadArgs };
+ctx.safeSend = safeSend;
+module.exports = { isTemporaryDownloadPath, findNewestCompletedFile, resolveFinalDownloadPath, buildVideoDownloadArgs, safeSend };

@@ -250,7 +250,11 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
   args.push(url);
   const finalArgs = await ctx.appendYtDlpCookieArgs(args);
 
-  win.webContents.send('download-status', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Starting download for section ${startTime}-${endTime} in ${formatLabel} format...`);
+  const send = (channel, payload) => {
+    if (typeof ctx.safeSend === 'function') ctx.safeSend(win, channel, payload);
+    else if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  };
+  send('download-status', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Starting download for section ${startTime}-${endTime} in ${formatLabel} format...`);
   
   const ytDlpPath = ctx.getYtDlpPath();
   const downloadStartedAt = Date.now();
@@ -259,6 +263,10 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
   const throttledProgress = ctx.createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
+  ytProcess.on('error', (err) => {
+    throttledProgress.flush();
+    send('download-error', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Failed to start yt-dlp: ${err.message}`);
+  });
   ytProcess.stdout.on('data', (data) => {
     const text = data.toString();
     throttledProgress.push(text);
@@ -286,12 +294,12 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
     throttledProgress.flush();
     if (code === 0) {
       finalPath = ctx.resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
-      win.webContents.send('download-complete', { type: isAudio ? 'clip-audio' : 'clip', url, status: 'Success', filePath: finalPath });
+      send('download-complete', { type: isAudio ? 'clip-audio' : 'clip', url, status: 'Success', filePath: finalPath });
       if (ctx.settings.autoOpenFolder && finalPath) {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
-    else win.webContents.send('download-error', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Download failed with code ${code}`);
+    else send('download-error', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Download failed with code ${code}`);
   });
 });
 

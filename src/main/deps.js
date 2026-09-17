@@ -119,7 +119,7 @@ function downloadFile(url, destPath, win, itemName, onProgress) {
 
       const options = {
         headers: {
-          'User-Agent': ctx.BROWSER_USER_AGENT,
+          'User-Agent': ctx.BROWSER_USER_AGENT || 'YT-DLP-GUI',
           'Accept': '*/*'
         }
       };

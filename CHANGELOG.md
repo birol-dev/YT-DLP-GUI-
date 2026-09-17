@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.3] - 2026-09-18
+
+### Fixed
+- Native file-drag icon paths now resolve from the project root (`website/assets`, `build/icon.png`) instead of the broken `src/main/website/...` location after the main-process split.
+- Open Folder fallback for Subtitles / Clipper / GIF completion cards now opens `yt-subs`, `yt-videos`, or `gif-exports` instead of always defaulting to `yt-videos`.
+- Download, clip, divider-import, scan, stream, and GIF handlers no longer throw when the window is closed mid-task; spawn `error` (e.g. missing yt-dlp) surfaces as a download/scan error instead of an uncaught exception.
+- GIF conversion validates input path and positive duration before spawning FFmpeg.
+- `media-preview` local `file:` URLs are restricted to userData, downloads, and temp directories (blocks arbitrary filesystem reads).
+- Dependency downloads fall back to a default User-Agent if the browser module has not attached one yet.
+
 ## [1.9.2] - 2026-09-17
 
 ### Fixed
