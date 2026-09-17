@@ -178,3 +178,9 @@ ffprobe.exe
 skills-lock.json
 agent-instructions.md
 agent_instructions.md
+
+# --- auto-added by cleanup (missing patterns) ---
+.open-next/
+.turbo/
+.venv/
+.opencode/

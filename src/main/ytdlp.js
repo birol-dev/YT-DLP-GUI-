@@ -838,12 +838,22 @@ async function checkUpdates(win, retryCount = 0) {
         win.webContents.send('update-log', `[yt-dlp update] Update check postponed: yt-dlp is currently busy (${reason}).`);
       }
     }
-    return;
+    return {
+      item: 'yt-dlp',
+      status: 'postponed',
+      channel: targetChannel,
+      message: `yt-dlp busy (${reason})`
+    };
   }
 
   if (win && !win.isDestroyed()) {
     win.webContents.send('update-log', `[yt-dlp update] Checking for updates on the ${targetChannel} channel...`);
   }
+
+  const initialInfo = await getYtDlpVersionInfo();
+  const previousVersion = initialInfo.version || ctx.settings.ytDlpInstalledVersion || '';
+  let isUpdated = false;
+  let finalInfo = initialInfo;
 
   try {
     // 1. Try yt-dlp built-in update check first without passing browser cookies
@@ -855,25 +865,36 @@ async function checkUpdates(win, retryCount = 0) {
       /is up to date/i.test(combined);
 
     if (updateSucceeded) {
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('update-log', '[yt-dlp update] Update check completed successfully.');
+      if (/updated yt-dlp to/i.test(combined)) {
+        isUpdated = true;
       }
-      const info = await getYtDlpVersionInfo();
-      if (info.available) {
+      finalInfo = await getYtDlpVersionInfo();
+      if (finalInfo.version && previousVersion && finalInfo.version !== previousVersion) {
+        isUpdated = true;
+      }
+
+      if (win && !win.isDestroyed()) {
+        const msg = isUpdated
+          ? `[yt-dlp update] Successfully updated yt-dlp to ${finalInfo.version} (${finalInfo.installedChannel || targetChannel}).`
+          : `[yt-dlp update] yt-dlp is already up to date (${finalInfo.version || targetChannel}).`;
+        win.webContents.send('update-log', msg);
+      }
+
+      if (finalInfo.available) {
         ctx.saveSettingsInternal({
-          ytDlpInstalledChannel: info.installedChannel,
-          ytDlpInstalledVersion: info.version
+          ytDlpInstalledChannel: finalInfo.installedChannel,
+          ytDlpInstalledVersion: finalInfo.version
         });
         if (win && !win.isDestroyed()) {
           win.webContents.send('yt-dlp-channel-changed', {
-            channel: info.installedChannel,
+            channel: finalInfo.installedChannel,
             targetChannel,
-            version: info.version
+            version: finalInfo.version
           });
         }
       }
     } else {
-      // 2. Built-in --update-to failed (common on Windows with file locks or GitHub API limitations).
+      // 2. Built-in --update-to failed.
       // Fall back to direct binary download from official GitHub release assets.
       if (win && !win.isDestroyed()) {
         const errorSummary = cleanYtDlpError(combined) || `exit code ${updateResult.code}`;
@@ -881,45 +902,52 @@ async function checkUpdates(win, retryCount = 0) {
       }
 
       await downloadYtDlpFromChannel(win, targetChannel);
-      const info = await getYtDlpVersionInfo();
-      if (info.available && info.version) {
+      finalInfo = await getYtDlpVersionInfo();
+      if (finalInfo.available && finalInfo.version) {
+        if (finalInfo.version !== previousVersion) {
+          isUpdated = true;
+        }
         ctx.saveSettingsInternal({
-          ytDlpInstalledChannel: info.installedChannel || targetChannel,
-          ytDlpInstalledVersion: info.version
+          ytDlpInstalledChannel: finalInfo.installedChannel || targetChannel,
+          ytDlpInstalledVersion: finalInfo.version
         });
         if (win && !win.isDestroyed()) {
-          win.webContents.send('update-log', `[yt-dlp update] Auto-update completed successfully: yt-dlp updated to latest ${info.installedChannel || targetChannel} build (${info.version}).`);
+          win.webContents.send('update-log', `[yt-dlp update] Auto-update completed: yt-dlp is now at ${finalInfo.version} (${finalInfo.installedChannel || targetChannel}).`);
           win.webContents.send('yt-dlp-channel-changed', {
-            channel: info.installedChannel || targetChannel,
+            channel: finalInfo.installedChannel || targetChannel,
             targetChannel,
-            version: info.version
+            version: finalInfo.version
           });
         }
       } else {
         throw new Error('Downloaded binary could not be verified.');
       }
     }
+
+    return {
+      item: 'yt-dlp',
+      status: isUpdated ? 'updated' : 'up-to-date',
+      channel: targetChannel,
+      previousVersion,
+      version: finalInfo.version,
+      message: isUpdated
+        ? `yt-dlp updated to ${finalInfo.version} (${finalInfo.installedChannel || targetChannel})`
+        : `yt-dlp is up to date (${finalInfo.version || targetChannel})`
+    };
   } catch (err) {
     console.error('Auto update check failed:', err);
     if (win && !win.isDestroyed()) {
       win.webContents.send('update-log', `[yt-dlp update] Auto-update check failed: ${err.message}`);
     }
+    return {
+      item: 'yt-dlp',
+      status: 'error',
+      channel: targetChannel,
+      previousVersion,
+      version: previousVersion,
+      message: `yt-dlp update check failed: ${err.message}`
+    };
   }
-
-  // Verify FFmpeg is available
-  const ffmpegPath = ctx.getFfmpegPath();
-  const ffmpegCheck = spawn(ffmpegPath, ['-version']);
-  ffmpegCheck.stdout.once('data', (data) => {
-    const versionLine = data.toString().split('\n')[0];
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('update-log', `[ffmpeg check] ${versionLine}`);
-    }
-  });
-  ffmpegCheck.on('error', () => {
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('update-log', `[ffmpeg error] ffmpeg not found in PATH! Audio extraction and video merging may fail.`);
-    }
-  });
 }
 
 ipcMain.handle('get-yt-dlp-info', async () => {

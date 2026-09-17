@@ -41,7 +41,10 @@ function initSettings() {
     ytDlpChannel: 'master',
     ytDlpInstalledChannel: '',
     ytDlpInstalledVersion: '',
-    dismissedYtDlpChannelHint: false
+    dismissedYtDlpChannelHint: false,
+    autoUpdateDependencies: true,
+    ffmpegInstalledVersion: '',
+    lastUpdateCheck: null
   };
   
   Object.keys(settings).forEach((k) => { delete settings[k]; });

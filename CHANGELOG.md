@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-09-17
+
+### Added
+- Automatic background updates for yt-dlp and FFmpeg on application startup and on demand.
+- Real-time glassmorphism update notification toast with status indicators, download progress, and auto-dismissal.
+- Dedicated Component Updates & Management section in Settings with an Automatic Background Updates toggle.
+- Status badges and version information for both yt-dlp and FFmpeg, including detection source (local vs system PATH).
+- One-click "Check Updates Now" and manual "Update FFmpeg" controls in Settings.
+- Comprehensive automated test suite for dependency update flows and concurrency guards.
+
+### Fixed
+- FFmpeg updates now download prebuilt releases from ffbinaries, extract into local binary directories, and maintain executable permissions.
+- Concurrency guards prevent duplicate or conflicting background update tasks during startup and manual checks.
+
 ## [1.8.9] - 2026-09-03
 
 ### Added

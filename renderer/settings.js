@@ -140,7 +140,8 @@ export function collectCurrentSettingsFromUI() {
     cookiesBrowserProfile: document.getElementById('settings-cookies-profile')?.value.trim().replace(/^["']|["']$/g, '') || '',
     cookiesFile: document.getElementById('settings-cookies-file-path')?.value || '',
     ytDlpChannel: document.getElementById('settings-ytdlp-channel')?.value || state.currentSettings.ytDlpChannel || 'master',
-    dismissedYtDlpChannelHint: !!(state.currentSettings.dismissedYtDlpChannelHint || (typeof localStorage !== 'undefined' && localStorage.getItem('dismissedYtDlpChannelHint') === 'true'))
+    dismissedYtDlpChannelHint: !!(state.currentSettings.dismissedYtDlpChannelHint || (typeof localStorage !== 'undefined' && localStorage.getItem('dismissedYtDlpChannelHint') === 'true')),
+    autoUpdateDependencies: !!document.getElementById('settings-auto-update-deps')?.checked
   };
 }
 
@@ -221,7 +222,8 @@ export function triggerAutoSave(debounceMs = 0) {
 
 [
   'settings-sound-enabled',
-  'settings-auto-open'
+  'settings-auto-open',
+  'settings-auto-update-deps'
 ].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
@@ -375,12 +377,18 @@ export function renderYtDlpChannelStatus(result, isLoading = false, actionType =
 
 export async function refreshYtDlpChannelInfo() {
   const infoEl = document.getElementById('ytdlp-channel-info');
+  const badgeEl = document.getElementById('ytdlp-status-badge');
   if (!infoEl || !window.electronAPI.getYtDlpInfo) return;
 
   try {
     const info = await window.electronAPI.getYtDlpInfo();
     if (!info.available) {
       infoEl.textContent = 'yt-dlp is not installed locally yet. It will be downloaded on first use or when you switch channels.';
+      if (badgeEl) {
+        badgeEl.textContent = 'Not Installed';
+        badgeEl.style.backgroundColor = 'hsl(var(--destructive) / 0.15)';
+        badgeEl.style.color = 'hsl(var(--destructive))';
+      }
       return;
     }
 
@@ -390,8 +398,18 @@ export async function refreshYtDlpChannelInfo() {
     infoEl.textContent = mismatch
       ? `Installed: ${installedChannel} (${info.version || 'unknown'}) — selected ${selectedChannel}. Click Switch Channel Now to apply.`
       : `Installed: ${installedChannel} (${info.version || 'unknown'})${info.local ? '' : ' via system PATH'}`;
+    if (badgeEl) {
+      badgeEl.textContent = `v${info.version || 'installed'}`;
+      badgeEl.style.backgroundColor = 'hsl(142 76% 36% / 0.15)';
+      badgeEl.style.color = '#22c55e';
+    }
   } catch (err) {
     infoEl.textContent = 'Could not read yt-dlp version info.';
+    if (badgeEl) {
+      badgeEl.textContent = 'Error';
+      badgeEl.style.backgroundColor = 'hsl(var(--destructive) / 0.15)';
+      badgeEl.style.color = 'hsl(var(--destructive))';
+    }
   }
 }
 
@@ -509,6 +527,293 @@ if (window.electronAPI.onYtDlpChannelChanged) {
     }
     refreshYtDlpChannelInfo();
     updateYtDlpChannelHintLabels();
+  });
+}
+
+export async function refreshFfmpegInfo() {
+  const infoEl = document.getElementById('ffmpeg-version-info');
+  const badgeEl = document.getElementById('ffmpeg-status-badge');
+  if (!infoEl || !window.electronAPI?.getFfmpegInfo) return;
+
+  try {
+    const info = await window.electronAPI.getFfmpegInfo();
+    if (!info?.available) {
+      infoEl.textContent = 'FFmpeg is not detected in local path or system PATH.';
+      if (badgeEl) {
+        badgeEl.textContent = 'Missing';
+        badgeEl.style.backgroundColor = 'hsl(var(--destructive) / 0.15)';
+        badgeEl.style.color = 'hsl(var(--destructive))';
+      }
+      return;
+    }
+
+    infoEl.textContent = `Installed: FFmpeg ${info.version || 'unknown'} (${info.local ? 'local build' : 'system PATH'})`;
+    if (badgeEl) {
+      badgeEl.textContent = `v${info.version || 'installed'}`;
+      badgeEl.style.backgroundColor = 'hsl(142 76% 36% / 0.15)';
+      badgeEl.style.color = '#22c55e';
+    }
+  } catch (err) {
+    infoEl.textContent = 'Could not read FFmpeg version info.';
+    if (badgeEl) {
+      badgeEl.textContent = 'Error';
+      badgeEl.style.backgroundColor = 'hsl(var(--destructive) / 0.15)';
+      badgeEl.style.color = 'hsl(var(--destructive))';
+    }
+  }
+}
+
+export function updateLastUpdateCheckLabel(timestamp) {
+  const labelEl = document.getElementById('label-last-update-check');
+  if (!labelEl) return;
+  if (!timestamp) {
+    labelEl.textContent = 'Last checked: Never';
+    return;
+  }
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) {
+      labelEl.textContent = `Last checked: ${timestamp}`;
+      return;
+    }
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    labelEl.textContent = `Last checked: ${dateStr} at ${timeStr}`;
+  } catch {
+    labelEl.textContent = 'Last checked: Recently';
+  }
+}
+
+let updateToastTimeout = null;
+
+export function showUpdateToast({ title, detail, type = 'checking', canRetry = false, autoDismiss = 0 } = {}) {
+  const toast = document.getElementById('update-notification-toast');
+  const iconEl = document.getElementById('update-toast-icon');
+  const titleEl = document.getElementById('update-toast-title');
+  const detailEl = document.getElementById('update-toast-detail');
+  const retryBtn = document.getElementById('btn-update-toast-retry');
+  if (!toast) return;
+
+  if (updateToastTimeout) {
+    clearTimeout(updateToastTimeout);
+    updateToastTimeout = null;
+  }
+
+  toast.classList.remove('checking', 'updating', 'success', 'error', 'toast-fade-out');
+  toast.classList.add(type);
+
+  if (iconEl) {
+    if (type === 'checking' || type === 'updating') {
+      iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="animate-spin-slow"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>`;
+    } else if (type === 'success') {
+      iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 12 15 16 10"/></svg>`;
+    } else if (type === 'error') {
+      iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+    }
+  }
+
+  if (titleEl && title) titleEl.textContent = title;
+  if (detailEl && detail) detailEl.textContent = detail;
+
+  if (retryBtn) {
+    retryBtn.style.display = canRetry ? 'inline-block' : 'none';
+  }
+
+  toast.style.display = 'flex';
+
+  if (autoDismiss > 0) {
+    updateToastTimeout = setTimeout(() => {
+      dismissUpdateToast();
+    }, autoDismiss);
+  }
+}
+
+export function dismissUpdateToast() {
+  const toast = document.getElementById('update-notification-toast');
+  if (!toast) return;
+  if (updateToastTimeout) {
+    clearTimeout(updateToastTimeout);
+    updateToastTimeout = null;
+  }
+  toast.classList.add('toast-fade-out');
+  updateToastTimeout = setTimeout(() => {
+    toast.style.display = 'none';
+    toast.classList.remove('toast-fade-out');
+    updateToastTimeout = null;
+  }, 250);
+}
+
+const btnCheckAllUpdates = document.getElementById('btn-check-all-updates');
+if (btnCheckAllUpdates) {
+  btnCheckAllUpdates.addEventListener('click', async () => {
+    const originalHtml = btnCheckAllUpdates.innerHTML;
+    btnCheckAllUpdates.disabled = true;
+    btnCheckAllUpdates.innerHTML = `
+      <div class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; margin-right: 6px; display: inline-block; vertical-align: middle;"></div>
+      <span>Checking...</span>
+    `;
+
+    const resultBox = document.getElementById('dependency-update-result-box');
+    if (resultBox) {
+      resultBox.style.display = 'block';
+      resultBox.className = 'cookies-test-status testing';
+      resultBox.innerHTML = '<div class="cookies-test-status-title">Checking for dependency updates...</div>';
+    }
+
+    try {
+      const summary = await window.electronAPI.checkAllUpdates();
+      if (resultBox) {
+        resultBox.style.display = 'block';
+        resultBox.className = `cookies-test-status ${summary?.hasError ? 'error' : 'success'}`;
+        resultBox.innerHTML = `
+          <div class="cookies-test-status-title">${escapeHtml(summary?.message || 'Update check completed.')}</div>
+          <div class="cookies-test-status-detail">yt-dlp: ${escapeHtml(summary?.ytDlp?.message || summary?.ytDlp?.version || 'Checked')} • FFmpeg: ${escapeHtml(summary?.ffmpeg?.message || summary?.ffmpeg?.version || 'Checked')}</div>
+        `;
+      }
+      if (summary?.timestamp) {
+        updateLastUpdateCheckLabel(summary.timestamp);
+      }
+      await refreshYtDlpChannelInfo();
+      await refreshFfmpegInfo();
+    } catch (err) {
+      if (resultBox) {
+        resultBox.style.display = 'block';
+        resultBox.className = 'cookies-test-status error';
+        resultBox.innerHTML = `<div class="cookies-test-status-title">Failed to check updates: ${escapeHtml(err.message || 'Unknown error')}</div>`;
+      }
+    } finally {
+      btnCheckAllUpdates.disabled = false;
+      btnCheckAllUpdates.innerHTML = originalHtml;
+    }
+  });
+}
+
+const btnForceUpdateFfmpeg = document.getElementById('btn-force-update-ffmpeg');
+if (btnForceUpdateFfmpeg) {
+  btnForceUpdateFfmpeg.addEventListener('click', async () => {
+    const originalHtml = btnForceUpdateFfmpeg.innerHTML;
+    btnForceUpdateFfmpeg.disabled = true;
+    btnForceUpdateFfmpeg.innerHTML = `
+      <div class="loading-spinner" style="width: 14px; height: 14px; border-width: 2px; margin-right: 6px; display: inline-block; vertical-align: middle;"></div>
+      <span>Updating FFmpeg...</span>
+    `;
+
+    const statusEl = document.getElementById('ffmpeg-status');
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.className = 'cookies-test-status testing';
+      statusEl.innerHTML = '<div class="cookies-test-status-title">Updating FFmpeg...</div>';
+    }
+
+    try {
+      const result = await window.electronAPI.updateFfmpeg();
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.className = `cookies-test-status ${result?.status === 'updated' || result?.status === 'up-to-date' ? 'success' : 'error'}`;
+        statusEl.innerHTML = `
+          <div class="cookies-test-status-title">${escapeHtml(result?.message || 'FFmpeg update completed.')}</div>
+          ${result?.detail ? `<div class="cookies-test-status-detail">${escapeHtml(result.detail)}</div>` : ''}
+        `;
+      }
+      await refreshFfmpegInfo();
+      showSaveIndicator(result?.message || 'FFmpeg updated', result?.status !== 'error');
+    } catch (err) {
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.className = 'cookies-test-status error';
+        statusEl.innerHTML = `<div class="cookies-test-status-title">FFmpeg update error: ${escapeHtml(err.message || 'Unknown error')}</div>`;
+      }
+      showSaveIndicator('FFmpeg update failed', false);
+    } finally {
+      btnForceUpdateFfmpeg.disabled = false;
+      btnForceUpdateFfmpeg.innerHTML = originalHtml;
+    }
+  });
+}
+
+document.getElementById('btn-update-toast-close')?.addEventListener('click', () => {
+  dismissUpdateToast();
+});
+
+document.getElementById('btn-update-toast-retry')?.addEventListener('click', async () => {
+  dismissUpdateToast();
+  if (window.electronAPI?.checkAllUpdates) {
+    try {
+      await window.electronAPI.checkAllUpdates();
+    } catch (err) {
+      console.error('Retry update check failed:', err);
+    }
+  }
+});
+
+if (window.electronAPI?.onDependencyUpdateStatus) {
+  window.electronAPI.onDependencyUpdateStatus((data) => {
+    if (!data) return;
+
+    if (data.phase === 'checking') {
+      showUpdateToast({
+        title: 'Checking for updates...',
+        detail: data.message || 'Verifying yt-dlp and FFmpeg versions',
+        type: 'checking',
+        autoDismiss: 0
+      });
+    } else if (data.phase === 'downloading') {
+      showUpdateToast({
+        title: `Updating ${data.item === 'ffmpeg' ? 'FFmpeg' : (data.item === 'yt-dlp' ? 'yt-dlp' : 'Components')}...`,
+        detail: data.message || 'Downloading latest release',
+        type: 'updating',
+        autoDismiss: 0
+      });
+    } else if (data.phase === 'progress') {
+      if (data.progress !== undefined) {
+        showUpdateToast({
+          title: `Downloading ${data.item === 'ffmpeg' ? 'FFmpeg' : data.item}...`,
+          detail: `${data.progress}% complete`,
+          type: 'updating',
+          autoDismiss: 0
+        });
+      }
+      if (data.result?.item === 'yt-dlp') {
+        refreshYtDlpChannelInfo();
+      } else if (data.result?.item === 'ffmpeg') {
+        refreshFfmpegInfo();
+      }
+    } else if (data.phase === 'extracting') {
+      showUpdateToast({
+        title: `Installing ${data.item === 'ffmpeg' ? 'FFmpeg' : data.item}...`,
+        detail: data.message || 'Extracting and configuring files',
+        type: 'updating',
+        autoDismiss: 0
+      });
+    } else if (data.phase === 'completed') {
+      updateLastUpdateCheckLabel(data.timestamp);
+      refreshYtDlpChannelInfo();
+      refreshFfmpegInfo();
+
+      if (data.updatedCount > 0) {
+        showUpdateToast({
+          title: 'Updates Installed!',
+          detail: data.message,
+          type: 'success',
+          autoDismiss: 6000
+        });
+      } else if (data.hasError) {
+        showUpdateToast({
+          title: 'Update Notice',
+          detail: data.message,
+          type: 'error',
+          canRetry: true,
+          autoDismiss: 8000
+        });
+      } else {
+        showUpdateToast({
+          title: 'Components Up to Date',
+          detail: data.message,
+          type: 'success',
+          autoDismiss: 3500
+        });
+      }
+    }
   });
 }
 
@@ -803,12 +1108,18 @@ export async function initSettingsUI() {
     document.getElementById('settings-audio-format').value = state.currentSettings.audioFormat || 'mp3';
     document.getElementById('settings-sound-enabled').checked = !!state.currentSettings.soundEnabled;
     document.getElementById('settings-auto-open').checked = !!state.currentSettings.autoOpenFolder;
+    const autoUpdateEl = document.getElementById('settings-auto-update-deps');
+    if (autoUpdateEl) {
+      autoUpdateEl.checked = state.currentSettings.autoUpdateDependencies !== false;
+    }
+    updateLastUpdateCheckLabel(state.currentSettings.lastUpdateCheck);
     document.getElementById('settings-cookies-browser').value = state.currentSettings.cookiesFromBrowser || '';
     document.getElementById('settings-cookies-profile').value = state.currentSettings.cookiesBrowserProfile || '';
     document.getElementById('settings-cookies-file-path').value = state.currentSettings.cookiesFile || '';
     updateCookiesSettingsVisibility();
     document.getElementById('settings-ytdlp-channel').value = state.currentSettings.ytDlpChannel || 'master';
     refreshYtDlpChannelInfo();
+    refreshFfmpegInfo();
     const mfService = state.currentSettings.musicFinderService || 'acoustid';
     document.getElementById('settings-musicfinder-service').value = mfService;
     

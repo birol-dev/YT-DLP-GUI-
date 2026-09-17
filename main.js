@@ -42,7 +42,9 @@ function createWindow() {
         ctx.setupDependencies(win);
       } else {
         await ctx.syncYtDlpChannel(win, { silent: true });
-        ctx.checkUpdates(win);
+        if (ctx.settings.autoUpdateDependencies !== false) {
+          ctx.checkAndUpdateAllDependencies(win, { silent: false });
+        }
       }
     }
   });

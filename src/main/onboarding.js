@@ -41,7 +41,7 @@ ipcMain.handle('finish-onboarding', (event, onboardingData) => {
     if (!ctx.settings.firstRunComplete) {
       ctx.setupDependencies(win);
     } else {
-      ctx.checkUpdates(win);
+      ctx.checkAndUpdateAllDependencies(win, { silent: false });
     }
   }
   return updated;
