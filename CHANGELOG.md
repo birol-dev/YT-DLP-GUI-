@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-09-17
+
+### Fixed
+- Prevented FFmpeg updater from downgrading modern system PATH builds (e.g. v7.1+) to older static packages (v6.1), with automatic detection and semver version comparison.
+- Added automatic recovery to restore system FFmpeg if an older local binary exists.
+- Fixed stale status summary text in Settings: `#dependency-update-result-box` now immediately synchronizes when individual components update.
+- Fixed update toast sticking on "Installing FFmpeg... Extracting..." by emitting completion IPC events, adding auto-dismissal on completion, and introducing safety fallback timeouts.
+- Compacted long build suffixes in UI status badges (e.g., `v7.1` instead of `v7.1-essentials_build-www.gyan.dev`) while preserving full strings in tooltips.
+- Separated toast auto-dismiss timeouts and fade-out animation timers to eliminate race conditions on retry or rapid clicks.
+- Resolved illegal section nesting in `index.html` to guarantee clean DOM hierarchy across Settings.
+
 ## [1.9.0] - 2026-09-17
 
 ### Added

@@ -6,6 +6,7 @@ const fs = require('fs');
 const https = require('https');
 const os = require('os');
 const ctx = require('./ctx');
+ctx.saveSettingsInternal = ctx.saveSettingsInternal || (() => {});
 
 function isCommandInPath(command) {
   return new Promise((resolve) => {
@@ -541,93 +542,181 @@ async function updateFfmpeg(win, { onProgress, silent = false } = {}) {
   return await activeFfmpegUpdatePromise;
 }
 
+function parseVersionParts(v) {
+  if (!v) return [];
+  const clean = String(v).trim().replace(/^v/i, '');
+  const match = clean.match(/^(\d+(?:\.\d+)*)/);
+  if (!match) return [];
+  return match[1].split('.').map(n => parseInt(n, 10));
+}
+
+function compareVersions(v1, v2) {
+  const p1 = parseVersionParts(v1);
+  const p2 = parseVersionParts(v2);
+  const len = Math.max(p1.length, p2.length);
+  for (let i = 0; i < len; i++) {
+    const num1 = p1[i] !== undefined ? p1[i] : 0;
+    const num2 = p2[i] !== undefined ? p2[i] : 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+  return 0;
+}
+
+async function getSystemFfmpegVersion() {
+  return new Promise((resolve) => {
+    const proc = spawn('ffmpeg', ['-version']);
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        try { proc.kill(); } catch {}
+        resolve('');
+      }
+    }, 4000);
+
+    proc.stdout.on('data', d => stdout += d.toString());
+    proc.stderr.on('data', d => stderr += d.toString());
+    proc.on('close', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const output = `${stdout}\n${stderr}`;
+      const match = output.match(/ffmpeg\s+version\s+([^\s,]+)/i);
+      resolve(match ? match[1].trim() : '');
+    });
+    proc.on('error', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve('');
+    });
+  });
+}
+
 async function checkFfmpegUpdate(win, { force = false, silent = false } = {}) {
   const current = await getFfmpegVersionInfo();
   const previousVersion = current.version || '';
 
-  if (force) {
+  // If a local binary exists, check if system PATH has a newer FFmpeg build.
+  // If so, restore system FFmpeg by removing the downgraded local binary.
+  if (current.local && fs.existsSync(ctx.localFfmpeg)) {
     try {
-      const updated = await updateFfmpeg(win, { silent });
-      return {
-        item: 'ffmpeg',
-        status: 'updated',
-        previousVersion,
-        version: updated.version,
-        local: true,
-        message: `FFmpeg updated to ${updated.version || 'v6.1'}`
-      };
-    } catch (err) {
-      return {
-        item: 'ffmpeg',
-        status: 'error',
-        previousVersion,
-        version: previousVersion,
-        local: current.local,
-        message: `FFmpeg update failed: ${err.message}`
-      };
+      const sysVersion = await getSystemFfmpegVersion();
+      if (sysVersion && compareVersions(sysVersion, current.version) > 0) {
+        fs.unlinkSync(ctx.localFfmpeg);
+        const reverted = await getFfmpegVersionInfo();
+        const res = {
+          item: 'ffmpeg',
+          status: 'updated',
+          previousVersion,
+          version: reverted.version || sysVersion,
+          local: false,
+          message: `Restored newer system FFmpeg (${reverted.version || sysVersion}) over older local build (${previousVersion}).`
+        };
+        if (!silent && win && !win.isDestroyed()) {
+          win.webContents.send('dependency-update-status', {
+            phase: 'completed',
+            timestamp: new Date().toISOString(),
+            updatedCount: 1,
+            hasError: false,
+            ffmpeg: res,
+            message: res.message
+          });
+        }
+        return res;
+      }
+    } catch (e) {
+      console.error('Failed checking/reverting to system FFmpeg:', e);
     }
   }
 
-  if (!current.available) {
-    try {
-      const updated = await updateFfmpeg(win, { silent });
-      return {
-        item: 'ffmpeg',
-        status: 'updated',
-        previousVersion: '',
-        version: updated.version,
-        local: true,
-        message: `FFmpeg installed (${updated.version || 'v6.1'})`
-      };
-    } catch (err) {
-      return {
-        item: 'ffmpeg',
-        status: 'error',
-        previousVersion: '',
-        version: '',
-        local: false,
-        message: `FFmpeg installation failed: ${err.message}`
-      };
-    }
-  }
-
+  // Determine latest remote target version
+  let targetVersion = '6.1';
   try {
     const latestTag = await fetchLatestReleaseTag('ffbinaries/ffbinaries-prebuilt');
-    const targetVersion = (latestTag || 'v6.1').replace(/^v/, '');
-
-    const currentVerNumber = parseFloat(current.version);
-    const targetVerNumber = parseFloat(targetVersion);
-    const hasNewer = !isNaN(currentVerNumber) && !isNaN(targetVerNumber) && targetVerNumber > currentVerNumber;
-
-    if (hasNewer) {
-      const updated = await updateFfmpeg(win, { silent });
-      return {
-        item: 'ffmpeg',
-        status: 'updated',
-        previousVersion,
-        version: updated.version,
-        local: true,
-        message: `FFmpeg updated from ${previousVersion} to ${updated.version || targetVersion}`
-      };
+    if (latestTag) {
+      targetVersion = latestTag.replace(/^v/, '');
     }
+  } catch {}
 
-    return {
+  // If FFmpeg is already installed and available:
+  if (current.available) {
+    const cmp = compareVersions(current.version, targetVersion);
+    // If current is newer or equal, DO NOT DOWNGRADE!
+    if (cmp >= 0) {
+      const isNewer = cmp > 0;
+      const res = {
+        item: 'ffmpeg',
+        status: 'up-to-date',
+        previousVersion,
+        version: current.version,
+        local: current.local,
+        message: isNewer
+          ? `Installed FFmpeg (${current.version}) is newer than latest available package (${targetVersion}). Keeping current build.`
+          : `FFmpeg is up to date (${current.version}).`
+      };
+      if (!silent && win && !win.isDestroyed() && force) {
+        win.webContents.send('dependency-update-status', {
+          phase: 'completed',
+          timestamp: new Date().toISOString(),
+          updatedCount: 0,
+          hasError: false,
+          ffmpeg: res,
+          message: res.message
+        });
+      }
+      return res;
+    }
+  }
+
+  // If targetVersion is strictly newer than current, OR FFmpeg is not available:
+  try {
+    const updated = await updateFfmpeg(win, { silent });
+    const res = {
       item: 'ffmpeg',
-      status: 'up-to-date',
+      status: 'updated',
       previousVersion,
-      version: current.version,
-      local: current.local,
-      message: `FFmpeg is up to date (${current.version})`
+      version: updated.version || targetVersion,
+      local: true,
+      message: previousVersion
+        ? `FFmpeg updated from ${previousVersion} to ${updated.version || targetVersion}`
+        : `FFmpeg installed (${updated.version || targetVersion})`
     };
+    if (!silent && win && !win.isDestroyed() && force) {
+      win.webContents.send('dependency-update-status', {
+        phase: 'completed',
+        timestamp: new Date().toISOString(),
+        updatedCount: 1,
+        hasError: false,
+        ffmpeg: res,
+        message: res.message
+      });
+    }
+    return res;
   } catch (err) {
-    return {
+    const res = {
       item: 'ffmpeg',
-      status: 'up-to-date',
+      status: 'error',
       previousVersion,
-      version: current.version,
+      version: previousVersion,
       local: current.local,
-      message: `FFmpeg verified (${current.version})`
+      message: `FFmpeg update failed: ${err.message}`
     };
+    if (!silent && win && !win.isDestroyed() && force) {
+      win.webContents.send('dependency-update-status', {
+        phase: 'completed',
+        timestamp: new Date().toISOString(),
+        updatedCount: 0,
+        hasError: true,
+        ffmpeg: res,
+        message: res.message
+      });
+    }
+    return res;
   }
 }
 
@@ -728,19 +817,21 @@ async function checkAndUpdateAllDependencies(win, { silent = false, force = fals
   return await activeUpdateCheckPromise;
 }
 
-ipcMain.handle('get-ffmpeg-info', async () => {
-  return await getFfmpegVersionInfo();
-});
+if (ipcMain) {
+  ipcMain.handle('get-ffmpeg-info', async () => {
+    return await getFfmpegVersionInfo();
+  });
 
-ipcMain.handle('update-ffmpeg', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  return await checkFfmpegUpdate(win, { force: true, silent: false });
-});
+  ipcMain.handle('update-ffmpeg', async (event) => {
+    const win = BrowserWindow ? BrowserWindow.fromWebContents(event.sender) : null;
+    return await checkFfmpegUpdate(win, { force: true, silent: false });
+  });
 
-ipcMain.handle('check-all-updates', async (event, options = {}) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  return await checkAndUpdateAllDependencies(win, { force: !!options?.force, silent: false });
-});
+  ipcMain.handle('check-all-updates', async (event, options = {}) => {
+    const win = BrowserWindow ? BrowserWindow.fromWebContents(event.sender) : null;
+    return await checkAndUpdateAllDependencies(win, { force: !!options?.force, silent: false });
+  });
+}
 
 ctx.isCommandInPath = isCommandInPath;
 ctx.checkDependencies = checkDependencies;
@@ -755,6 +846,9 @@ ctx.setupDependencies = setupDependencies;
 ctx.updateFfmpeg = updateFfmpeg;
 ctx.checkFfmpegUpdate = checkFfmpegUpdate;
 ctx.checkAndUpdateAllDependencies = checkAndUpdateAllDependencies;
+ctx.parseVersionParts = parseVersionParts;
+ctx.compareVersions = compareVersions;
+ctx.getSystemFfmpegVersion = getSystemFfmpegVersion;
 
 module.exports = {
   isCommandInPath,
@@ -769,5 +863,8 @@ module.exports = {
   setupDependencies,
   updateFfmpeg,
   checkFfmpegUpdate,
-  checkAndUpdateAllDependencies
+  checkAndUpdateAllDependencies,
+  parseVersionParts,
+  compareVersions,
+  getSystemFfmpegVersion
 };

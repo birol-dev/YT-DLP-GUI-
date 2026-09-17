@@ -8,7 +8,8 @@ const os = require('os');
 const ctx = require('./ctx');
 
 // Local binary path definitions
-const localBinDir = path.join(app.getPath('userData'), 'bin');
+const userDataPath = app ? app.getPath('userData') : (process.env.APPDATA ? path.join(process.env.APPDATA, 'youtube-downloader') : path.join(os.homedir(), '.yt-dlp-gui'));
+const localBinDir = path.join(userDataPath, 'bin');
 const exeSuffix = process.platform === 'win32' ? '.exe' : '';
 const localYtDlp = path.join(localBinDir, `yt-dlp${exeSuffix}`);
 const localFfmpeg = path.join(localBinDir, `ffmpeg${exeSuffix}`);

@@ -1393,90 +1393,12 @@
                     <p class="settings-help">Selects the output format for audio extraction. WAV is uncompressed for professional sound editing.</p>
                   </div>
                 </div>
+              </div>
 
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
-                    <div>
-                      <h3 class="settings-section-title" style="margin-bottom: 2px;">Component Updates & Management</h3>
-                      <p class="settings-help" style="margin: 0;">Keep core media binaries up to date for maximum downloading and extraction compatibility.</p>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                      <span id="label-last-update-check" class="settings-help" style="margin: 0; font-size: 0.75rem;">Last checked: Never</span>
-                      <button type="button" id="btn-check-all-updates" class="btn" style="background-color: hsl(var(--primary)); color: hsl(var(--primary-foreground)); height: 2.25rem; font-weight: 600; font-size: 0.8rem; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                        <span>Check Updates Now</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Auto-Update Toggle -->
-                  <div class="checkbox-group" style="margin-bottom: 1.25rem; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 12px 16px;">
-                    <label class="switch-container" style="margin: 0;">
-                      <input type="checkbox" id="settings-auto-update-deps">
-                      <span class="switch-slider"></span>
-                      <div class="switch-label-details">
-                        <span class="switch-title" style="font-size: 0.875rem;">Automatic Background Updates</span>
-                        <span class="switch-description">Automatically check for and install yt-dlp and FFmpeg updates when the app boots.</span>
-                      </div>
-                    </label>
-                  </div>
-
-                  <div id="dependency-update-result-box" class="cookies-test-status" style="display: none; margin-bottom: 1rem;" role="status" aria-live="polite"></div>
-
-                  <!-- Dual Cards: yt-dlp & FFmpeg -->
-                  <div class="settings-grid" style="gap: 1rem;">
-                    <!-- yt-dlp Card -->
-                    <div style="background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
-                      <div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                          <span style="font-weight: 600; font-size: 0.9rem; color: hsl(var(--foreground));">yt-dlp Core Downloader</span>
-                          <span id="ytdlp-status-badge" class="badge" style="background: hsl(var(--muted)); font-size: 0.7rem;">Checking...</span>
-                        </div>
-                        <p id="ytdlp-channel-info" class="settings-help" style="margin-top: 0; margin-bottom: 0.75rem; min-height: 1.25rem;">Checking installed yt-dlp...</p>
-                        
-                        <div class="form-group" style="margin-bottom: 0.75rem;">
-                          <label for="settings-ytdlp-channel" style="font-size: 0.75rem;">Release Channel</label>
-                          <select id="settings-ytdlp-channel" style="height: 2.1rem; font-size: 0.8rem;">
-                            <option value="stable">Stable — tested releases</option>
-                            <option value="nightly">Nightly — daily builds</option>
-                            <option value="master">Master — bleeding edge (Instagram)</option>
-                          </select>
-                        </div>
-                      </div>
-                      
-                      <div class="cookies-test-actions" style="margin-top: 0.5rem;">
-                        <button type="button" id="btn-switch-ytdlp-channel" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.1rem; font-size: 0.75rem;">
-                          Switch Channel Now
-                        </button>
-                        <button type="button" id="btn-force-update-ytdlp" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.1rem; font-size: 0.75rem;">
-                          Force Update yt-dlp
-                        </button>
-                      </div>
-                      <div id="ytdlp-channel-status" class="cookies-test-status" style="display: none; margin-top: 0.75rem;" role="status" aria-live="polite"></div>
-                    </div>
-
-                    <!-- FFmpeg Card -->
-                    <div style="background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
-                      <div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                          <span style="font-weight: 600; font-size: 0.9rem; color: hsl(var(--foreground));">FFmpeg Media Framework</span>
-                          <span id="ffmpeg-status-badge" class="badge" style="background: hsl(var(--muted)); font-size: 0.7rem;">Checking...</span>
-                        </div>
-                        <p id="ffmpeg-version-info" class="settings-help" style="margin-top: 0; margin-bottom: 0.75rem; min-height: 1.25rem;">Checking installed FFmpeg...</p>
-                        <p class="settings-help" style="margin-top: 0; margin-bottom: 0.75rem; font-size: 0.75rem;">Handles audio/video stream muxing, conversions, trimming, and audio extraction.</p>
-                      </div>
-                      
-                      <div class="cookies-test-actions" style="margin-top: 0.5rem;">
-                        <button type="button" id="btn-force-update-ffmpeg" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.1rem; font-size: 0.75rem;">
-                          Update FFmpeg
-                        </button>
-                      </div>
-                      <div id="ffmpeg-status" class="cookies-test-status" style="display: none; margin-top: 0.75rem;" role="status" aria-live="polite"></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="settings-grid" style="margin-top: 1rem;">
+              <!-- Browser Cookies Section -->
+              <div class="settings-section">
+                <h3 class="settings-section-title">Browser Cookies (yt-dlp)</h3>
+                <div class="settings-grid">
                   <div class="form-group flex-1">
                     <label for="settings-cookies-browser">Browser Cookies (yt-dlp)</label>
                     <select id="settings-cookies-browser">
@@ -1521,6 +1443,89 @@
                     <label for="settings-cookies-test-url">Verify with URL (optional)</label>
                     <input type="text" id="settings-cookies-test-url" placeholder="Paste a private or age-gated URL for full confirmation">
                     <p class="settings-help">Quick test checks cookie extraction and YouTube login. Add a URL you can only open while signed in to confirm access to specific content.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Component Updates & Management Section -->
+              <div class="settings-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
+                  <div>
+                    <h3 class="settings-section-title" style="margin-bottom: 2px;">Component Updates & Management</h3>
+                    <p class="settings-help" style="margin: 0;">Keep core media binaries up to date for maximum downloading and extraction compatibility.</p>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span id="label-last-update-check" class="settings-help" style="margin: 0; font-size: 0.75rem;">Last checked: Never</span>
+                    <button type="button" id="btn-check-all-updates" class="btn" style="background-color: hsl(var(--primary)); color: hsl(var(--primary-foreground)); height: 2.25rem; font-weight: 600; font-size: 0.8rem; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                      <span>Check Updates Now</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Auto-Update Toggle -->
+                <div class="checkbox-group" style="margin-bottom: 1.25rem; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 12px 16px;">
+                  <label class="switch-container" style="margin: 0;">
+                    <input type="checkbox" id="settings-auto-update-deps">
+                    <span class="switch-slider"></span>
+                    <div class="switch-label-details">
+                      <span class="switch-title" style="font-size: 0.875rem;">Automatic Background Updates</span>
+                      <span class="switch-description">Automatically check for and install yt-dlp and FFmpeg updates when the app boots.</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div id="dependency-update-result-box" class="cookies-test-status" style="display: none; margin-bottom: 1rem;" role="status" aria-live="polite"></div>
+
+                <!-- Dual Cards: yt-dlp & FFmpeg -->
+                <div class="settings-grid" style="gap: 1rem;">
+                  <!-- yt-dlp Card -->
+                  <div style="background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-weight: 600; font-size: 0.9rem; color: hsl(var(--foreground));">yt-dlp Core Downloader</span>
+                        <span id="ytdlp-status-badge" class="badge" style="background: hsl(var(--muted)); font-size: 0.7rem;">Checking...</span>
+                      </div>
+                      <p id="ytdlp-channel-info" class="settings-help" style="margin-top: 0; margin-bottom: 0.75rem; min-height: 1.25rem;">Checking installed yt-dlp...</p>
+                      
+                      <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label for="settings-ytdlp-channel" style="font-size: 0.75rem;">Release Channel</label>
+                        <select id="settings-ytdlp-channel" style="height: 2.1rem; font-size: 0.8rem;">
+                          <option value="stable">Stable — tested releases</option>
+                          <option value="nightly">Nightly — daily builds</option>
+                          <option value="master">Master — bleeding edge (Instagram)</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div class="cookies-test-actions" style="margin-top: 0.5rem;">
+                      <button type="button" id="btn-switch-ytdlp-channel" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.1rem; font-size: 0.75rem;">
+                        Switch Channel Now
+                      </button>
+                      <button type="button" id="btn-force-update-ytdlp" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.1rem; font-size: 0.75rem;">
+                        Force Update yt-dlp
+                      </button>
+                    </div>
+                    <div id="ytdlp-channel-status" class="cookies-test-status" style="display: none; margin-top: 0.75rem;" role="status" aria-live="polite"></div>
+                  </div>
+
+                  <!-- FFmpeg Card -->
+                  <div style="background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-weight: 600; font-size: 0.9rem; color: hsl(var(--foreground));">FFmpeg Media Framework</span>
+                        <span id="ffmpeg-status-badge" class="badge" style="background: hsl(var(--muted)); font-size: 0.7rem;">Checking...</span>
+                      </div>
+                      <p id="ffmpeg-version-info" class="settings-help" style="margin-top: 0; margin-bottom: 0.75rem; min-height: 1.25rem;">Checking installed FFmpeg...</p>
+                      <p class="settings-help" style="margin-top: 0; margin-bottom: 0.75rem; font-size: 0.75rem;">Handles audio/video stream muxing, conversions, trimming, and audio extraction.</p>
+                    </div>
+                    
+                    <div class="cookies-test-actions" style="margin-top: 0.5rem;">
+                      <button type="button" id="btn-force-update-ffmpeg" class="btn" style="background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); height: 2.1rem; font-size: 0.75rem;">
+                        Update FFmpeg
+                      </button>
+                    </div>
+                    <div id="ffmpeg-status" class="cookies-test-status" style="display: none; margin-top: 0.75rem;" role="status" aria-live="polite"></div>
                   </div>
                 </div>
               </div>

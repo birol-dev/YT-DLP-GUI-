@@ -141,7 +141,9 @@ export function collectCurrentSettingsFromUI() {
     cookiesFile: document.getElementById('settings-cookies-file-path')?.value || '',
     ytDlpChannel: document.getElementById('settings-ytdlp-channel')?.value || state.currentSettings.ytDlpChannel || 'master',
     dismissedYtDlpChannelHint: !!(state.currentSettings.dismissedYtDlpChannelHint || (typeof localStorage !== 'undefined' && localStorage.getItem('dismissedYtDlpChannelHint') === 'true')),
-    autoUpdateDependencies: !!document.getElementById('settings-auto-update-deps')?.checked
+    autoUpdateDependencies: document.getElementById('settings-auto-update-deps')
+      ? !!document.getElementById('settings-auto-update-deps').checked
+      : (state.currentSettings.autoUpdateDependencies !== false)
   };
 }
 
@@ -375,6 +377,36 @@ export function renderYtDlpChannelStatus(result, isLoading = false, actionType =
   statusEl.innerHTML = html;
 }
 
+export function formatBadgeVersion(raw) {
+  if (!raw) return 'Installed';
+  const str = String(raw).trim();
+  const match = str.match(/^v?([0-9]+(?:\.[0-9]+)*(?:\.[0-9]+)?)/i) || str.match(/^(N-\d+)/i);
+  if (match && match[1]) {
+    return `v${match[1]}`;
+  }
+  const clean = str.replace(/^v/i, '');
+  const base = clean.split(/[-_+ ]/)[0];
+  return base ? `v${base}` : 'Installed';
+}
+
+export function syncDependencySummaryBox(updatedItem, updatedVersion, updatedMessage) {
+  const resultBox = document.getElementById('dependency-update-result-box');
+  if (!resultBox || resultBox.style.display === 'none') return;
+
+  const ytdlpBadge = document.getElementById('ytdlp-status-badge')?.textContent || '';
+  const ffmpegBadge = document.getElementById('ffmpeg-status-badge')?.textContent || '';
+
+  const detailEl = resultBox.querySelector('.cookies-test-status-detail');
+  if (detailEl) {
+    detailEl.textContent = `yt-dlp: ${ytdlpBadge || 'Checked'} • FFmpeg: ${ffmpegBadge || 'Checked'}`;
+  }
+
+  const titleEl = resultBox.querySelector('.cookies-test-status-title');
+  if (titleEl && updatedMessage) {
+    titleEl.textContent = updatedMessage;
+  }
+}
+
 export async function refreshYtDlpChannelInfo() {
   const infoEl = document.getElementById('ytdlp-channel-info');
   const badgeEl = document.getElementById('ytdlp-status-badge');
@@ -386,9 +418,11 @@ export async function refreshYtDlpChannelInfo() {
       infoEl.textContent = 'yt-dlp is not installed locally yet. It will be downloaded on first use or when you switch channels.';
       if (badgeEl) {
         badgeEl.textContent = 'Not Installed';
+        badgeEl.title = 'yt-dlp is not installed';
         badgeEl.style.backgroundColor = 'hsl(var(--destructive) / 0.15)';
         badgeEl.style.color = 'hsl(var(--destructive))';
       }
+      syncDependencySummaryBox('yt-dlp', null);
       return;
     }
 
@@ -399,17 +433,21 @@ export async function refreshYtDlpChannelInfo() {
       ? `Installed: ${installedChannel} (${info.version || 'unknown'}) — selected ${selectedChannel}. Click Switch Channel Now to apply.`
       : `Installed: ${installedChannel} (${info.version || 'unknown'})${info.local ? '' : ' via system PATH'}`;
     if (badgeEl) {
-      badgeEl.textContent = `v${info.version || 'installed'}`;
+      badgeEl.textContent = formatBadgeVersion(info.version);
+      badgeEl.title = info.version ? `Full version: ${info.version}` : 'yt-dlp';
       badgeEl.style.backgroundColor = 'hsl(142 76% 36% / 0.15)';
       badgeEl.style.color = '#22c55e';
     }
+    syncDependencySummaryBox('yt-dlp', info.version);
   } catch (err) {
     infoEl.textContent = 'Could not read yt-dlp version info.';
     if (badgeEl) {
       badgeEl.textContent = 'Error';
+      badgeEl.title = 'Failed to detect yt-dlp version';
       badgeEl.style.backgroundColor = 'hsl(var(--destructive) / 0.15)';
       badgeEl.style.color = 'hsl(var(--destructive))';
     }
+    syncDependencySummaryBox('yt-dlp', null);
   }
 }
 
@@ -474,6 +512,7 @@ if (btnForceUpdateYtDlp) {
       }
       await refreshYtDlpChannelInfo();
       await updateYtDlpChannelHintLabels();
+      syncDependencySummaryBox('yt-dlp', result?.version, result?.message);
     } catch (err) {
       renderYtDlpChannelStatus({
         ok: false,
@@ -541,25 +580,31 @@ export async function refreshFfmpegInfo() {
       infoEl.textContent = 'FFmpeg is not detected in local path or system PATH.';
       if (badgeEl) {
         badgeEl.textContent = 'Missing';
+        badgeEl.title = 'FFmpeg is not installed';
         badgeEl.style.backgroundColor = 'hsl(var(--destructive) / 0.15)';
         badgeEl.style.color = 'hsl(var(--destructive))';
       }
+      syncDependencySummaryBox('ffmpeg', null);
       return;
     }
 
     infoEl.textContent = `Installed: FFmpeg ${info.version || 'unknown'} (${info.local ? 'local build' : 'system PATH'})`;
     if (badgeEl) {
-      badgeEl.textContent = `v${info.version || 'installed'}`;
+      badgeEl.textContent = formatBadgeVersion(info.version);
+      badgeEl.title = info.version ? `Full version: ${info.version}` : 'FFmpeg';
       badgeEl.style.backgroundColor = 'hsl(142 76% 36% / 0.15)';
       badgeEl.style.color = '#22c55e';
     }
+    syncDependencySummaryBox('ffmpeg', info.version);
   } catch (err) {
     infoEl.textContent = 'Could not read FFmpeg version info.';
     if (badgeEl) {
       badgeEl.textContent = 'Error';
+      badgeEl.title = 'Failed to detect FFmpeg version';
       badgeEl.style.backgroundColor = 'hsl(var(--destructive) / 0.15)';
       badgeEl.style.color = 'hsl(var(--destructive))';
     }
+    syncDependencySummaryBox('ffmpeg', null);
   }
 }
 
@@ -584,7 +629,8 @@ export function updateLastUpdateCheckLabel(timestamp) {
   }
 }
 
-let updateToastTimeout = null;
+let autoDismissTimeout = null;
+let dismissAnimationTimer = null;
 
 export function showUpdateToast({ title, detail, type = 'checking', canRetry = false, autoDismiss = 0 } = {}) {
   const toast = document.getElementById('update-notification-toast');
@@ -594,9 +640,13 @@ export function showUpdateToast({ title, detail, type = 'checking', canRetry = f
   const retryBtn = document.getElementById('btn-update-toast-retry');
   if (!toast) return;
 
-  if (updateToastTimeout) {
-    clearTimeout(updateToastTimeout);
-    updateToastTimeout = null;
+  if (autoDismissTimeout) {
+    clearTimeout(autoDismissTimeout);
+    autoDismissTimeout = null;
+  }
+  if (dismissAnimationTimer) {
+    clearTimeout(dismissAnimationTimer);
+    dismissAnimationTimer = null;
   }
 
   toast.classList.remove('checking', 'updating', 'success', 'error', 'toast-fade-out');
@@ -621,25 +671,34 @@ export function showUpdateToast({ title, detail, type = 'checking', canRetry = f
 
   toast.style.display = 'flex';
 
-  if (autoDismiss > 0) {
-    updateToastTimeout = setTimeout(() => {
+  // Safety fallback timeouts: checking = 25s, updating = 45s, to avoid permanent spinning
+  const effectiveAutoDismiss = autoDismiss > 0
+    ? autoDismiss
+    : (type === 'checking' ? 25000 : (type === 'updating' ? 45000 : 0));
+
+  if (effectiveAutoDismiss > 0) {
+    autoDismissTimeout = setTimeout(() => {
       dismissUpdateToast();
-    }, autoDismiss);
+    }, effectiveAutoDismiss);
   }
 }
 
 export function dismissUpdateToast() {
   const toast = document.getElementById('update-notification-toast');
   if (!toast) return;
-  if (updateToastTimeout) {
-    clearTimeout(updateToastTimeout);
-    updateToastTimeout = null;
+  if (autoDismissTimeout) {
+    clearTimeout(autoDismissTimeout);
+    autoDismissTimeout = null;
+  }
+  if (dismissAnimationTimer) {
+    clearTimeout(dismissAnimationTimer);
+    dismissAnimationTimer = null;
   }
   toast.classList.add('toast-fade-out');
-  updateToastTimeout = setTimeout(() => {
+  dismissAnimationTimer = setTimeout(() => {
     toast.style.display = 'none';
     toast.classList.remove('toast-fade-out');
-    updateToastTimeout = null;
+    dismissAnimationTimer = null;
   }, 250);
 }
 
@@ -702,7 +761,7 @@ if (btnForceUpdateFfmpeg) {
     if (statusEl) {
       statusEl.style.display = 'block';
       statusEl.className = 'cookies-test-status testing';
-      statusEl.innerHTML = '<div class="cookies-test-status-title">Updating FFmpeg...</div>';
+      statusEl.innerHTML = '<div class="cookies-test-status-title">Checking for FFmpeg updates...</div>';
     }
 
     try {
@@ -716,7 +775,16 @@ if (btnForceUpdateFfmpeg) {
         `;
       }
       await refreshFfmpegInfo();
+      syncDependencySummaryBox('ffmpeg', result?.version, result?.message);
       showSaveIndicator(result?.message || 'FFmpeg updated', result?.status !== 'error');
+
+      // Update toast to completed/success so it doesn't stay spinning on "Extracting..."
+      showUpdateToast({
+        title: result?.status === 'updated' ? 'FFmpeg Updated!' : (result?.status === 'error' ? 'Update Notice' : 'FFmpeg Up to Date'),
+        detail: result?.message || 'FFmpeg is ready to use.',
+        type: result?.status === 'error' ? 'error' : 'success',
+        autoDismiss: result?.status === 'error' ? 8000 : 4000
+      });
     } catch (err) {
       if (statusEl) {
         statusEl.style.display = 'block';
@@ -724,6 +792,12 @@ if (btnForceUpdateFfmpeg) {
         statusEl.innerHTML = `<div class="cookies-test-status-title">FFmpeg update error: ${escapeHtml(err.message || 'Unknown error')}</div>`;
       }
       showSaveIndicator('FFmpeg update failed', false);
+      showUpdateToast({
+        title: 'FFmpeg Update Failed',
+        detail: err.message || 'Unknown error',
+        type: 'error',
+        autoDismiss: 8000
+      });
     } finally {
       btnForceUpdateFfmpeg.disabled = false;
       btnForceUpdateFfmpeg.innerHTML = originalHtml;
@@ -786,9 +860,12 @@ if (window.electronAPI?.onDependencyUpdateStatus) {
         autoDismiss: 0
       });
     } else if (data.phase === 'completed') {
-      updateLastUpdateCheckLabel(data.timestamp);
+      if (data.timestamp) {
+        updateLastUpdateCheckLabel(data.timestamp);
+      }
       refreshYtDlpChannelInfo();
       refreshFfmpegInfo();
+      syncDependencySummaryBox(null, null, data.message);
 
       if (data.updatedCount > 0) {
         showUpdateToast({

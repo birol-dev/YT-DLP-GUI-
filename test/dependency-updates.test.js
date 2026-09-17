@@ -126,4 +126,62 @@ describe('Dependency Auto-Updates & Real-time Notification System', () => {
     const linuxUrl = getFfmpegDownloadUrl('6.1', 'linux', 'x64');
     assert.strictEqual(linuxUrl, 'https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-linux-64.zip');
   });
+
+  test('compareVersions accurately compares semver and protects against downgrades', () => {
+    const deps = require('../src/main/deps');
+    const compareVersions = deps.compareVersions;
+    assert.ok(typeof compareVersions === 'function', 'compareVersions must be exported');
+
+    // 7.1.5 vs 6.1 -> 7.1.5 is newer
+    assert.strictEqual(compareVersions('7.1.5', '6.1'), 1);
+    // 7.1 vs 6.1 -> 7.1 is newer
+    assert.strictEqual(compareVersions('7.1-essentials_build-www.gyan.dev', '6.1'), 1);
+    // 6.1-static vs 7.1.5 -> 6.1-static is older
+    assert.strictEqual(compareVersions('6.1-static', '7.1.5'), -1);
+    // 6.1 vs 6.1 -> equal
+    assert.strictEqual(compareVersions('6.1', '6.1'), 0);
+    // 6.0 vs 6.1 -> older
+    assert.strictEqual(compareVersions('6.0', '6.1'), -1);
+    // 7.1 vs 7.1.0 -> equal
+    assert.strictEqual(compareVersions('7.1', '7.1.0'), 0);
+  });
+
+  test('formatBadgeVersion cleanly extracts compact badge version strings', () => {
+    function formatBadgeVersion(raw) {
+      if (!raw) return 'Installed';
+      const str = String(raw).trim();
+      const match = str.match(/^v?([0-9]+(?:\.[0-9]+)*(?:\.[0-9]+)?)/i) || str.match(/^(N-\d+)/i);
+      if (match && match[1]) {
+        return `v${match[1]}`;
+      }
+      const clean = str.replace(/^v/i, '');
+      const base = clean.split(/[-_+ ]/)[0];
+      return base ? `v${base}` : 'Installed';
+    }
+
+    assert.strictEqual(formatBadgeVersion('7.1-essentials_build-www.gyan.dev'), 'v7.1');
+    assert.strictEqual(formatBadgeVersion('7.1.5'), 'v7.1.5');
+    assert.strictEqual(formatBadgeVersion('6.1-static'), 'v6.1');
+    assert.strictEqual(formatBadgeVersion('2025.01.15'), 'v2025.01.15');
+    assert.strictEqual(formatBadgeVersion('v2025.01.15'), 'v2025.01.15');
+    assert.strictEqual(formatBadgeVersion('N-118000-g12345'), 'vN-118000');
+    assert.strictEqual(formatBadgeVersion(''), 'Installed');
+    assert.strictEqual(formatBadgeVersion(null), 'Installed');
+  });
+
+  test('renderer settings.js implements summary sync and separates toast timers', () => {
+    assert.match(rendererCode, /function\s+formatBadgeVersion/, 'formatBadgeVersion missing in renderer');
+    assert.match(rendererCode, /function\s+syncDependencySummaryBox/, 'syncDependencySummaryBox missing in renderer');
+    assert.match(rendererCode, /dismissAnimationTimer/, 'dismissAnimationTimer must be separate from autoDismissTimeout');
+    assert.match(rendererCode, /autoDismissTimeout/, 'autoDismissTimeout must exist in settings.js');
+    assert.match(rendererCode, /syncDependencySummaryBox\s*\(\s*['"]ffmpeg['"]/, 'syncDependencySummaryBox must be called on ffmpeg update');
+    assert.match(rendererCode, /syncDependencySummaryBox\s*\(\s*['"]yt-dlp['"]/, 'syncDependencySummaryBox must be called on yt-dlp update');
+  });
+
+  test('src/main/deps.js prevents FFmpeg downgrade and emits completed status', () => {
+    assert.match(mainCode, /function\s+compareVersions/, 'compareVersions not found in deps.js');
+    assert.match(mainCode, /Installed FFmpeg.*newer than/, 'downgrade protection message not found in deps.js');
+    assert.match(mainCode, /phase:\s*['"]completed['"]/, 'completed status must be emitted');
+  });
 });
+
