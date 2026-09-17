@@ -128,9 +128,12 @@ describe('Dependency Auto-Updates & Real-time Notification System', () => {
   });
 
   test('compareVersions accurately compares semver and protects against downgrades', () => {
-    const deps = require('../src/main/deps');
-    const compareVersions = deps.compareVersions;
-    assert.ok(typeof compareVersions === 'function', 'compareVersions must be exported');
+    // Pull pure helpers from source — requiring deps.js loads electron and flakes on CI
+    // when the Electron binary postinstall fails on windows-latest.
+    const helpersMatch = mainCode.match(/function parseVersionParts\(v\) \{[\s\S]*?\n\}\n\nfunction compareVersions\(v1, v2\) \{[\s\S]*?\n\}/);
+    assert.ok(helpersMatch, 'parseVersionParts/compareVersions not found in deps.js source');
+    const compareVersions = new Function(`${helpersMatch[0]}; return compareVersions;`)();
+    assert.ok(typeof compareVersions === 'function', 'compareVersions must be a function');
 
     // 7.1.5 vs 6.1 -> 7.1.5 is newer
     assert.strictEqual(compareVersions('7.1.5', '6.1'), 1);
