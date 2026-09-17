@@ -173,6 +173,8 @@ if (clipperLoadBtn) {
         clipperEndInput.value = secondsToHHMMSS(res.duration);
         
         if (res.streamUrl) {
+          // Mute by default: missing audio devices must not kill video decode.
+          clipperPlayer.muted = true;
           clipperPlayer.src = res.streamUrl;
           clipperPlayer.load();
         } else {

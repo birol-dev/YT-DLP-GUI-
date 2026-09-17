@@ -515,8 +515,63 @@ async function syncYtDlpChannel(win, { ensureLocal = false, silent = false } = {
   return false;
 }
 
+
+function resolveNodeBinaryForYtDlp() {
+  const candidates = [
+    process.env.YTDLP_NODE_PATH,
+    process.env.npm_node_execpath,
+    process.env.NODE_BINARY
+  ].filter(Boolean);
+
+  // Prefer a real Node binary — Electron's process.execPath is not a Node runtime.
+  for (const name of ['node', 'nodejs']) {
+    try {
+      const found = spawnSync(process.platform === 'win32' ? 'where' : 'which', [name], {
+        encoding: 'utf8',
+        windowsHide: true
+      });
+      if (found.status === 0) {
+        const line = String(found.stdout || '').split(/\r?\n/).map((s) => s.trim()).find(Boolean);
+        if (line) candidates.push(line);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  for (const c of candidates) {
+    try {
+      if (c && fs.existsSync(c)) return c;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+function getYtDlpRuntimePrefixArgs() {
+  const prefix = [];
+  try {
+    const ffmpegPath = typeof ctx.getFfmpegPath === 'function' ? ctx.getFfmpegPath() : null;
+    if (ffmpegPath && ffmpegPath !== 'ffmpeg' && fs.existsSync(ffmpegPath)) {
+      prefix.push('--ffmpeg-location', ffmpegPath);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  const nodePath = resolveNodeBinaryForYtDlp();
+  if (nodePath) {
+    prefix.push('--js-runtimes', `node:${nodePath}`);
+    // Keep YouTube challenge solvers available so H.264 formats stay extractable
+    prefix.push('--remote-components', 'ejs:github');
+  }
+  return prefix;
+}
+
 async function runYtDlpProcess(args, cookieConfig, timeoutMs = 90000) {
-  const cookieArgs = await appendYtDlpCookieArgs(args, cookieConfig);
+  const runtimePrefix = getYtDlpRuntimePrefixArgs();
+  const cookieArgs = await appendYtDlpCookieArgs([...runtimePrefix, ...args], cookieConfig);
   return new Promise((resolve) => {
     const proc = spawn(ctx.getYtDlpPath(), cookieArgs, {
       windowsHide: true
@@ -1015,6 +1070,8 @@ ctx.switchYtDlpChannel = switchYtDlpChannel;
 ctx.forceUpdateYtDlp = forceUpdateYtDlp;
 ctx.syncYtDlpChannel = syncYtDlpChannel;
 ctx.runYtDlpProcess = runYtDlpProcess;
+ctx.getYtDlpRuntimePrefixArgs = getYtDlpRuntimePrefixArgs;
+ctx.resolveNodeBinaryForYtDlp = resolveNodeBinaryForYtDlp;
 ctx.hasCookieExtractionFailure = hasCookieExtractionFailure;
 ctx.parseYtDlpCookieError = parseYtDlpCookieError;
 ctx.cleanYtDlpError = cleanYtDlpError;

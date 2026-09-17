@@ -773,6 +773,13 @@ function registerMediaProtocols() {
       if (!targetUrl) {
         return new Response('Missing url parameter', { status: 400 });
       }
+
+      // Local remuxed Clipper previews: serve the file directly (with Range).
+      // Do not attach the guest session / Referer — that breaks large file:// playback.
+      if (targetUrl.startsWith('file:')) {
+        return net.fetch(targetUrl, { method: request.method, headers: request.headers });
+      }
+
       const fetchHeaders = { 'User-Agent': BROWSER_USER_AGENT };
       if (pageUrl) fetchHeaders['Referer'] = pageUrl;
       const fetchOptions = { headers: fetchHeaders };

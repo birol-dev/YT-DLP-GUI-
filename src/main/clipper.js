@@ -5,7 +5,96 @@ const { pathToFileURL } = require('url');
 const fs = require('fs');
 const https = require('https');
 const os = require('os');
+const crypto = require('crypto');
 const ctx = require('./ctx');
+
+const PREVIEW_FORMAT =
+  'bv*[vcodec^=avc1][height<=480]+ba[acodec^=mp4a]/bv*[vcodec^=avc1][height<=720]+ba[acodec^=mp4a]/bv*[vcodec^=avc1]+ba[acodec^=mp4a]/b[ext=mp4]/best[vcodec^=avc1]/best';
+
+
+function toPlayablePreviewUrl(filePathOrFileUrl) {
+  const href = String(filePathOrFileUrl || '');
+  const fileUrl = href.startsWith('file:') ? href : pathToFileURL(href).href;
+  return `media-preview://local/?url=${encodeURIComponent(fileUrl)}`;
+}
+
+function getClipperPreviewDir() {
+  const dir = path.join(app.getPath('userData'), 'clipper-previews');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function previewCacheKey(url) {
+  return crypto.createHash('sha1').update(String(url)).digest('hex').slice(0, 20);
+}
+
+function isChromiumSafeProgressiveFormat(fmt) {
+  if (!fmt || !fmt.url || !String(fmt.url).startsWith('http')) return false;
+  if (!fmt.vcodec || fmt.vcodec === 'none' || !fmt.acodec || fmt.acodec === 'none') return false;
+  const protocol = String(fmt.protocol || '');
+  // Dash/HLS multi-protocol URLs cannot be assigned to <video src>
+  if (protocol.includes('+') || protocol.includes('dash') || protocol.includes('m3u8') || protocol.includes('hls')) {
+    return false;
+  }
+  const v = String(fmt.vcodec).toLowerCase();
+  const a = String(fmt.acodec).toLowerCase();
+  const h264 = v.includes('avc') || v.includes('h264');
+  const aac = a.includes('mp4a') || a.includes('aac');
+  const vp = v.includes('vp8') || v.includes('vp9') || v.includes('vp09');
+  const opusLike = a.includes('opus') || a.includes('vorbis');
+  return (h264 && aac) || (vp && opusLike);
+}
+
+function pickChromiumSafeDirectUrl(parsed) {
+  if (!parsed) return '';
+  const formats = Array.isArray(parsed.formats) ? parsed.formats : [];
+  const candidates = [];
+  if (parsed.url && parsed.vcodec && parsed.acodec) {
+    candidates.push(parsed);
+  }
+  candidates.push(...formats);
+  const safe = candidates.find(isChromiumSafeProgressiveFormat);
+  return safe ? safe.url : '';
+}
+
+async function buildRemuxedClipperPreview(cleanUrl) {
+  const dir = getClipperPreviewDir();
+  const key = previewCacheKey(cleanUrl);
+  const outFile = path.join(dir, `${key}.mp4`);
+  if (fs.existsSync(outFile) && fs.statSync(outFile).size > 50000) {
+    return toPlayablePreviewUrl(outFile);
+  }
+
+  const tempTemplate = path.join(dir, `${key}.%(ext)s`);
+  const args = [
+    '--no-playlist',
+    '--no-warnings',
+    '-f', PREVIEW_FORMAT,
+    '--merge-output-format', 'mp4',
+    '--force-overwrites',
+    '--postprocessor-args', 'ffmpeg:-movflags +faststart',
+    '-o', tempTemplate,
+    cleanUrl
+  ];
+
+  const result = await ctx.runYtDlpProcess(args, false, 180000);
+  if (result.code !== 0 || !fs.existsSync(outFile)) {
+    // yt-dlp may write a different extension; prefer any matching key file
+    const fallback = fs.readdirSync(dir).find((name) => name.startsWith(key + '.') && !name.includes('.f'));
+    if (fallback) {
+      const fallbackPath = path.join(dir, fallback);
+      if (fallbackPath !== outFile) {
+        try { fs.renameSync(fallbackPath, outFile); } catch { /* keep fallback */ }
+      }
+      if (fs.existsSync(outFile) || fs.existsSync(fallbackPath)) {
+        return toPlayablePreviewUrl(fs.existsSync(outFile) ? outFile : fallbackPath);
+      }
+    }
+    const err = (result.stderr || result.stdout || 'preview remux failed').trim();
+    throw new Error(err.slice(0, 500));
+  }
+  return toPlayablePreviewUrl(outFile);
+}
 
 ipcMain.handle('fetch-video-info', async (event, url) => {
   if (ctx.ytDlpChannelSwitchInProgress) {
@@ -17,7 +106,7 @@ ipcMain.handle('fetch-video-info', async (event, url) => {
 
   const cleanUrl = url.trim();
   const cached = ctx.videoInfoCache.get(cleanUrl);
-  if (cached) {
+  if (cached && cached.streamUrl) {
     return cached;
   }
 
@@ -31,7 +120,8 @@ ipcMain.handle('fetch-video-info', async (event, url) => {
         title: fileName,
         duration: meta.duration || 0,
         thumbnail: '',
-        streamUrl: pathToFileURL(cleanUrl).href
+        streamUrl: toPlayablePreviewUrl(cleanUrl),
+        previewMode: 'local'
       };
       ctx.videoInfoCache.set(cleanUrl, localResult);
       return localResult;
@@ -42,59 +132,57 @@ ipcMain.handle('fetch-video-info', async (event, url) => {
 
   const runYtDlp = (args) => ctx.runYtDlpProcess(args);
 
-  // Try with mp4 format filter first and --no-playlist for fast lightweight payload
-  let result = await runYtDlp(['--no-playlist', '--dump-json', '-f', '18/best[ext=mp4]', cleanUrl]);
-  
-  // If it fails (some non-YT sites don't have format 18), fallback to dump full json
+  // Prefer H.264 progressive when YouTube still exposes it; JS runtime is injected globally.
+  let result = await runYtDlp([
+    '--no-playlist',
+    '--dump-json',
+    '-f', '18/bv*[vcodec^=avc1][height<=720]+ba[acodec^=mp4a]/best[ext=mp4]/best',
+    cleanUrl
+  ]);
+
   if (result.code !== 0) {
     result = await runYtDlp(['--no-playlist', '--dump-json', cleanUrl]);
   }
 
-  if (result.code === 0) {
-    try {
-      const parsed = JSON.parse(result.stdout);
-      let streamUrl = '';
-      
-      if (parsed.url) {
-        streamUrl = parsed.url;
-      } else if (parsed.formats) {
-        // Look for playable mp4 combined stream
-        const mp4Format = parsed.formats.find(f => 
-          f.ext === 'mp4' && 
-          f.vcodec !== 'none' && 
-          f.acodec !== 'none' && 
-          f.url && 
-          f.url.startsWith('http')
-        );
-        if (mp4Format) {
-          streamUrl = mp4Format.url;
-        } else {
-          // Look for any combined stream that is playable
-          const combined = parsed.formats.find(f => 
-            f.vcodec !== 'none' && 
-            f.acodec !== 'none' && 
-            f.url && 
-            f.url.startsWith('http')
-          );
-          if (combined) streamUrl = combined.url;
-        }
-      }
-
-      const infoResult = {
-        success: true,
-        title: parsed.title || 'Unknown Video',
-        duration: parsed.duration || 0,
-        thumbnail: parsed.thumbnail || (parsed.thumbnails && parsed.thumbnails.length > 0 ? parsed.thumbnails[parsed.thumbnails.length - 1].url : ''),
-        streamUrl: streamUrl
-      };
-      ctx.videoInfoCache.set(cleanUrl, infoResult);
-      return infoResult;
-    } catch (e) {
-      return { success: false, error: 'JSON parse error: ' + e.message };
-    }
-  } else {
+  if (result.code !== 0) {
     return { success: false, error: result.stderr || 'Failed to fetch video information.' };
   }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch (e) {
+    return { success: false, error: 'JSON parse error: ' + e.message };
+  }
+
+  let streamUrl = pickChromiumSafeDirectUrl(parsed);
+  let previewMode = streamUrl ? 'direct' : 'none';
+
+  // Hybrid fallback: remux H.264+AAC locally so Chromium can always preview
+  if (!streamUrl) {
+    try {
+      streamUrl = await buildRemuxedClipperPreview(cleanUrl);
+      previewMode = 'remux';
+    } catch (remuxErr) {
+      streamUrl = '';
+      previewMode = 'unavailable';
+      console.error('Clipper preview remux failed:', remuxErr.message);
+    }
+  }
+
+  const infoResult = {
+    success: true,
+    title: parsed.title || 'Unknown Video',
+    duration: parsed.duration || 0,
+    thumbnail: parsed.thumbnail || (parsed.thumbnails && parsed.thumbnails.length > 0 ? parsed.thumbnails[parsed.thumbnails.length - 1].url : ''),
+    streamUrl,
+    previewMode
+  };
+  // Only cache when we have a playable preview URL
+  if (streamUrl) {
+    ctx.videoInfoCache.set(cleanUrl, infoResult);
+  }
+  return infoResult;
 });
 
 ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, format }) => {

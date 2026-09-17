@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2] - 2026-09-17
+
+### Fixed
+- Clipper preview now works for modern YouTube streams that Chromium cannot play directly (no progressive MP4).
+- Hybrid preview path: prefer Chromium-safe H.264/AAC when available; otherwise remux a local H.264+AAC preview via yt-dlp + FFmpeg.
+- Inject Node JS runtime and FFmpeg location into yt-dlp so H.264 DASH formats stay extractable.
+- Serve remuxed local previews through `media-preview` without the guest session/Referer (large `file://` playback was breaking).
+- Cap remux preview at 480p with `faststart` so long videos load more reliably.
+- Mute Clipper player by default so missing audio devices do not kill video decode.
+- Clarified Preview Unavailable copy when a playable remux cannot be prepared.
+
 ## [1.9.1] - 2026-09-17
 
 ### Fixed
