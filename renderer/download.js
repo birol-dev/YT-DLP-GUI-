@@ -748,7 +748,7 @@ export function showDownloadCompleteCard({ type, url, filePath, title }) {
   elements.card.style.display = 'flex';
   try {
     elements.card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } catch (e) {}
+  } catch (_) {}
 }
 
 // Terminal Output

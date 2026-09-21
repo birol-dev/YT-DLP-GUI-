@@ -133,6 +133,11 @@ nav {
   padding-right: 4px;
 }
 
+#clipper-tab {
+  padding-bottom: 3rem;
+  padding-right: 8px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1826,6 +1831,7 @@ option {
   animation: downloadCardPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
+  scroll-margin-bottom: 2rem;
 }
 
 .download-complete-card::before {

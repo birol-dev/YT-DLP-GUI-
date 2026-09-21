@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.4] - 2026-09-21
+
+### Fixed
+- Fixed Video Clipper "Preview Unavailable - This video codec is not supported by Chromium" error by updating `fetch-video-info` to parse DASH video and audio streams independently, selecting lightweight H.264/AVC1 MP4 streams and companion M4A audio with native Chromium playback.
+- Added hidden `<audio id="clipper-audio-player">` with bidirectional playback and seek synchronization to support preview audio on modern YouTube formats.
+- Configured Electron session web request headers to bypass YouTube googlevideo CORS and Referer restrictions for smooth in-browser playback.
+- Fixed Video Clipper download complete card getting cut off at the bottom and horizontally crowded by moving `#clipper-download-complete-card` out of the inner card workspace into the tab root.
+- Added bottom padding to `#clipper-tab` and scroll-margin to `.download-complete-card` to ensure action buttons are fully visible when scrolled into view.
+- Added automated unit test suite `test/clipper-preview.test.js` covering stream extraction, layout unconstrained hierarchy, and audio synchronization.
+
 ## [1.9.3] - 2026-09-18
 
 ### Fixed

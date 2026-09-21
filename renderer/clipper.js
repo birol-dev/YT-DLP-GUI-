@@ -18,6 +18,7 @@ const clipperThumbnail = document.getElementById('clipper-video-thumbnail');
 const clipperTitle = document.getElementById('clipper-video-title');
 const clipperDurationBadge = document.getElementById('clipper-video-duration-badge');
 const clipperPlayer = document.getElementById('clipper-video-player');
+const clipperAudio = document.getElementById('clipper-audio-player');
 const clipperPlayerError = document.getElementById('clipper-player-error');
 const clipperSliderWrapper = document.querySelector('.clipper-slider-wrapper');
 const clipperSliderRange = document.getElementById('clipper-slider-range');
@@ -47,6 +48,9 @@ export function seekVideoPlayer(time) {
   if (!clipperPlayer || clipperPlayer.style.display === 'none') return;
   if (!clipperPlayer.seeking) {
     clipperPlayer.currentTime = time;
+    if (clipperAudio && clipperAudio.src) {
+      try { clipperAudio.currentTime = time; } catch (e) {}
+    }
     lastTargetSeekTime = null;
   } else {
     lastTargetSeekTime = time;
@@ -58,8 +62,20 @@ if (clipperPlayer) {
   clipperPlayer.addEventListener('seeked', () => {
     if (lastTargetSeekTime !== null) {
       clipperPlayer.currentTime = lastTargetSeekTime;
+      if (clipperAudio && clipperAudio.src) {
+        try { clipperAudio.currentTime = lastTargetSeekTime; } catch (e) {}
+      }
       lastTargetSeekTime = null;
+    } else if (clipperAudio && clipperAudio.src) {
+      try { clipperAudio.currentTime = clipperPlayer.currentTime; } catch (e) {}
     }
+  });
+}
+
+if (clipperAudio) {
+  clipperAudio.addEventListener('error', () => {
+    // Non-fatal: if audio fails to load, keep video playing silently
+    try { clipperAudio.removeAttribute('src'); } catch (e) {}
   });
 }
 
@@ -144,6 +160,7 @@ if (clipperLoadBtn) {
     const url = validateUrlInput(clipperUrlInput, 'YouTube video URL');
     if (!url) return;
     
+    hideDownloadCompleteCard('clipper');
     clipperLoadBtn.disabled = true;
     clipperLoading.style.display = 'block';
     clipperWorkspace.style.display = 'none';
@@ -152,6 +169,11 @@ if (clipperLoadBtn) {
     
     // Pause existing preview
     clipperPlayer.pause();
+    if (clipperAudio) {
+      clipperAudio.pause();
+      clipperAudio.removeAttribute('src');
+      try { clipperAudio.load(); } catch (e) {}
+    }
     
     try {
       const res = await window.electronAPI.fetchVideoInfo(url);
@@ -177,9 +199,19 @@ if (clipperLoadBtn) {
           clipperPlayer.muted = true;
           clipperPlayer.src = res.streamUrl;
           clipperPlayer.load();
+
+          if (res.audioUrl && clipperAudio) {
+            clipperAudio.src = res.audioUrl;
+            clipperAudio.load();
+          } else if (clipperAudio) {
+            clipperAudio.removeAttribute('src');
+          }
         } else {
           clipperPlayer.style.display = 'none';
           clipperPlayerError.style.display = 'flex';
+          if (clipperAudio) {
+            clipperAudio.removeAttribute('src');
+          }
         }
         
         clipperWorkspace.style.display = 'flex';
@@ -200,6 +232,24 @@ if (clipperPlayer) {
   clipperPlayer.addEventListener('error', () => {
     clipperPlayer.style.display = 'none';
     clipperPlayerError.style.display = 'flex';
+    if (clipperAudio) {
+      clipperAudio.pause();
+      clipperAudio.removeAttribute('src');
+    }
+  });
+
+  clipperPlayer.addEventListener('play', () => {
+    if (clipperAudio && clipperAudio.src) {
+      clipperAudio.currentTime = clipperPlayer.currentTime;
+      clipperAudio.play().catch(() => {});
+    }
+  });
+
+  clipperPlayer.addEventListener('volumechange', () => {
+    if (clipperAudio && clipperAudio.src) {
+      clipperAudio.volume = clipperPlayer.volume;
+      clipperAudio.muted = clipperPlayer.muted;
+    }
   });
   
   // Track playhead and preview duration boundaries
@@ -208,10 +258,18 @@ if (clipperPlayer) {
       const pct = (clipperPlayer.currentTime / clipperDuration) * 100;
       clipperSliderPlayhead.style.left = `${pct}%`;
       clipperLabelCurrent.textContent = secondsToHHMMSS(clipperPlayer.currentTime);
+
+      // Keep companion audio in sync with video stream
+      if (clipperAudio && clipperAudio.src && !clipperPlayer.paused) {
+        if (Math.abs(clipperAudio.currentTime - clipperPlayer.currentTime) > 0.25) {
+          clipperAudio.currentTime = clipperPlayer.currentTime;
+        }
+      }
       
       if (isPreviewingClip) {
         if (clipperPlayer.currentTime >= clipperEndVal) {
           clipperPlayer.pause();
+          if (clipperAudio && clipperAudio.src) clipperAudio.pause();
           isPreviewingClip = false;
           btnClipperPreview.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -223,6 +281,9 @@ if (clipperPlayer) {
   });
 
   clipperPlayer.addEventListener('pause', () => {
+    if (clipperAudio && clipperAudio.src) {
+      clipperAudio.pause();
+    }
     isPreviewingClip = false;
     btnClipperPreview.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -295,6 +356,9 @@ if (btnClipperGoStart) {
   btnClipperGoStart.addEventListener('click', () => {
     if (clipperPlayer && clipperPlayer.style.display !== 'none') {
       clipperPlayer.currentTime = clipperStartVal;
+      if (clipperAudio && clipperAudio.src) {
+        try { clipperAudio.currentTime = clipperStartVal; } catch (e) {}
+      }
     }
   });
 }
@@ -303,6 +367,9 @@ if (btnClipperGoEnd) {
   btnClipperGoEnd.addEventListener('click', () => {
     if (clipperPlayer && clipperPlayer.style.display !== 'none') {
       clipperPlayer.currentTime = clipperEndVal;
+      if (clipperAudio && clipperAudio.src) {
+        try { clipperAudio.currentTime = clipperEndVal; } catch (e) {}
+      }
     }
   });
 }
@@ -313,6 +380,7 @@ if (btnClipperPreview) {
     if (clipperPlayer && clipperPlayer.style.display !== 'none') {
       if (isPreviewingClip && !clipperPlayer.paused) {
         clipperPlayer.pause();
+        if (clipperAudio && clipperAudio.src) clipperAudio.pause();
         isPreviewingClip = false;
         btnClipperPreview.innerHTML = `
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -320,8 +388,14 @@ if (btnClipperPreview) {
         `;
       } else {
         clipperPlayer.currentTime = clipperStartVal;
+        if (clipperAudio && clipperAudio.src) {
+          try { clipperAudio.currentTime = clipperStartVal; } catch (e) {}
+        }
         isPreviewingClip = true;
         clipperPlayer.play();
+        if (clipperAudio && clipperAudio.src) {
+          clipperAudio.play().catch(() => {});
+        }
         btnClipperPreview.innerHTML = `
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="play-icon"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg>
           Pause Preview
@@ -351,6 +425,9 @@ export function startClipperDownload(format) {
   
   if (clipperPlayer && typeof clipperPlayer.pause === 'function') {
     clipperPlayer.pause();
+  }
+  if (clipperAudio && typeof clipperAudio.pause === 'function') {
+    clipperAudio.pause();
   }
 
 

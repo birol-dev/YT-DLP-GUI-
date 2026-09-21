@@ -96,96 +96,158 @@ async function buildRemuxedClipperPreview(cleanUrl) {
   return toPlayablePreviewUrl(outFile);
 }
 
-ipcMain.handle('fetch-video-info', async (event, url) => {
-  if (ctx.ytDlpChannelSwitchInProgress) {
-    throw new Error('A yt-dlp update or channel switch is currently in progress. Please try again in a moment.');
-  }
-  if (!url || typeof url !== 'string') {
-    return { success: false, error: 'Invalid URL provided.' };
+function extractStreamUrls(parsed) {
+  let streamUrl = '';
+  let audioUrl = '';
+
+  if (!parsed) return { streamUrl, audioUrl };
+
+  // 1. Direct url on parsed object (if combined)
+  if (parsed.url && parsed.vcodec && parsed.vcodec !== 'none' && parsed.acodec && parsed.acodec !== 'none') {
+    return { streamUrl: parsed.url, audioUrl: '' };
   }
 
-  const cleanUrl = url.trim();
-  const cached = ctx.videoInfoCache.get(cleanUrl);
-  if (cached && cached.streamUrl) {
-    return cached;
+  const formats = (parsed.formats || []).filter(f => f && f.url && f.url.startsWith('http') && f.protocol !== 'm3u8_native');
+
+  // 2. Combined video + audio formats (e.g. non-YT sites or legacy YT format 18)
+  const combined = formats.filter(f => f.vcodec && f.vcodec !== 'none' && f.acodec && f.acodec !== 'none');
+  if (combined.length > 0) {
+    const preferredCombined = combined.find(f => f.format_id === '18') ||
+      combined.find(f => f.ext === 'mp4' && f.height <= 720 && f.height >= 360) ||
+      combined.find(f => f.ext === 'mp4') ||
+      combined[0];
+    return { streamUrl: preferredCombined.url, audioUrl: '' };
   }
 
-  // Support local media files in Clipper preview
-  if (fs.existsSync(cleanUrl)) {
+  // 3. Separate video and audio streams (modern YouTube DASH streams)
+  const videoOnly = formats.filter(f => f.vcodec && f.vcodec !== 'none' && (!f.acodec || f.acodec === 'none'));
+  if (videoOnly.length > 0) {
+    // Prefer 360p or 480p or 720p H.264/avc1 mp4 for smooth, fast preview scrubbing in Chromium
+    const preferredVideo =
+      videoOnly.find(f => f.ext === 'mp4' && typeof f.vcodec === 'string' && f.vcodec.startsWith('avc1') && f.height === 360) ||
+      videoOnly.find(f => f.ext === 'mp4' && typeof f.vcodec === 'string' && f.vcodec.startsWith('avc1') && f.height === 480) ||
+      videoOnly.find(f => f.ext === 'mp4' && typeof f.vcodec === 'string' && f.vcodec.startsWith('avc1') && f.height <= 720 && f.height >= 360) ||
+      videoOnly.find(f => f.ext === 'mp4' && typeof f.vcodec === 'string' && f.vcodec.startsWith('avc1')) ||
+      videoOnly.find(f => f.ext === 'mp4' && f.height <= 720) ||
+      videoOnly.find(f => f.ext === 'mp4') ||
+      videoOnly.find(f => typeof f.vcodec === 'string' && (f.vcodec.startsWith('vp9') || f.vcodec.startsWith('vp09'))) ||
+      videoOnly[0];
+
+    if (preferredVideo) {
+      streamUrl = preferredVideo.url;
+    }
+  }
+
+  const audioOnly = formats.filter(f => (!f.vcodec || f.vcodec === 'none') && f.acodec && f.acodec !== 'none');
+  if (audioOnly.length > 0) {
+    // Prefer m4a (AAC) which plays natively in Chromium with minimal overhead
+    const preferredAudio =
+      audioOnly.find(f => f.ext === 'm4a' && typeof f.acodec === 'string' && f.acodec.startsWith('mp4a')) ||
+      audioOnly.find(f => f.ext === 'm4a') ||
+      audioOnly.find(f => typeof f.acodec === 'string' && f.acodec.startsWith('mp4a')) ||
+      audioOnly.find(f => f.ext === 'webm') ||
+      audioOnly[0];
+
+    if (preferredAudio) {
+      audioUrl = preferredAudio.url;
+    }
+  }
+
+  if (!streamUrl && parsed.url) {
+    streamUrl = parsed.url;
+  }
+
+  return { streamUrl, audioUrl };
+}
+
+if (ipcMain) {
+  ipcMain.handle('fetch-video-info', async (event, url) => {
+    if (ctx.ytDlpChannelSwitchInProgress) {
+      throw new Error('A yt-dlp update or channel switch is currently in progress. Please try again in a moment.');
+    }
+    if (!url || typeof url !== 'string') {
+      return { success: false, error: 'Invalid URL provided.' };
+    }
+
+    const cleanUrl = url.trim();
+    const cached = ctx.videoInfoCache.get(cleanUrl);
+    if (cached && cached.streamUrl) {
+      return cached;
+    }
+
+    // Support local media files in Clipper preview
+    if (fs.existsSync(cleanUrl)) {
+      try {
+        const meta = await ctx.probeLocalVideo(cleanUrl);
+        const fileName = path.basename(cleanUrl);
+        const localResult = {
+          success: true,
+          title: fileName,
+          duration: meta.duration || 0,
+          thumbnail: '',
+          streamUrl: toPlayablePreviewUrl(cleanUrl),
+          previewMode: 'local'
+        };
+        ctx.videoInfoCache.set(cleanUrl, localResult);
+        return localResult;
+      } catch (e) {
+        // Continue to yt-dlp fallback
+      }
+    }
+
+    const runYtDlp = (args) => ctx.runYtDlpProcess(args);
+
+    // Fetch video metadata & available formats
+    let result = await runYtDlp(['--no-playlist', '--dump-json', cleanUrl]);
+    
+    if (result.code !== 0) {
+      result = await runYtDlp(['--dump-json', cleanUrl]);
+    }
+
+    if (result.code !== 0) {
+      return { success: false, error: result.stderr || 'Failed to fetch video information.' };
+    }
+
+    let parsed;
     try {
-      const meta = await ctx.probeLocalVideo(cleanUrl);
-      const fileName = path.basename(cleanUrl);
-      const localResult = {
-        success: true,
-        title: fileName,
-        duration: meta.duration || 0,
-        thumbnail: '',
-        streamUrl: toPlayablePreviewUrl(cleanUrl),
-        previewMode: 'local'
-      };
-      ctx.videoInfoCache.set(cleanUrl, localResult);
-      return localResult;
+      parsed = JSON.parse(result.stdout);
     } catch (e) {
-      // Continue to yt-dlp fallback
+      return { success: false, error: 'JSON parse error: ' + e.message };
     }
-  }
 
-  const runYtDlp = (args) => ctx.runYtDlpProcess(args);
+    const { streamUrl, audioUrl } = extractStreamUrls(parsed);
+    let finalStreamUrl = streamUrl;
+    let previewMode = finalStreamUrl ? 'direct' : 'none';
 
-  // Prefer H.264 progressive when YouTube still exposes it; JS runtime is injected globally.
-  let result = await runYtDlp([
-    '--no-playlist',
-    '--dump-json',
-    '-f', '18/bv*[vcodec^=avc1][height<=720]+ba[acodec^=mp4a]/best[ext=mp4]/best',
-    cleanUrl
-  ]);
-
-  if (result.code !== 0) {
-    result = await runYtDlp(['--no-playlist', '--dump-json', cleanUrl]);
-  }
-
-  if (result.code !== 0) {
-    return { success: false, error: result.stderr || 'Failed to fetch video information.' };
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(result.stdout);
-  } catch (e) {
-    return { success: false, error: 'JSON parse error: ' + e.message };
-  }
-
-  let streamUrl = pickChromiumSafeDirectUrl(parsed);
-  let previewMode = streamUrl ? 'direct' : 'none';
-
-  // Hybrid fallback: remux H.264+AAC locally so Chromium can always preview
-  if (!streamUrl) {
-    try {
-      streamUrl = await buildRemuxedClipperPreview(cleanUrl);
-      previewMode = 'remux';
-    } catch (remuxErr) {
-      streamUrl = '';
-      previewMode = 'unavailable';
-      console.error('Clipper preview remux failed:', remuxErr.message);
+    // Hybrid fallback: remux H.264+AAC locally if direct stream was not extracted
+    if (!finalStreamUrl) {
+      try {
+        finalStreamUrl = await buildRemuxedClipperPreview(cleanUrl);
+        previewMode = 'remux';
+      } catch (remuxErr) {
+        finalStreamUrl = '';
+        previewMode = 'unavailable';
+        console.error('Clipper preview remux failed:', remuxErr.message);
+      }
     }
-  }
 
-  const infoResult = {
-    success: true,
-    title: parsed.title || 'Unknown Video',
-    duration: parsed.duration || 0,
-    thumbnail: parsed.thumbnail || (parsed.thumbnails && parsed.thumbnails.length > 0 ? parsed.thumbnails[parsed.thumbnails.length - 1].url : ''),
-    streamUrl,
-    previewMode
-  };
-  // Only cache when we have a playable preview URL
-  if (streamUrl) {
-    ctx.videoInfoCache.set(cleanUrl, infoResult);
-  }
-  return infoResult;
-});
+    const infoResult = {
+      success: true,
+      title: parsed.title || 'Unknown Video',
+      duration: parsed.duration || 0,
+      thumbnail: parsed.thumbnail || (parsed.thumbnails && parsed.thumbnails.length > 0 ? parsed.thumbnails[parsed.thumbnails.length - 1].url : ''),
+      streamUrl: finalStreamUrl,
+      audioUrl: audioUrl || '',
+      previewMode
+    };
 
-ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, format }) => {
+    if (finalStreamUrl) {
+      ctx.videoInfoCache.set(cleanUrl, infoResult);
+    }
+    return infoResult;
+  });
+
+  ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, format }) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (ctx.isYtDlpSwitchInProgress(win, 'download-error')) return;
 
@@ -302,6 +364,8 @@ ipcMain.on('download-clip', async (event, { url, quality, startTime, endTime, fo
     else send('download-error', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Download failed with code ${code}`);
   });
 });
+}
+
 
 function registerClipperPreviewHeaders() {
   session.defaultSession.webRequest.onBeforeSendHeaders(
@@ -329,4 +393,5 @@ function registerClipperPreviewHeaders() {
 
 
 ctx.registerClipperPreviewHeaders = registerClipperPreviewHeaders;
-module.exports = { registerClipperPreviewHeaders };
+ctx.extractStreamUrls = extractStreamUrls;
+module.exports = { registerClipperPreviewHeaders, extractStreamUrls };
