@@ -2529,3 +2529,25 @@ body.nav-open {
     transition: none;
   }
 }
+
+/* Real product media */
+.app-mockup--media img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.feature-visual--media {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.feature-screenshot {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) * 1.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
