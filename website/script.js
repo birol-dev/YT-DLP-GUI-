@@ -310,6 +310,22 @@
     });
   }
 
+  function initHeroMedia() {
+    const img = document.getElementById('hero-demo');
+    if (!img) return;
+    const gifSrc = img.getAttribute('data-gif-src');
+    if (!gifSrc) return;
+
+    const swapToGif = () => {
+      const preloader = new Image();
+      preloader.onload = () => { img.src = gifSrc; };
+      preloader.src = gifSrc; // on error, poster simply stays visible
+    };
+
+    if (document.readyState === 'complete') swapToGif();
+    else window.addEventListener('load', swapToGif, { once: true });
+  }
+
   initTheme();
   bindThemeControls();
   bindMobileNav();
@@ -319,4 +335,5 @@
   initClipperDemo();
   initSettingsRecentsMock();
   initYouTubeFacade();
+  initHeroMedia();
 })();
