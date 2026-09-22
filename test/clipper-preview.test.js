@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { rootDir, getMainSource, getRendererSource } = require('./helpers/source');
-const { extractStreamUrls } = require('../src/main/clipper');
+const { extractStreamUrls } = require('../src/main/clipper-streams');
 
 describe('Clipper Stream Extraction & Layout Audit', () => {
   const htmlContent = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
