@@ -6,6 +6,7 @@ import { renderRecents } from './recents.js';
 import './terminal.js';
 import { initSettingsUI } from './settings.js';
 import './clipper.js';
+import './twitch.js';
 import './divider.js';
 import './onboarding.js';
 import './weather.js';

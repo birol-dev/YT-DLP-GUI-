@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Add a **Twitch VODs** tab for downloading Twitch past broadcasts, highlights and clips. Accepts `twitch.tv/videos/<id>`, channel-scoped VOD links, clip links, bare VOD IDs, and `?t=1h2m3s` links (which pre-set the in point).
+- Add a resolution selector populated from the VOD's real renditions (e.g. `1080p60 (Source)`, `720p60`, `480p`, `160p`) with bitrates, plus MP4 / MKV container choice and a separate **Download Audio Only** action.
+- Add in/out point trimming for Twitch VODs: draggable timeline handles, typed time fields, **Set Current** from the preview player, **Select Full VOD**, and clickable chapter chips with chapter ticks on the timeline.
+- Add an in-app Twitch preview player (native HLS playback and seeking), a live selection summary with estimated file size, a frame-accurate cut toggle, a metadata / chapter embedding toggle, and a parallel-connections setting for full VOD downloads.
+- Add `src/main/twitch.js` (IPC: `fetch-twitch-info`, `download-twitch-vod`) and pure `src/main/twitch-helpers.js`; trimmed downloads translate FFmpeg progress into percentage / size / ETA for the shared progress banner.
+- Add `test/twitch-vod.test.js` covering URL classification, quality parsing, download arguments, progress translation and app wiring.
+
+### Changed
+- Active download banner and download complete cards accept a thumbnail URL, so non-YouTube downloads can show artwork. Twitch downloads save to `Downloads/twitch-vods/` and get their own completion card and Recents icon.
+
 ## [1.9.5] - 2026-09-22
 
 ### Fixed

@@ -38,6 +38,10 @@ navBtns.forEach(btn => {
     if (dividerPlayer && typeof dividerPlayer.pause === 'function') {
       dividerPlayer.pause();
     }
+    const twitchPlayer = document.getElementById('twitch-video-player');
+    if (twitchPlayer && typeof twitchPlayer.pause === 'function') {
+      twitchPlayer.pause();
+    }
     const gifPlayer = document.getElementById('gif-video-player');
     if (gifPlayer && typeof gifPlayer.pause === 'function') {
       gifPlayer.pause();

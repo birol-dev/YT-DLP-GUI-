@@ -194,7 +194,8 @@ ipcMain.on('open-download-folder', (event, type) => {
       clipper: 'yt-videos',
       clip: 'yt-videos',
       'clip-audio': 'yt-audios',
-      gif: 'gif-exports'
+      gif: 'gif-exports',
+      twitch: 'twitch-vods'
     };
     const subFolder = folderMap[type] || 'yt-videos';
     const targetDir = path.join(baseDir, subFolder);
