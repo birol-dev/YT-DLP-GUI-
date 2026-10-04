@@ -16,6 +16,7 @@ export const state = {
     quality: '',
     badge: '',
     title: '',
+    thumbnail: '',
     phase: '',
     speed: '',
     eta: '',

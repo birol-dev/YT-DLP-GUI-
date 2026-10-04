@@ -96,7 +96,26 @@ Features a stream preview layout that queries metadata JSON and plays compatible
   ```
 - **Directories**: Saved to `Downloads/yt-videos/` or `Downloads/yt-audios/` based on format.
 
-### 6. Video Divider
+### 6. Twitch VOD Downloader
+Loads a Twitch VOD, highlight or clip, lists its real renditions, and downloads either the full video or a trimmed in/out range.
+- **Modules**: `src/main/twitch.js` (IPC handlers) and `src/main/twitch-helpers.js` (pure URL / format / argument / progress helpers, unit-tested without Electron); UI in `renderer/twitch.js`.
+- **IPC**: `fetch-twitch-info` (invoke) returns title, channel, duration, thumbnail, chapters, qualities and a preview stream URL from `yt-dlp --dump-json`. `download-twitch-vod` (send) starts the download and reports through the shared `download-status` / `download-progress` / `download-complete` / `download-error` channels.
+- **Preview**: The `<video>` element plays the rendition closest to 480p directly (Chromium's native HLS support), including seeking across multi-hour VODs.
+- **Full VOD arguments**:
+  ```js
+  '-f', `${formatId}/best`, '--remux-video', container, '--concurrent-fragments', fragments, '--embed-metadata'
+  ```
+- **Trimmed range arguments** (FFmpeg fetches only the needed segments):
+  ```js
+  '--download-sections', `*${start}-${end}`, '--embed-metadata', '--no-embed-chapters'
+  // plus '--force-keyframes-at-cuts' when "Frame-accurate cut" is enabled
+  ```
+- **Audio**: `'-f', 'Audio_Only/bestaudio/best', '-x', '--audio-format', audioFormat`.
+- **Progress**: Range downloads print FFmpeg stats instead of percentages; the main process converts `time=` / `size=` / `speed=` into a yt-dlp style `[download]  45.2% of ~ ... ETA ...` line and drops FFmpeg chatter.
+- **Final path**: Resolved with `--print-to-file after_move:filepath` (Unicode-safe), falling back to stdout parsing.
+- **Directory**: Saved to `Downloads/twitch-vods/`.
+
+### 7. Video Divider
 Automates slicing local video files or YouTube source downloads into divided sections or segments using a linear FFmpeg job queue in `main.js`.
 - **Modes**:
   - **Fast Split**: Splits instantly on keyframe bounds without re-encoding:
@@ -112,7 +131,7 @@ Automates slicing local video files or YouTube source downloads into divided sec
     - Bottom crop filter: `-vf crop=iw:ih/2:0:ih/2`
 - **Directory**: Saved to `Downloads/yt-divided/[sanitized_video_name]/`.
 
-### 7. Music Finder (Audio Fingerprinting & Service Selection)
+### 8. Music Finder (Audio Fingerprinting & Service Selection)
 Slices any audio/video target locally to search and identify songs against either the AcoustID or ACRCloud database.
 - **Service Selector**: A dropdown selector (`#musicfinder-service-selector`) on the Music Finder tab lets users toggle between AcoustID (Free) and ACRCloud. A Preferred Service setting dropdown is also located on the Settings tab, synchronized bidirectionally.
 - **Scan Interval Slider**: Adjustable range sliders exist in both the Settings tab (`#settings-scan-interval`, min 10s, max 180s) and directly inside the Music Finder tab itself (`#musicfinder-scan-interval`). The two sliders are dynamically synchronized in real-time, and changing either slider automatically updates settings on disk.
@@ -153,7 +172,7 @@ A real-time progress banner (`.active-download-card`) that replaces the basic pr
 - **Live Transfer Metrics**: Formats `yt-dlp` stdout progress data to display download file size, transfer speed, and estimated time remaining (ETA).
 
 ### Download Complete Components
-Dedicated, theme-adaptive completion cards (`.download-complete-card`) integrated into every download tab (**Video**, **Audio**, **Instagram**, **Subtitles**, **Video Clipper**, **Video Divider**, and **Video to GIF**).
+Dedicated, theme-adaptive completion cards (`.download-complete-card`) integrated into every download tab (**Video**, **Audio**, **Instagram**, **Subtitles**, **Video Clipper**, **Twitch VODs**, **Video Divider**, and **Video to GIF**).
 - **Triggers**: When `window.electronAPI.onDownloadComplete` receives payload `{ type, url, filePath, status, title }`, `showDownloadCompleteCard()` renders the card on the appropriate tab pane.
 - **Features**:
   - **Open Folder Button**: Directly invokes `window.electronAPI.openFolder(filePath)` to reveal the file in the OS file manager via Electron's `shell.showItemInFolder()`.

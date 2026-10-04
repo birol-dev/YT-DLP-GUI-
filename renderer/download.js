@@ -20,6 +20,7 @@ export function resetActiveDownloadInfo() {
     quality: '',
     badge: '',
     title: '',
+    thumbnail: '',
     phase: '',
     speed: '',
     eta: '',
@@ -45,8 +46,11 @@ export function updateActiveDownloadBanner() {
 
   // Thumbnail handling
   const videoId = extractVideoId(state.activeDownloadInfo.url || '');
-  if (videoId && thumbEl && iconEl) {
-    thumbEl.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  const thumbSrc = videoId
+    ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+    : (state.activeDownloadInfo.thumbnail || '');
+  if (thumbSrc && thumbEl && iconEl) {
+    thumbEl.src = thumbSrc;
     thumbEl.style.display = 'block';
     iconEl.style.display = 'none';
   } else if (thumbEl && iconEl) {
@@ -285,6 +289,7 @@ export function startDownloadIndicator(statusMsg, options = {}) {
   if (options.type) state.activeDownloadInfo.type = options.type;
   if (options.badge) state.activeDownloadInfo.badge = options.badge;
   if (options.title) state.activeDownloadInfo.title = options.title;
+  if (options.thumbnail) state.activeDownloadInfo.thumbnail = options.thumbnail;
   state.activeDownloadInfo.phase = statusMsg || 'Downloading media...';
 
   if (!state.activeDownloadInfo.title) {
@@ -302,6 +307,7 @@ export function startDownloadIndicator(statusMsg, options = {}) {
     else if (activeTab === 'instagram-tab') state.activeDownloadInfo.badge = 'INSTAGRAM';
     else if (activeTab === 'subtitles-tab') state.activeDownloadInfo.badge = 'SUBTITLES';
     else if (activeTab === 'clipper-tab') state.activeDownloadInfo.badge = 'CLIP';
+    else if (activeTab === 'twitch-tab') state.activeDownloadInfo.badge = 'TWITCH';
     else state.activeDownloadInfo.badge = `VIDEO • ${(state.currentSettings.videoFormat || 'mp4').toUpperCase()}`;
   }
 
@@ -593,6 +599,19 @@ const downloadCompleteCards = {
     openFolder: document.getElementById('btn-clipper-open-folder'),
     openFile: document.getElementById('btn-clipper-open-file'),
     copyPath: document.getElementById('btn-clipper-copy-path')
+  },
+  twitch: {
+    card: document.getElementById('twitch-download-complete-card'),
+    badge: document.getElementById('twitch-complete-badge'),
+    dismiss: document.getElementById('btn-twitch-dismiss-complete'),
+    thumbWrap: document.getElementById('twitch-complete-thumb-wrap'),
+    thumb: document.getElementById('twitch-complete-thumb'),
+    icon: document.getElementById('twitch-complete-icon'),
+    title: document.getElementById('twitch-complete-title'),
+    path: document.getElementById('twitch-complete-path'),
+    openFolder: document.getElementById('btn-twitch-open-folder'),
+    openFile: document.getElementById('btn-twitch-open-file'),
+    copyPath: document.getElementById('btn-twitch-copy-path')
   }
 };
 
@@ -640,18 +659,20 @@ export async function copyTextToClipboard(text) {
   }
 }
 
-export function showDownloadCompleteCard({ type, url, filePath, title }) {
+export function showDownloadCompleteCard({ type, url, filePath, title, thumbnail }) {
   let targetKey = 'video';
   if (type === 'audio') targetKey = 'audio';
   else if (type === 'subtitles') targetKey = 'subtitles';
   else if (type === 'ig-video' || type === 'ig-audio' || type === 'instagram') targetKey = 'instagram';
   else if (type === 'clip' || type === 'clip-audio') targetKey = 'clipper';
+  else if (type === 'twitch' || type === 'twitch-audio') targetKey = 'twitch';
   else {
     const activeTab = document.querySelector('.nav-btn.active')?.dataset.tab;
     if (activeTab === 'audio-tab') targetKey = 'audio';
     else if (activeTab === 'instagram-tab') targetKey = 'instagram';
     else if (activeTab === 'subtitles-tab') targetKey = 'subtitles';
     else if (activeTab === 'clipper-tab') targetKey = 'clipper';
+    else if (activeTab === 'twitch-tab') targetKey = 'twitch';
     else targetKey = 'video';
   }
 
@@ -670,8 +691,9 @@ export function showDownloadCompleteCard({ type, url, filePath, title }) {
 
   // Extract thumbnail if YouTube URL or ID
   const videoId = extractVideoId(url || '');
-  if (videoId && elements.thumb && elements.icon) {
-    elements.thumb.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  const thumbSrc = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : (thumbnail || '');
+  if (thumbSrc && elements.thumb && elements.icon) {
+    elements.thumb.src = thumbSrc;
     elements.thumb.style.display = 'block';
     elements.icon.style.display = 'none';
   } else if (elements.thumb && elements.icon) {
@@ -698,6 +720,9 @@ export function showDownloadCompleteCard({ type, url, filePath, title }) {
       elements.badge.textContent = (type && type.includes('audio')) ? 'IG MP3' : 'IG MP4';
     } else if (targetKey === 'clipper') {
       elements.badge.textContent = (type && type.includes('audio')) ? 'CLIP MP3' : 'CLIP MP4';
+    } else if (targetKey === 'twitch') {
+      const ext = filePath ? filePath.split('.').pop() : '';
+      elements.badge.textContent = ext && ext.length <= 5 ? `TWITCH ${ext.toUpperCase()}` : 'TWITCH';
     }
   }
 

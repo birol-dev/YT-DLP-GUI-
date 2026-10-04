@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectCookiesFile: () => ipcRenderer.invoke('select-cookies-file'),
   fetchVideoInfo: (url) => ipcRenderer.invoke('fetch-video-info', url),
   downloadClip: (data) => ipcRenderer.send('download-clip', data),
+  fetchTwitchInfo: (url) => ipcRenderer.invoke('fetch-twitch-info', url),
+  downloadTwitchVod: (data) => ipcRenderer.send('download-twitch-vod', data),
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
   finishOnboarding: (data) => ipcRenderer.invoke('finish-onboarding', data),
   checkDependencies: () => ipcRenderer.invoke('check-dependencies'),

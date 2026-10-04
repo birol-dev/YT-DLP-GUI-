@@ -13,6 +13,7 @@ require('./src/main/folders');
 require('./src/main/dialogs');
 require('./src/main/downloads');
 require('./src/main/clipper');
+require('./src/main/twitch');
 require('./src/main/divider');
 require('./src/main/scan');
 require('./src/main/gif');

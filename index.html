@@ -35,6 +35,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.22 10.58a5 5 0 1 0 0-7.16 5 5 0 0 0 0 7.16Zm0 0L17 21m-9.78-10.42 2.56-2.56m0 0a5 5 0 1 0-7.16 0 5 5 0 0 0 7.16 0Zm0 0L17 3m-7.22 7.58 2.56 2.56"/></svg>
           Video Clipper
         </button>
+        <button class="nav-btn" data-tab="twitch-tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2H3v16h5v4l4-4h5l4-4V2zm-10 9V7m5 4V7"/></svg>
+          Twitch VODs
+        </button>
         <button class="nav-btn" data-tab="divider-tab">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scissors"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
           Video Divider
@@ -566,6 +570,218 @@
               </button>
               <button id="btn-clipper-copy-path" class="btn-copy-path" type="button">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                Copy Path
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- TWITCH TAB -->
+        <section id="twitch-tab" class="tab-content">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Twitch VOD Downloader</h2>
+              <p class="card-description">Load a Twitch VOD, highlight or clip, pick a resolution, set in/out points or jump by chapter, and download only the part you need.</p>
+            </div>
+
+            <div class="card-content flex-col" style="gap: 1.25rem; display: flex; padding-bottom: 2.5rem;">
+              <!-- URL Input Group -->
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="twitch-url">Twitch VOD URL</label>
+                <div class="input-with-action">
+                  <input type="text" id="twitch-url" placeholder="https://www.twitch.tv/videos/123456789">
+                  <button id="btn-twitch-load" class="btn primary" style="min-width: 110px;">Load VOD</button>
+                </div>
+              </div>
+
+              <!-- Inline Error -->
+              <div id="twitch-error" class="twitch-inline-error" style="display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span id="twitch-error-text"></span>
+              </div>
+
+              <!-- Loading State -->
+              <div id="twitch-loading" style="display: none; text-align: center; padding: 2rem;">
+                <div class="loading-spinner" style="margin: 0 auto;"></div>
+                <p style="color: hsl(var(--muted-foreground)); margin-top: 0.75rem;">Fetching VOD details, qualities & chapters...</p>
+              </div>
+
+              <!-- Twitch Workspace (Hidden until VOD is loaded) -->
+              <div id="twitch-workspace" class="flex-col" style="display: none; gap: 1.25rem;">
+
+                <!-- VOD Title & Details -->
+                <div class="twitch-video-info">
+                  <img id="twitch-video-thumbnail" src="" alt="Thumbnail">
+                  <div style="flex: 1; min-width: 0;">
+                    <h4 id="twitch-video-title">VOD Title</h4>
+                    <div class="twitch-video-meta-row">
+                      <span id="twitch-video-channel" class="badge twitch-channel-badge">Channel</span>
+                      <span id="twitch-video-duration-badge" class="badge">00:00:00</span>
+                      <span id="twitch-video-meta"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Preview Player -->
+                <div class="twitch-player-container">
+                  <video id="twitch-video-player" preload="metadata" controls></video>
+                  <div id="twitch-player-error" style="display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: hsl(var(--muted-foreground)); margin-bottom: 0.5rem;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                    <span style="font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">Preview Unavailable</span>
+                    <span style="font-size: 0.75rem; color: hsl(var(--muted-foreground)); max-width: 340px;">The preview stream could not be played. You can still set in/out points with the timeline, time fields or chapters below.</span>
+                  </div>
+                </div>
+
+                <!-- Interactive Selection Timeline -->
+                <div class="flex-col" style="gap: 0.5rem; display: flex; flex-shrink: 0;">
+                  <div id="twitch-slider" class="twitch-slider-wrapper">
+                    <div id="twitch-slider-chapters"></div>
+                    <div id="twitch-slider-range"></div>
+                    <div id="twitch-slider-playhead"></div>
+                    <div id="twitch-handle-start" class="twitch-slider-handle" title="In point"></div>
+                    <div id="twitch-handle-end" class="twitch-slider-handle" title="Out point"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: hsl(var(--muted-foreground));">
+                    <span id="twitch-label-current-time">00:00:00</span>
+                    <span id="twitch-label-total-time">00:00:00</span>
+                  </div>
+                </div>
+
+                <!-- In / Out Points -->
+                <div style="display: flex; gap: 1rem; align-items: stretch; flex-shrink: 0;">
+                  <div class="card flex-1" style="padding: 0.75rem; gap: 0.5rem; flex-direction: column;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+                      <span class="twitch-point-label">In Point (Start)</span>
+                      <button id="btn-twitch-set-start" class="btn twitch-secondary-btn twitch-small-btn">Set Current</button>
+                    </div>
+                    <input type="text" id="twitch-start-time-str" value="00:00:00" class="twitch-time-input">
+                  </div>
+
+                  <div class="card flex-1" style="padding: 0.75rem; gap: 0.5rem; flex-direction: column;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+                      <span class="twitch-point-label">Out Point (End)</span>
+                      <button id="btn-twitch-set-end" class="btn twitch-secondary-btn twitch-small-btn">Set Current</button>
+                    </div>
+                    <input type="text" id="twitch-end-time-str" value="00:00:00" class="twitch-time-input">
+                  </div>
+                </div>
+
+                <!-- Playback Helpers -->
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; flex-shrink: 0;">
+                  <button id="btn-twitch-go-start" class="btn twitch-secondary-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/></svg>
+                    Go to Start
+                  </button>
+                  <button id="btn-twitch-preview-clip" class="btn twitch-secondary-btn">Preview Selection</button>
+                  <button id="btn-twitch-go-end" class="btn twitch-secondary-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg>
+                    Go to End
+                  </button>
+                  <button id="btn-twitch-reset-range" class="btn twitch-secondary-btn" title="Reset in/out points to cover the whole VOD">Select Full VOD</button>
+                </div>
+
+                <!-- Chapters -->
+                <div id="twitch-chapters-section" class="flex-col" style="display: none; gap: 0.5rem;">
+                  <span class="twitch-point-label">Chapters — click to select as in/out range</span>
+                  <div id="twitch-chapters-list" class="twitch-chapters-list"></div>
+                </div>
+
+                <!-- Download Options -->
+                <div class="twitch-options-grid">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label for="twitch-quality">Resolution</label>
+                    <select id="twitch-quality"></select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label for="twitch-container">Container</label>
+                    <select id="twitch-container">
+                      <option value="mp4">MP4</option>
+                      <option value="mkv">MKV</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label for="twitch-fragments">Parallel Connections</label>
+                    <select id="twitch-fragments" title="Number of segments downloaded at once for full VOD downloads">
+                      <option value="1">1 (gentle)</option>
+                      <option value="4">4</option>
+                      <option value="8">8 (recommended)</option>
+                      <option value="16">16 (fastest)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="twitch-toggles">
+                  <label class="switch-container">
+                    <input type="checkbox" id="twitch-precise-cut">
+                    <span class="switch-slider"></span>
+                    <div class="switch-label-details">
+                      <span class="switch-title">Frame-accurate cut</span>
+                      <span class="switch-description">Re-encodes around the in/out points for exact cuts. Slower; when off, cuts land on the nearest keyframe (within about 2s).</span>
+                    </div>
+                  </label>
+                  <label class="switch-container">
+                    <input type="checkbox" id="twitch-embed-metadata">
+                    <span class="switch-slider"></span>
+                    <div class="switch-label-details">
+                      <span class="switch-title">Embed metadata & chapters</span>
+                      <span class="switch-description">Writes the title, channel and date into the file. Full VOD downloads also keep their chapter markers.</span>
+                    </div>
+                  </label>
+                </div>
+
+                <!-- Selection Summary -->
+                <div id="twitch-selection-summary" class="twitch-selection-summary"></div>
+
+                <div style="display: flex; gap: 10px; flex-shrink: 0; width: 100%;">
+                  <button id="btn-twitch-download" class="btn primary flex-1" style="height: 2.75rem; font-size: 0.95rem; font-weight: 600;">Download Video</button>
+                  <button id="btn-twitch-download-audio" class="btn twitch-secondary-btn flex-1" style="height: 2.75rem; font-size: 0.95rem; font-weight: 600;">Download Audio Only</button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Twitch Download Complete Card -->
+          <div id="twitch-download-complete-card" class="download-complete-card" style="display: none; margin-top: 1.25rem; margin-bottom: 2rem;">
+            <div class="download-complete-header">
+              <div class="download-complete-title-wrap">
+                <span class="download-complete-status-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </span>
+                <span class="download-complete-title">Twitch Download Complete!</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="twitch-complete-badge" class="download-complete-badge">TWITCH</span>
+                <button id="btn-twitch-dismiss-complete" class="btn-dismiss-complete" title="Dismiss" type="button">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="download-complete-body">
+              <div id="twitch-complete-thumb-wrap" class="download-complete-thumb-wrap" title="Drag to import file">
+                <img id="twitch-complete-thumb" class="download-complete-thumb-img" src="" alt="Thumbnail" style="display: none;">
+                <div id="twitch-complete-icon" class="download-complete-icon-box">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2H3v16h5v4l4-4h5l4-4V2zm-10 9V7m5 4V7"/></svg>
+                </div>
+              </div>
+              <div class="download-complete-info">
+                <div id="twitch-complete-title" class="download-complete-file-name">twitch_vod.mp4</div>
+                <div class="download-complete-meta-row">
+                  <span id="twitch-complete-path" class="download-complete-path" title="">Saved to: C:\...</span>
+                </div>
+              </div>
+            </div>
+            <div class="download-complete-actions">
+              <button id="btn-twitch-open-folder" class="btn-open-folder" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2A2 2 0 0 0 12 6h6a2 2 0 0 1 2 2v2"/></svg>
+                Open Folder
+              </button>
+              <button id="btn-twitch-open-file" class="btn-open-file" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Play File
+              </button>
+              <button id="btn-twitch-copy-path" class="btn-copy-path" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                 Copy Path
               </button>
             </div>
