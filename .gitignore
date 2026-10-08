@@ -184,3 +184,4 @@ agent_instructions.md
 .turbo/
 .venv/
 .opencode/
+.commandcode/
