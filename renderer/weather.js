@@ -1,5 +1,6 @@
 import { getWeatherIconSVG } from '../assets/weather-icons.js';
 import { state } from './state.js';
+import { pickGreeting } from './greetings.js';
 
 // App Dashboard Initializer
 export async function initAppDashboard() {
@@ -15,68 +16,15 @@ export async function initAppDashboard() {
 
 // Render Time-of-day greetings
 export function renderGreeting(name) {
-  const now = new Date();
-  const hour = now.getHours();
-  
-  let titlePool = [];
-  let subtitlePool = [];
-  
-  if (hour >= 5 && hour < 12) {
-    titlePool = [
-      'Good morning, {name}!',
-      'Rise and shine, {name}!',
-      'Wishing you a great morning, {name}!'
-    ];
-    subtitlePool = [
-      'What are we downloading today?',
-      'Ready to save some awesome videos?',
-      'Let\'s start the day with some downloads!'
-    ];
-  } else if (hour >= 12 && hour < 17) {
-    titlePool = [
-      'Good afternoon, {name}!',
-      'Welcome back, {name}!',
-      'Hope your afternoon is going great, {name}!'
-    ];
-    subtitlePool = [
-      'Ready to grab more videos?',
-      'What\'s on your download list today?',
-      'Let\'s download something interesting!'
-    ];
-  } else if (hour >= 17 && hour < 22) {
-    titlePool = [
-      'Good evening, {name}!',
-      'Evening, {name}!',
-      'Welcome back, {name}!'
-    ];
-    subtitlePool = [
-      'Winding down with some downloads?',
-      'Let\'s get your offline queue ready!',
-      'What are we working on tonight?'
-    ];
-  } else {
-    titlePool = [
-      'Good night, {name}!',
-      'Hello night owl, {name}!',
-      'Rest well, {name}!'
-    ];
-    subtitlePool = [
-      'Working late tonight?',
-      'Grab your late-night downloads here.',
-      'Need some offline content for the night?'
-    ];
-  }
-  
-  const randTitle = titlePool[Math.floor(Math.random() * titlePool.length)].replace('{name}', name);
-  const randSubtitle = subtitlePool[Math.floor(Math.random() * subtitlePool.length)];
+  const { title, subtitle } = pickGreeting(name);
   
   const titleEls = document.querySelectorAll('.greeting-title');
   const subtitleEls = document.querySelectorAll('.greeting-subtitle');
   titleEls.forEach(el => {
-    el.textContent = randTitle;
+    el.textContent = title;
   });
   subtitleEls.forEach(el => {
-    el.textContent = randSubtitle;
+    el.textContent = subtitle;
   });
 }
 
