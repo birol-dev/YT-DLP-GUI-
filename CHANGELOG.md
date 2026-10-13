@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-13
+
 ### Added
+- Greatly expand the rotating dashboard greeting: 111 titles and 218 subtitles (up from 12 each), including Minecraft-splash-style one-liners and day-of-week lines. The same title or subtitle is never shown twice in a row. Text pools live in `renderer/greetings.js`.
 - Add a **Twitch VODs** tab for downloading Twitch past broadcasts, highlights and clips. Accepts `twitch.tv/videos/<id>`, channel-scoped VOD links, clip links, bare VOD IDs, and `?t=1h2m3s` links (which pre-set the in point).
 - Add a resolution selector populated from the VOD's real renditions (e.g. `1080p60 (Source)`, `720p60`, `480p`, `160p`) with bitrates, plus MP4 / MKV container choice and a separate **Download Audio Only** action.
 - Add in/out point trimming for Twitch VODs: draggable timeline handles, typed time fields, **Set Current** from the preview player, **Select Full VOD**, and clickable chapter chips with chapter ticks on the timeline.
