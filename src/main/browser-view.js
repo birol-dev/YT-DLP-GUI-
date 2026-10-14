@@ -777,7 +777,7 @@ function registerMediaProtocols() {
         return new Response('Missing url parameter', { status: 400 });
       }
 
-      // Local remuxed Clipper previews: serve the file directly (with Range).
+      // Local Clipper sources and remuxed previews (allowed roots only): serve the file directly (with Range).
       // Do not attach the guest session / Referer — that breaks large file:// playback.
       if (targetUrl.startsWith('file:')) {
         let filePath;

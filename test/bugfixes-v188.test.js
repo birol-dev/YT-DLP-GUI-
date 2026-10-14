@@ -13,9 +13,9 @@ describe('Linux Live-Test Log Bugfix Audit (v1.8.8)', () => {
   const cssContent = fs.readFileSync(path.join(rootDir, 'styles.css'), 'utf8');
 
   test('1. Linux Open Folder & File Reveal handles directories and avoids $HOME jump bug', () => {
-    assert.match(mainCode, /function openFolderOrRevealItem\s*\(/, 'main.js must define openFolderOrRevealItem');
-    assert.match(mainCode, /function openDirectoryDirectly\s*\(/, 'main.js must define openDirectoryDirectly');
-    assert.match(mainCode, /getLinuxFileManager\s*\(/, 'main.js must define getLinuxFileManager for Linux native file manager detection');
+    assert.match(mainCode, /function openFolderOrRevealItem\s*\(/, 'main process must define openFolderOrRevealItem');
+    assert.match(mainCode, /function openDirectoryDirectly\s*\(/, 'main process must define openDirectoryDirectly');
+    assert.match(mainCode, /getLinuxFileManager\s*\(/, 'main process must define getLinuxFileManager for Linux native file manager detection');
     
     // Check supported Linux file managers
     assert.ok(mainCode.includes('nautilus') && mainCode.includes('dolphin') && mainCode.includes('thunar'), 'Must support standard Linux file managers');
@@ -29,33 +29,33 @@ describe('Linux Live-Test Log Bugfix Audit (v1.8.8)', () => {
 
   test('2. Subtitles downloader does not use greedy .* and treats written files on disk as success', () => {
     // Check that greedy sub-langs is gone
-    assert.doesNotMatch(mainCode, /`\$\{subLang\}\.\*`/, 'main.js must NOT use greedy ${subLang}.* which triggers HTTP 429');
+    assert.doesNotMatch(mainCode, /`\$\{subLang\}\.\*`/, 'main process must NOT use greedy ${subLang}.* which triggers HTTP 429');
     
     // Check scoped language arguments
-    assert.ok(mainCode.includes('${subLang},${subLang}-orig,${subLang}-${subLang}'), 'main.js must use scoped sub-langs arguments');
-    assert.ok(mainCode.includes('no-live-chat'), 'main.js must include no-live-chat compat option');
+    assert.ok(mainCode.includes('${subLang},${subLang}-orig,${subLang}-${subLang}'), 'main process must use scoped sub-langs arguments');
+    assert.ok(mainCode.includes('no-live-chat'), 'main process must include no-live-chat compat option');
     
     // Check close handler verifies file on disk
-    assert.match(mainCode, /hasSubtitleFile\s*=\s*!!\s*\(finalPath\s*&&\s*fs\.existsSync\(finalPath\)\)/, 'main.js must check if subtitle file exists on disk');
-    assert.match(mainCode, /if\s*\(code === 0 \|\| hasSubtitleFile\)/, 'main.js must treat existing subtitle file as success');
+    assert.match(mainCode, /hasSubtitleFile\s*=\s*!!\s*\(finalPath\s*&&\s*fs\.existsSync\(finalPath\)\)/, 'main process must check if subtitle file exists on disk');
+    assert.match(mainCode, /if\s*\(code === 0 \|\| hasSubtitleFile\)/, 'main process must treat existing subtitle file as success');
   });
 
   test('3. Clipper tab layout is unconstrained and completion card scrolls into view', () => {
     // In index.html, #clipper-tab should not be locked with h-full
     assert.doesNotMatch(htmlContent, /id=["']clipper-tab["']\s+class=["'][^"']*h-full/, '#clipper-tab must not have h-full class');
     
-    // showDownloadCompleteCard in renderer.js should call scrollIntoView
+    // showDownloadCompleteCard in the renderer should call scrollIntoView
     assert.match(rendererCode, /elements\.card\.scrollIntoView\(\s*\{\s*behavior:\s*['"]smooth['"],\s*block:\s*['"]nearest['"]\s*\}\s*\)/, 'showDownloadCompleteCard must call scrollIntoView');
   });
 
   test('4. Force Update yt-dlp provides loading spinner, status toast, and source tag', () => {
     assert.match(rendererCode, /btnForceUpdateYtDlp\.innerHTML\s*=\s*`[\s\S]*loading-spinner[\s\S]*Updating\.\.\./, 'btnForceUpdateYtDlp must render updating spinner');
     assert.match(rendererCode, /showSaveIndicator\([^)]*yt-dlp updated/, 'btnForceUpdateYtDlp must call showSaveIndicator toast on success');
-    assert.match(mainCode, /source:\s*['"]force-update['"]/, 'main.js must send source: force-update on channel changed');
+    assert.match(mainCode, /source:\s*['"]force-update['"]/, 'main process must send source: force-update on channel changed');
   });
 
   test('5. Empty URL validation provides visual shake and terminal warning across all download inputs', () => {
-    assert.match(rendererCode, /function validateUrlInput\s*\(/, 'renderer.js must define validateUrlInput');
+    assert.match(rendererCode, /function validateUrlInput\s*\(/, 'renderer must define validateUrlInput');
     assert.match(cssContent, /\.input-error-shake/, 'styles.css must define .input-error-shake');
     assert.match(cssContent, /@keyframes inputShake/, 'styles.css must define @keyframes inputShake');
     

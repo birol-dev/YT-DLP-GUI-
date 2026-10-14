@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Trim 26 off-topic splash lines from the dashboard greeting subtitles (now 192 subtitles; titles unchanged at 111).
+- Bring `README.md`, `project_reference.md` and `DESIGN.md` up to date with the modular `src/main/*` + `renderer/*` architecture, every tab (Instagram, Clipper, Twitch VODs, Divider, GIF, Music Finder, in-app browser / media sniffer), cookie modes, automatic component updates, channel hot-swapping, tests and CI, and the current website (real hero / feature media, click-to-load YouTube facade).
+- Correct documented specifics: WAV output is 16-bit PCM at the source sample rate (not 24-bit / 48 kHz), MP3 uses LAME V0 (`--audio-quality 0`), binary-replacement retries use linear (not exponential) backoff, subtitle downloads use the scoped `--sub-langs` list, and repository links point to `birol-dev/YT-DLP-GUI-`.
+- Refresh stale code comments in `src/main/deps.js`, `src/main/folders.js` and `src/main/browser-view.js`, and reword test titles / assertion messages that named `main.js` / `renderer.js` while actually checking the whole main-process / renderer source.
+
 ## [1.10.0] - 2026-10-13
 
 ### Added

@@ -90,26 +90,26 @@ describe('Download Complete UI & Open Folder Button Audit', () => {
     }
   });
 
-  test('renderer.js manages download complete cards state and wires open folder actions', () => {
+  test('renderer manages download complete cards state and wires open folder actions', () => {
     assert.ok(
       rendererCode.includes('showDownloadCompleteCard'),
-      'renderer.js should define showDownloadCompleteCard helper'
+      'renderer should define showDownloadCompleteCard helper'
     );
     assert.ok(
       rendererCode.includes('hideDownloadCompleteCard'),
-      'renderer.js should define hideDownloadCompleteCard helper'
+      'renderer should define hideDownloadCompleteCard helper'
     );
     assert.ok(
       rendererCode.includes('downloadCompleteCards'),
-      'renderer.js should define downloadCompleteCards dictionary'
+      'renderer should define downloadCompleteCards dictionary'
     );
     assert.ok(
       rendererCode.includes('window.electronAPI.onDownloadComplete'),
-      'renderer.js should subscribe to onDownloadComplete'
+      'renderer should subscribe to onDownloadComplete'
     );
     assert.ok(
       rendererCode.includes('window.electronAPI.openFolder'),
-      'renderer.js should invoke window.electronAPI.openFolder'
+      'renderer should invoke window.electronAPI.openFolder'
     );
   });
 
@@ -160,11 +160,11 @@ describe('Download Complete UI & Open Folder Button Audit', () => {
 
     assert.ok(
       rendererCode.includes('updateActiveDownloadBanner'),
-      'renderer.js must define updateActiveDownloadBanner'
+      'renderer must define updateActiveDownloadBanner'
     );
     assert.ok(
       rendererCode.includes('activeDownloadInfo'),
-      'renderer.js must maintain activeDownloadInfo state'
+      'renderer must maintain activeDownloadInfo state'
     );
     assert.ok(
       cssContent.includes('.active-download-card'),

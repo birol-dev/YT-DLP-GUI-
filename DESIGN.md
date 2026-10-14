@@ -6,7 +6,7 @@ There are **two surfaces** sharing one design language:
 
 | Surface | Files | Role |
 |---------|-------|------|
-| Electron desktop app | `index.html`, `styles.css`, `renderer.js` | Primary product UI |
+| Electron desktop app | `index.html`, `styles.css`, `renderer/*.js` | Primary product UI |
 | Marketing website | `website/index.html`, `website/styles.css`, `website/script.js` | Landing page mirroring the app |
 
 **Design language:** Shadcn/ui dark zinc base + six live accent themes. Flat near-black backgrounds. Inter typography. Lucide-style outline icons. Soft card shadows. No purple-on-white gradients, no cream/serif look, no neon glow-as-theme (glow only on specific accents like sniffer badge / pain cards).
@@ -18,7 +18,7 @@ There are **two surfaces** sharing one design language:
 | Property | Value |
 |----------|-------|
 | Product name | **YT-DLP GUI** (exact casing; hyphenated) |
-| Tagline (hero) | “Download media like a pro. Without the command line.” |
+| Tagline (hero) | “Download YouTube videos like a pro. Without the command line.” |
 | Voice | Direct, editor-focused, anti-CLI / anti-sketchy-web-converter |
 | Logo mark | Lucide YouTube icon: rounded play-button rectangle + triangle, stroke `currentColor`, stroke-width `2`, viewBox `0 0 24 24` |
 | SVG path | `<path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/>` |
@@ -249,19 +249,20 @@ Signature easing: **`cubic-bezier(0.16, 1, 0.3, 1)`** (expo-out) for modals, rev
 
 **Logo row:** flex, align center, gap `0.75rem`, padding `1.5rem 1.25rem`, weight 600, size 1rem. Lucide YouTube 24×24.
 
-**11 nav buttons** (order matters):
+**12 nav buttons** (order matters):
 
 1. Video (play-in-rect icon)
 2. Audio (music note + discs)
 3. Instagram (camera)
 4. Subtitles (message)
 5. Video Clipper (scissors/lasso)
-6. Video Divider (scissors)
-7. Video to GIF (image)
-8. Music Finder (headphones)
-9. Browser (globe)
-10. Recents (clock)
-11. Settings (gear)
+6. Twitch VODs (Twitch glitch speech-bubble)
+7. Video Divider (scissors)
+8. Video to GIF (image)
+9. Music Finder (headphones)
+10. Browser (globe)
+11. Recents (clock)
+12. Settings (gear)
 
 **`.nav-btn`:**
 - Transparent bg, no border, muted-foreground text
@@ -285,10 +286,12 @@ Shown on Video / Audio / Instagram tabs.
 .tab-header-greeting
   justify space-between, align center, mb 2rem, gap 1.5rem, fadeIn 0.4s
   .greeting-left
-    h1.greeting-title "Welcome back!" — 2rem/700/-0.03em
-    p.greeting-subtitle "What are we downloading today?" — 1rem muted
+    h1.greeting-title — 2rem/700/-0.03em
+    p.greeting-subtitle — 1rem muted
   .weather-card (min-width 250px)
 ```
+
+The markup ships “Welcome back!” / “What are we downloading today?” as placeholders. At runtime `renderer/weather.js` replaces them with a random title and subtitle from the time-of-day, day-of-week, and anytime pools in `renderer/greetings.js` (titles may include the user's name), never repeating the previous pick.
 
 **Weather card:**
 - Card bg, border, radius, padding `1rem 1.25rem`, flex, gap `1rem`
@@ -366,16 +369,22 @@ Shown on Video / Audio / Instagram tabs.
 ## A11. Tab content patterns (functional UI)
 
 ### Video / Audio / Instagram
-Single card: URL input (+ quality/format selects) + full-width primary “Start Download”. Greeting + weather above.
+Single card: URL input (+ “Max Quality” select on Video, “Format” select on Instagram) + full-width primary “Start Download”. Container / audio format come from Settings. Greeting + weather above.
 
 ### Subtitles
-Card with URL, language select, format (VTT/SRT), download button.
+Card with URL, language select, and two buttons side by side: primary “Download Selected” + secondary “Download All”.
 
 ### Video Clipper
 - Black 16:9 player, max-height ~280px
 - Range bar height 12px muted pill; fill primary/30
 - Handles 16×16 primary + white 2px border; playhead 4×20 primary
 - In/out time inputs in monospace cards
+
+### Twitch VODs
+- Same URL row + 16:9 preview player + in/out range timeline as the Clipper, with chapter ticks on the timeline
+- Chapter chips under the timeline jump the selection to a chapter
+- Download options: Resolution, Container, and Parallel Connections selects, plus switches for frame-accurate cut and metadata/chapter embedding
+- Selection summary above a primary “Download Video” button and a secondary “Download Audio Only” button (both 2.75rem tall)
 
 ### Video Divider
 - Dashed drop zone, padding `3rem 2rem`; hover/dragover → primary border + primary/5 bg + lift `-2px`; icon scales 1.1
@@ -429,11 +438,11 @@ Similar card + drop-zone patterns; Music Finder has slider controls and result l
 ## B1. Page architecture (section order)
 
 1. Skip link → fixed nav
-2. `#hero` — two-column hero + app mockup
+2. `#hero` — two-column hero + product demo media
 3. `#what-is` — extract/overview (definition + 3 cards)
 4. `#pain` — “Sound familiar?” 6 pain cards
 5. Solution bridge (no id) — centered one-liner
-6. `#features` — alternating feature rows (Video, Audio, Instagram, Subtitles, Clipper, Divider, Music Finder, Recents/Settings)
+6. `#features` — alternating feature rows (Video, Audio, Instagram, Subtitles, Clipper, Divider, Music Finder, GIF, Recents/Settings)
 7. `#personas` — three persona bands
 8. `#opensource` — open source grid + CTAs
 9. `#compare` — comparison table
@@ -506,39 +515,32 @@ Icons in CTAs: Lucide 18×18, stroke 2, gap 0.5rem from label.
 **Left column (`.hero-content.reveal`):**
 1. `.hero-logo` — 56×56 circle, radial `primary/0.15`, primary icon 28×28, `pulseLogo`, mb 1.5rem
 2. Brand is hero-level via logo mark + product name in nav + H1 that does not overpower product context
-3. H1: “Download media like a pro. Without the command line.”
+3. H1: “Download YouTube videos like a pro. Without the command line.”
 4. Lead paragraph (exact marketing copy in HTML)
 5. CTA group: primary “Download for Windows” (download icon) + secondary “View source on GitHub” (GitHub icon), gap 0.75rem, mb 2rem
-6. Trust chips (pill, secondary bg, border, 0.75rem/500 muted): `MIT License` · `No ads` · `Auto-installs yt-dlp + ffmpeg` · `v1.7.0`
+6. Trust chips (pill, secondary bg, border, 0.75rem/500 muted): `MIT License` · `No ads` · `Auto-installs yt-dlp + ffmpeg` · release version chip (`vX.Y.Z`)
 
-**Right column (`.hero-visual.reveal`):** App mockup (see B6).
+**Right column (`.hero-visual.reveal`):** Product demo media (see B6).
 
-@960px: grid → 1 col. @600px: CTAs full-width min-height 44px; mockup sidebar hidden. @380px: hero logo 48×48.
+@960px: grid → 1 col. @600px: CTAs full-width min-height 44px. @380px: hero logo 48×48.
 
-## B6. App mockup (hero visual)
+## B6. Hero demo media
 
-Outer: border, radius 12px, shadow `0 25px 50px -12px rgba(0,0,0,0.5)`, background token, `modalScaleIn` 0.6s.
+The hero visual is a real recording of the app, not a drawn mockup:
 
 ```
-.mockup-body (flex, min-height 380px)
-  .mockup-sidebar (180px, border-right, pad 1rem 0.75rem)
-    logo row (0.8rem/600, icon 18 primary)
-    nav items: Video (active), Audio, Instagram, Subtitles, Clipper
-      — 0.75rem/500, pad 0.4rem 0.625rem, icon 14 opacity 0.7
-      — active: secondary bg + foreground
-  .mockup-main (flex 1, pad 1.25rem, col gap 1rem)
-    greeting: h3 1.25rem/700 "Welcome back!"; p 0.8rem muted
-    .mockup-card (border, radius, pad 1rem, flex 1)
-      h4 "Download Video" 0.9rem/600
-      desc 0.7rem muted
-      fake input 2rem height, 0.7rem muted text
-      .mockup-btn full width 2rem primary "Start Download" 0.75rem/500
-    .mockup-progress
-      labels 0.65rem space-between "Downloading..." / "73%"
-      track 5px muted pill; fill primary width 73% + progressPulse
+.app-mockup.app-mockup--media
+  img#hero-demo (960×540, fetchpriority high)
+    src            = assets/ythero-poster.jpg   (static poster, shown first)
+    data-gif-src   = animated GIF of the Video tab
 ```
 
-This mockup must visually match the real Electron Video tab at ~75% scale.
+- Outer `.app-mockup`: border, radius 12px, shadow `0 25px 50px -12px rgba(0,0,0,0.5)`, background token, `modalScaleIn` 0.6s
+- `.app-mockup--media img`: width 100%, height auto, block
+- `initHeroMedia()` in `website/script.js` preloads the GIF after `window.load` and swaps it in; if the GIF fails, the poster stays
+- Alt text describes the Video tab (URL field, Max Quality select, a download in progress, terminal output)
+
+The older hand-built mockup styles (`.mockup-body`, `.mockup-sidebar`, `.mockup-card`, `.mockup-progress` + `progressPulse`) remain in `website/styles.css` but are no longer used by the markup; only `.mockup-input` is still used, by the Instagram feature-row mock.
 
 ## B7. Overview (`#what-is`)
 
@@ -602,23 +604,27 @@ Intro block mb 4rem. Then alternating `.feature-row`:
   .feature-visual
     border, radius 12px, pad 1.5rem, card bg
     — contains mini app card mock OR clipper demo OR mode grid
+  .feature-visual.feature-visual--media
+    no pad / border / bg; holds img.feature-screenshot
+    (100% width, border, radius 12px, shadow 0 25px 50px -12px rgba(0,0,0,0.5))
 .feature-row.reverse → copy order 2, visual order 1
 ```
 
 Feature rows in order (copy left / visual right alternating with reverse):
-1. Video — Premiere-ready up to 4K — download card mock
-2. Audio (reverse) — format grid MP3/WAV(selected primary)/M4A/FLAC
+1. Video — Premiere-ready up to 4K — real Video tab screenshot (`--media`)
+2. Audio (reverse) — real Audio tab screenshot (`--media`)
 3. Instagram — reel URL card
 4. Subtitles (reverse) — monospace cue block on secondary bg
-5. Clipper — YouTube iframe + interactive range handles (see B10a)
+5. Clipper — click-to-play YouTube facade + interactive range handles (see B10a)
 6. Divider (reverse) — 2×2 mode tiles, Fast Split selected with primary border
 7. Music Finder — detected song row with ACRCloud badge
-8. Recents + Settings (reverse) — tabbed mock with recents list / settings switches
+8. GIF (reverse) — “Convert to GIF” card with Width / FPS tiles (FPS highlighted primary)
+9. Recents + Settings (reverse) — tabbed mock with recents list / settings switches
 
 ### B10a. Clipper mock
 
 - `.clipper-mock` wraps video box + hint + range + times
-- Video box: 16:9 black, iframe embed, rounded
+- Video box: 16:9 black, rounded; a `.yt-facade` button (thumbnail + play icon) swaps itself for a `youtube-nocookie.com` iframe on click
 - Range track: height ~12px muted pill; fill primary/30 between handles
 - Handles: circular primary + white border, draggable; start/end roles
 - Times row: In / Clip duration badge / Out / Total — small muted labels
@@ -739,15 +745,15 @@ Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
 - Keep default theme near-black zinc with white/silver primary
 - Keep Inter + tight negative letter-spacing on large headings
 - Keep section labels uppercase + primary-colored
-- Recreate the hero as one composition: brand mark, one headline, one lead, one CTA group, one full-bleed-feeling mockup (edge-to-edge within column, not a floating inset collage)
+- Recreate the hero as one composition: brand mark, one headline, one lead, one CTA group, one full-bleed-feeling product visual (edge-to-edge within column, not a floating inset collage)
 - Keep pain cards permanently red-accented regardless of theme
 
 **Don’t:**
 - Don’t introduce Inter/Roboto as the *only* identity without the zinc token system
 - Don’t use purple-indigo gradient marketing tropes as the default theme
 - Don’t put stats strips, schedule chips, or floating promo badges on the hero
-- Don’t turn the hero mockup into a rounded media card floating in whitespace with labels on top
-- Don’t use cards in the hero (trust chips are pills, not cards; mockup is a product window)
+- Don’t turn the hero visual into a rounded media card floating in whitespace with labels on top
+- Don’t use cards in the hero (trust chips are pills, not cards; the demo media sits in a product window frame)
 - Don’t lighten the app to a cream/warm paper look
 
 ---
@@ -758,12 +764,12 @@ Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
 2. Load Inter (400–700) and set global body/reset rules.
 3. Build **app shell**: 240px sidebar + padded content + resizable terminal dock.
 4. Implement primitives: card, btn primary, inputs/selects, switch, progress, theme chips.
-5. Build greeting + weather header; wire tab panes for all 11 nav items.
-6. Layer specialty UIs: clipper range, divider drop zone + 4 modes, browser sniffer, modals.
-7. Build **website**: fixed blurred nav → hero (blob + mockup) → extract → pain → bridge → feature rows → personas → opensource → compare → formats → themes → steps → architecture → FAQ → final CTA → footer.
-8. Add reveal IntersectionObserver, theme persistence, FAQ accordion, mobile nav at 960px.
+5. Build greeting + weather header; wire tab panes for all 12 nav items.
+6. Layer specialty UIs: clipper and Twitch range timelines, divider drop zone + 4 modes, browser sniffer, modals.
+7. Build **website**: fixed blurred nav → hero (blob + demo media) → extract → pain → bridge → feature rows → personas → opensource → compare → formats → themes → steps → architecture → FAQ → final CTA → footer.
+8. Add reveal IntersectionObserver, theme persistence, FAQ accordion, mobile nav at 960px, hero GIF swap, YouTube facade.
 9. Verify theme swapping only changes primary/ring/primary-foreground everywhere (except pain cards).
-10. Pixel-check: hero mockup matches Video tab; trust chips present; section-label uppercase primary; radius scale consistent.
+10. Pixel-check: hero media shows the real Video tab; trust chips present; section-label uppercase primary; radius scale consistent.
 
 ---
 
@@ -771,10 +777,10 @@ Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
 
 Authoritative implementation files (prefer reading these if available):
 
-- `styles.css` — Electron tokens + components (~1800 lines)
+- `styles.css` — Electron tokens + components (~2700 lines)
 - `index.html` — Electron markup (many secondary buttons use inline styles)
-- `website/styles.css` — Marketing system (~2300 lines)
+- `website/styles.css` — Marketing system (~2550 lines)
 - `website/index.html` — Full section copy + structure
-- `website/script.js` — Theme, FAQ, reveal, mobile nav
+- `website/script.js` — Theme, FAQ, reveal, mobile nav, clipper demo, Recents/Settings mock tabs, YouTube facade, hero GIF swap
 
 When this document and the CSS disagree, **CSS wins**.

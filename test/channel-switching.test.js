@@ -9,7 +9,7 @@ const mainCode = getMainSource();
 const rendererCode = getRendererSource();
 
 describe('Forceful yt-dlp Channel Switching & Blocking Task Termination Audit', () => {
-  test('main.js must define active process tracking and forceful termination functions', () => {
+  test('main process must define active process tracking and forceful termination functions', () => {
     assert.match(mainCode, /const\s+activeProcesses\s*=\s*new\s+Set\(\)/, 'activeProcesses set not found');
     assert.match(mainCode, /const\s+activeYtDlpProcesses\s*=\s*new\s+Set\(\)/, 'activeYtDlpProcesses set not found');
     assert.match(mainCode, /function\s+registerProcess\s*\(/, 'registerProcess function not found');
@@ -46,11 +46,11 @@ describe('Forceful yt-dlp Channel Switching & Blocking Task Termination Audit', 
     assert.match(body, /gif-finished/, 'Must notify renderer of gif task cancellation');
   });
 
-  test('renderer.js must have click handlers for switch-yt-dlp-channel and force-update-ytdlp', () => {
-    assert.match(rendererCode, /btn-switch-ytdlp-channel/, 'btn-switch-ytdlp-channel not found in renderer.js');
-    assert.match(rendererCode, /btn-force-update-ytdlp/, 'btn-force-update-ytdlp not found in renderer.js');
-    assert.match(rendererCode, /window\.electronAPI\.switchYtDlpChannel/, 'switchYtDlpChannel API call not found in renderer.js');
-    assert.match(rendererCode, /window\.electronAPI\.forceUpdateYtDlp/, 'forceUpdateYtDlp API call not found in renderer.js');
+  test('renderer must have click handlers for switch-yt-dlp-channel and force-update-ytdlp', () => {
+    assert.match(rendererCode, /btn-switch-ytdlp-channel/, 'btn-switch-ytdlp-channel not found in the renderer');
+    assert.match(rendererCode, /btn-force-update-ytdlp/, 'btn-force-update-ytdlp not found in the renderer');
+    assert.match(rendererCode, /window\.electronAPI\.switchYtDlpChannel/, 'switchYtDlpChannel API call not found in the renderer');
+    assert.match(rendererCode, /window\.electronAPI\.forceUpdateYtDlp/, 'forceUpdateYtDlp API call not found in the renderer');
   });
 
   test('process registration lifecycle unit test simulation', () => {
@@ -100,7 +100,7 @@ describe('Forceful yt-dlp Channel Switching & Blocking Task Termination Audit', 
     assert.strictEqual(activeYtDlpProcesses.size, 0);
   });
 
-  test('checkUpdates function definition in main.js must use clean process execution and direct release fallback', () => {
+  test('checkUpdates function definition in the main process must use clean process execution and direct release fallback', () => {
     const checkFuncMatch = mainCode.match(/async\s+function\s+checkUpdates\s*\([\s\S]*?\n\}/);
     assert.ok(checkFuncMatch, 'checkUpdates function definition not found');
     const body = checkFuncMatch[0];

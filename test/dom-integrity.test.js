@@ -9,12 +9,12 @@ describe('DOM & UI Element Integrity Audit', () => {
   const htmlContent = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
   const rendererCode = getRendererSource();
 
-  test('all document.getElementById IDs in renderer.js should exist in index.html', () => {
+  test('all document.getElementById IDs in the renderer should exist in index.html', () => {
     // Extract document.getElementById('id') calls
     const idMatches = [...rendererCode.matchAll(/document\.getElementById\(\s*['"]([^'"]+)['"]\s*\)/g)].map(m => m[1]);
     const uniqueIds = [...new Set(idMatches)];
 
-    assert.ok(uniqueIds.length > 0, 'No document.getElementById calls found in renderer.js');
+    assert.ok(uniqueIds.length > 0, 'No document.getElementById calls found in the renderer');
 
     // Extract all id="..." attributes in index.html
     const htmlIds = new Set([...htmlContent.matchAll(/\bid=["']([^"']+)["']/g)].map(m => m[1]));
@@ -24,7 +24,7 @@ describe('DOM & UI Element Integrity Audit', () => {
     assert.deepStrictEqual(
       missingIds,
       [],
-      `The following element IDs are queried in renderer.js but do NOT exist in index.html: ${missingIds.join(', ')}`
+      `The following element IDs are queried in the renderer but do NOT exist in index.html: ${missingIds.join(', ')}`
     );
   });
 

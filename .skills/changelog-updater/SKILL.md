@@ -48,7 +48,7 @@ All changelog changes must be classified under one of these standard sections. D
 
 | Category | Description | Examples |
 | :--- | :--- | :--- |
-| **`### Added`** | New features, scripts, components, templates, assets, or pages. | * "Add drag-and-drop file upload to home dashboard."<br>* "Add Lucide icons support in `renderer.js`." |
+| **`### Added`** | New features, scripts, components, templates, assets, or pages. | * "Add drag-and-drop file upload to home dashboard."<br>* "Add Lucide icons support in `renderer/index.js`." |
 | **`### Changed`** | Updates to existing functionality, visual styles, configurations, or dependencies. | * "Refactor state management in `useAudioEngine` for better performance."<br>* "Update `tailwind.config.js` to support true glassmorphism." |
 | **`### Fixed`** | Bug fixes, visual alignments, lint resolutions, security holes, or hotfixes. | * "Fix layout shift in thumbnail lists under Chromium."<br>* "Fix memory leak in Tone.js initialization lifecycle." |
 | **`### Removed`**| Deleted features, deprecated dead code, or redundant packages. | * "Remove legacy CSS rules from `styles.css`."<br>* "Remove unused `utils.js` script." |

@@ -602,7 +602,7 @@ async function checkFfmpegUpdate(win, { force = false, silent = false } = {}) {
   const previousVersion = current.version || '';
 
   // If a local binary exists, check if system PATH has a newer FFmpeg build.
-  // If so, restore system FFmpeg by removing the downgraded local binary.
+  // If so, fall back to system FFmpeg by removing the older local binary.
   if (current.local && fs.existsSync(ctx.localFfmpeg)) {
     try {
       const sysVersion = await getSystemFfmpegVersion();

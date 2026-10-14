@@ -10,7 +10,7 @@ describe('Settings Schema & UI Synchronicity Audit', () => {
   const rendererCode = getRendererSource();
   const htmlContent = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
 
-  test('defaultSettings in main.js defines core required configuration keys', () => {
+  test('defaultSettings in the main process defines core required configuration keys', () => {
     const requiredKeys = [
       'downloadDir',
       'defaultQuality',
@@ -27,12 +27,12 @@ describe('Settings Schema & UI Synchronicity Audit', () => {
       const regex = new RegExp(`\\b${key}\\s*:`, 'm');
       assert.ok(
         regex.test(mainCode),
-        `Required setting "${key}" is missing from defaultSettings in main.js`
+        `Required setting "${key}" is missing from defaultSettings in the main process`
       );
     }
   });
 
-  test('supported themes in HTML match those handled in CSS and renderer.js', () => {
+  test('supported themes in HTML match those handled in CSS and the renderer', () => {
     // Extract theme values from data-theme attributes in index.html
     const themeMatches = [...htmlContent.matchAll(/class=["'][^"']*theme-option[^"']*["'][^>]*data-theme=["']([^"']+)["']/g)].map(m => m[1]);
     const uniqueThemes = [...new Set(themeMatches)];

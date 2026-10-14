@@ -7,7 +7,7 @@ const https = require('https');
 const os = require('os');
 const ctx = require('./ctx');
 
-// Native file drag-out (Recents → Explorer / Premiere Pro)
+// Native file drag-out (Recents / download-complete cards → file manager / Premiere Pro)
 // Docs: https://www.electronjs.org/docs/latest/tutorial/native-file-drag-drop
 // webContents.startDrag requires a non-empty icon (empty NativeImage no-ops on
 // Windows and is invalid on macOS). Video/audio paths cannot be used as icons.
