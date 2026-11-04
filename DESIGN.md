@@ -7,9 +7,11 @@ There are **two surfaces** sharing one design language:
 | Surface | Files | Role |
 |---------|-------|------|
 | Electron desktop app | `index.html`, `styles.css`, `renderer/*.js` | Primary product UI |
-| Marketing website | `website/index.html`, `website/styles.css`, `website/script.js` | Landing page mirroring the app |
+| Marketing website | `website/index.html`, `website/styles.css`, `website/script.js` | Landing page in the birol.tech house style (Part B) |
 
-**Design language:** Shadcn/ui dark zinc base + six live accent themes. Flat near-black backgrounds. Inter typography. Lucide-style outline icons. Soft card shadows. No purple-on-white gradients, no cream/serif look, no neon glow-as-theme (glow only on specific accents like sniffer badge / pain cards).
+**App design language (Part A):** Shadcn/ui dark zinc base + six live accent themes. Flat near-black backgrounds. Inter typography. Lucide-style outline icons. Soft card shadows. No purple-on-white gradients, no cream/serif look, no neon glow-as-theme (glow only on specific accents like the sniffer badge).
+
+**Website design language (Part B):** the birol.tech family instead. Thin Newsreader headlines with one faded phrase, Geist sans, black / charcoal / paper chapters, pills for every control, and real app screenshots as the only colour. The two surfaces share the product name, logo mark and Lucide-style icons, not tokens.
 
 ---
 
@@ -18,19 +20,18 @@ There are **two surfaces** sharing one design language:
 | Property | Value |
 |----------|-------|
 | Product name | **YT-DLP GUI** (exact casing; hyphenated) |
-| Tagline (hero) | “Download YouTube videos like a pro. Without the command line.” |
+| Tagline (site hero) | “Paste a link. Get a Premiere‑ready file.” |
 | Voice | Direct, editor-focused, anti-CLI / anti-sketchy-web-converter |
 | Logo mark | Lucide YouTube icon: rounded play-button rectangle + triangle, stroke `currentColor`, stroke-width `2`, viewBox `0 0 24 24` |
 | SVG path | `<path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/>` |
-| Logo color | Always `hsl(var(--primary))` on the SVG |
-| Wordmark | “YT-DLP GUI” beside icon, weight 600 |
-| Theme color / OG | `#0a0a0a` |
-| Favicon | `website/assets/icon.png` / `build/icon.png` |
+| Logo color | App: always `hsl(var(--primary))` on the SVG. Site: `currentColor` (ink) |
+| Wordmark | “YT-DLP GUI” beside icon, weight 600 (app) / 500 (site) |
+| Theme color / OG | App `#0a0a0a`; site `#000000`, OG card `website/assets/og-image.jpg` |
+| Favicon | `website/assets/favicon-32.png`, `website/assets/icon.png` / `build/icon.png` |
 
 Logo size contexts:
 - App sidebar: 24×24 SVG + 1rem / 600 wordmark
-- Site nav: 22×22 SVG + 0.95rem / 600
-- Site hero: 28×28 SVG inside a 56×56 circular radial glow badge
+- Site header: 18×18 SVG (stroke 1.75) + wordmark
 
 ---
 
@@ -63,17 +64,9 @@ Logo size contexts:
 }
 ```
 
-### 2.2 Website overrides / extras (`website/styles.css` `:root`)
+### 2.2 Website tokens
 
-Same as app except:
-
-```css
---card: 0 0% 5.5%;                   /* slightly lighter #0e0e0e */
---destructive: 0 84.2% 60.2%;        /* brighter #ef4444 */
---section-gap: 6rem;                 /* → 5rem @960px → 3.5rem @600px */
---container: 1120px;
---nav-height: 64px;                  /* → 56px @600px */
-```
+The website has its own token set (fonts, tones, radius, spacing) and does not use these HSL tokens. See Part B, sections B3 and B4.
 
 ### 2.3 Accent themes
 
@@ -88,7 +81,7 @@ Applied as `data-theme="..."` on `<html>`. Default = attribute absent or `defaul
 | `purple` | Velvet Purple | `#8b5cf6` | `263.4 82.2% 62.2%` | `0 0% 98%` | same |
 | `amber` | Amber Gold | `#f59e0b` | `47.9 95.8% 51.2%` | `0 0% 9%` | same |
 
-Website theme persistence key: `localStorage['ytdlp-gui-theme']`.
+Accent themes exist only in the app. The website has no theme picker.
 
 ### 2.4 Hardcoded semantic colors (not tokens)
 
@@ -107,8 +100,6 @@ Alert surfaces (cookies / channel hints):
 - Warning: bg `hsl(38 92% 50% / 0.12)`, border `/0.35`, text `hsl(38 92% 72%)`
 - Error: bg `hsl(0 84% 60% / 0.12)`, border `/0.35`, text `hsl(0 84% 75%)`
 
-Pain cards always use red (ignore accent theme): `--pain-accent: 0 84.2% 60.2%`.
-
 ---
 
 ## 3. Typography
@@ -122,7 +113,7 @@ Pain cards always use red (ignore accent theme): `--pain-accent: 0 84.2% 60.2%`.
 
 Google Fonts:
 - App: `Inter:wght@400;500;600`
-- Site: `Inter:wght@400;500;600;700`
+- Site: Newsreader + Geist + Geist Mono (see B3)
 
 Global: `-webkit-font-smoothing: antialiased`. Reset: `* { box-sizing: border-box; margin: 0; padding: 0; }`.
 
@@ -147,17 +138,7 @@ Global: `-webkit-font-smoothing: antialiased`. Reset: `* { box-sizing: border-bo
 
 ### Website type scale
 
-| Element | Size | Weight | Letter-spacing / notes |
-|---------|------|--------|------------------------|
-| Body | `1rem`, lh `1.6` | 400 | — |
-| Section label | `0.75rem` uppercase | 600 | `0.08em`, color **primary** |
-| Section title | `clamp(1.75rem, 4vw, 2.5rem)` | 700 | `-0.03em`, lh `1.15`, mb `1rem` |
-| Section subtitle | `1.125rem` | 400 | muted, max-width `640px`, lh `1.7` |
-| Hero h1 | `clamp(2.25rem, 5vw, 3.25rem)` | 700 | `-0.04em`, lh `1.1`, mb `1.25rem` |
-| Hero lead | `1.125rem` | 400 | muted, max-width `520px`, lh `1.7`, mb `2rem` |
-| Feature h3 | `1.75rem` (→ `1.5rem` tablet, `1.35rem` mobile) | 700 | `-0.03em` |
-| Nav links | `0.875rem` | 500 | muted → foreground on hover/active |
-| Nav logo | `0.95rem` | 600 | — |
+See Part B, section B5.
 
 ---
 
@@ -168,9 +149,8 @@ Global: `-webkit-font-smoothing: antialiased`. Reset: `* { box-sizing: border-bo
 | Expression | Computed | Use |
 |------------|----------|-----|
 | `var(--radius)` | 8px | Cards, nav items, panels |
-| `calc(var(--radius) - 2px)` | 6px | Buttons, inputs, theme options, pain icons |
+| `calc(var(--radius) - 2px)` | 6px | Buttons, inputs, theme options |
 | `calc(var(--radius) - 4px)` | 4px | Thumbnails, mode images |
-| `calc(var(--radius) * 1.25)` | 10px | Pain cards |
 | `calc(var(--radius) * 1.5)` | 12px | Modals, mockups, feature visuals |
 | `9999px` | pill | Badges, switches, progress tracks, trust chips |
 | `50%` | circle | Theme dots, weather icon, hero logo, step numbers |
@@ -187,13 +167,10 @@ Global: `-webkit-font-smoothing: antialiased`. Reset: `* { box-sizing: border-bo
 | Name | Value |
 |------|-------|
 | Card (app) | `0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)` |
-| Card (site) | `0 1px 3px 0 rgb(0 0 0 / 0.1)` |
 | Weather | `0 4px 12px rgba(0,0,0,0.2)` → hover `0 8px 24px rgba(0,0,0,0.3)` |
 | Modal | `0 20px 40px -15px rgba(0,0,0,0.7)` |
-| App mockup | `0 25px 50px -12px rgba(0,0,0,0.5)` |
 | Thumbnail hover | `0 4px 12px rgba(0,0,0,0.5)` |
 | Autocomplete | `0 10px 25px -5px rgba(0,0,0,0.5)` |
-| Pain card | inset `0 1px 0 hsl(pain/0.06)` + `0 4px 24px rgba(0,0,0,0.35)` |
 | Sniffer badge | `0 4px 12px rgba(59,130,246,0.3)` |
 
 ### Scrollbars (app)
@@ -210,17 +187,14 @@ Signature easing: **`cubic-bezier(0.16, 1, 0.3, 1)`** (expo-out) for modals, rev
 |------|------|
 | `fadeIn` | opacity 0→1 + `translateY(2px→0)`, `0.2s` ease-in-out (tabs) |
 | Greeting fade | same pattern, `0.4s` ease-out |
-| `modalScaleIn` | scale `0.95→1` (app) / `0.96→1` (site mockup) + opacity, `0.5–0.6s` expo |
+| `modalScaleIn` | scale `0.95→1` + opacity, `0.5s` expo |
 | `pulseLogo` | scale 1↔1.05 + primary glow `0 0 20px primary/0.2`, `2s` infinite ease-in-out |
 | `pulseIndicator` | opacity 0.4↔1, `1s` alternate |
 | `spin` | 360° linear `0.8s` (spinners 24px / small 16px) |
 | `sniffer-glow` | blue box-shadow pulse `2s` alternate |
 | `snifferSlideIn` | opacity + `translateY(6px) scale(0.98→1)`, `0.2s` |
 | Weather | spin `20s` linear; float `4s`; rain `1.5s`; pulse `2s` |
-| Site `reveal` | start opacity 0 + `translateY(16px)`; `.visible` → rest; `0.6s` expo; IntersectionObserver threshold `0.12`, rootMargin bottom `-40px` |
-| `progressPulse` | mock fill width 73%↔78%, `2s` ease-in-out |
-| FAQ | `max-height 0→400px` `0.3s`; chevron rotate 180° `0.2s` |
-| Primary btn (site) | hover `translateY(-1px)` |
+| Site `reveal` | opacity 0 + `translateY(24px)` → `.is-in`; `0.9s` `--ease-out`; threshold `0.08`, rootMargin bottom `-8%`; off under reduced motion (see B8) |
 | Nav / controls | most transitions `0.15s ease` |
 
 ---
@@ -435,263 +409,130 @@ Similar card + drop-zone patterns; Music Finder has slider controls and result l
 
 # PART B — Marketing website
 
-## B1. Page architecture (section order)
+The site (`website/`) is static HTML, one stylesheet and one small script. There is no build step. It is part of the birol.tech family (birol.tech, SkillExtract, StockFinder AI, AutoCrop Pro, ManimGUI), not the app's Shadcn look. That means thin serif headlines, a small sans, chapters told apart by tone, pills for every control, and colour coming only from the product screenshots. The app's six accent themes are not used on the site.
 
-1. Skip link → fixed nav
-2. `#hero` — two-column hero + product demo media
-3. `#what-is` — extract/overview (definition + 3 cards)
-4. `#pain` — “Sound familiar?” 6 pain cards
-5. Solution bridge (no id) — centered one-liner
-6. `#features` — alternating feature rows (Video, Audio, Instagram, Subtitles, Clipper, Divider, Music Finder, GIF, Recents/Settings)
-7. `#personas` — three persona bands
-8. `#opensource` — open source grid + CTAs
-9. `#compare` — comparison table
-10. `#formats` — format picker cards
-11. `#themes` — large theme picker
-12. `#how-it-works` — 3 steps + terminal mock
-13. `#architecture` — developer stack cards
-14. `#faq` — accordion
-15. `#download-section` — final CTA
-16. Footer
+## B1. Principles
 
-Smooth scroll; `scroll-padding-top: calc(nav-height + 1rem)`.
+- One idea per section and one headline per idea. A headline is a plain phrase plus one `.fade` phrase.
+- The copy answers a first-time visitor's questions in this order: what is it, will it keep working, is it safe, is it full quality, will it open in my editor, is it free.
+- Show the real product: recordings and screenshots of the app, never drawn mockups.
+- No card borders. Panels stand apart by tone. Shadows go only on floating things (header, demo window, card screenshots).
+- Sentence case everywhere, labels and buttons included. Keep it short: one sentence per card, one line per tool.
+- Every claim must be true in the app (formats, auto-updates, cookies, playlists, platforms). Check the code before changing copy.
 
-## B2. Container & section rhythm
+## B2. Page architecture (`index.html`)
 
-```css
-.container { max-width: 1120px; margin: 0 auto; padding: 0 1.5rem; } /* 1rem @600px */
-.section { padding: var(--section-gap) 0; } /* 6rem / 5rem / 3.5rem */
-```
+| # | Section | Tone | Content |
+|---|---------|------|---------|
+| — | `.site-header` | floating pill | Brand · Features / How it works / FAQ · GitHub icon · Download (releases/latest) |
+| 1 | `.hero#top` | black | `.announce` pill linking to `#twitch` · h1 “Paste a link. *Get a Premiere‑ready file.*” · lead · Download for Windows + View on GitHub · meta line · demo video with three chapter buttons |
+| 2 | `.statement` | black | “Sketchy converter sites, or a terminal full of flags. *There’s a calmer way.*” plus the yt-dlp command it replaces |
+| 3 | `#features` (01) | charcoal | “Everything an editor *reaches for.*” · 2×2 bento (Premiere-ready, Clipper, Twitch VODs `#twitch`, drag to timeline) · eight-tool list |
+| 4 | Why it’s different (02) + `#how-it-works` (03) | paper | Three reasons (It keeps working / Nothing shady / Full quality), then three steps (Install, Paste, Drag) |
+| 5 | `#faq` (04) | black | Sticky heading on the left, nine `<details>` on the right |
+| 6 | `.cta#download` | charcoal | “Your next clip is *one paste away.*” · Download + Star on GitHub · version line |
+| 7 | `.site-footer` | black | Brand, links, “Made by Birol” → birol.tech, disclaimer, demo footage credit, license |
 
-Section header pattern (every major section):
-1. `.section-label` — uppercase primary micro-label
-2. `.section-title` — clamp heading
-3. `.section-subtitle` — muted supporting sentence, max 640px
+Secondary pages `pricing.html`, `privacy.html` and `404.html` share the header and footer and use `.page` (+ `.prose`) on black. `404.html` uses absolute asset paths because it can be served at any depth. Machine-readable copies: `llms.txt`, `pricing.md`.
 
-## B3. Fixed navigation
+## B3. Tokens (`website/styles.css` `:root`)
 
-```
-.site-nav
-  position fixed; top 0; full width; height 64px; z-index 1000
-  bg: background / 0.8; backdrop-filter blur(12px)
-  border-bottom 1px solid border
-  .nav-inner (container): flex space-between align center gap 1rem
-    .nav-logo (icon 22 + wordmark)
-    .nav-links: Overview, Features, For You, Open Source, Compare, FAQ
-    .nav-actions: 6 theme dots (14px) + .btn.primary "Download" + hamburger (hidden desktop)
-```
+| Token | Value |
+|-------|-------|
+| `--font-serif` | `'Newsreader', 'Iowan Old Style', Georgia, serif` |
+| `--font-sans` | `'Geist', ui-sans-serif, system-ui, sans-serif` |
+| `--font-mono` | `'Geist Mono', ui-monospace, Consolas, monospace` |
+| `--radius-panel` / `--radius-card` / `--radius-inner` | `32px` / `24px` / `12px` (controls are always `999px` pills) |
+| `--shadow-float` | `0 40px 90px -40px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.07)` |
+| `--ease-out` | `cubic-bezier(.22, 1, .36, 1)` |
+| `--page-margin` | `clamp(16px, 4.5vw, 64px)` |
+| `--wrap` / `--wrap-wide` | `1180px` / `1320px` (plus page margins) |
+| `--space-group` / `-block` / `-item` / `-chapter` | `clamp(16px,2vw,24px)` / `clamp(40px,5vw,64px)` / `clamp(72px,8vw,120px)` / `clamp(96px,12vw,176px)` |
+| `--text-display-xl` / `-l` / `-s` | `clamp(2.6rem, min(6.4vw,10svh), 6.5rem)` / `clamp(2.1rem,4.4vw,4.4rem)` / `clamp(1.35rem,1.7vw,1.7rem)` |
 
-Nav link: padding `0.375rem 0.75rem`, muted, radius; hover/active → foreground + secondary bg.
+Google Fonts: `Geist:wght@400;500`, `Geist Mono:wght@400`, `Newsreader:ital,opsz,wght@0,6..72,200..400;1,6..72,200..400`.
 
-Theme dots: 14×14 circle; swatches as in theme table; hover scale 1.15; active → `border: 2px solid foreground`.
+## B4. Tones
 
-Mobile `@960px`: hide desktop theme dots + Download; show hamburger; links become vertical overlay menu; include mobile Download + theme picker inside menu.
+Each section sets `data-tone`. Components read only these variables, so the same markup works on any tone.
 
-## B4. Buttons (website)
+| Variable | `black` | `charcoal` | `paper` |
+|----------|---------|------------|---------|
+| `--surface` | `#000000` | `#1c1c1c` | `#f4f4f4` |
+| `--panel` | `#141414` | `#262626` | `#ebebe8` |
+| `--ink` | `#ffffff` | `#f4f4f4` | `#141414` |
+| `--muted` | `#b6b6b6` | `#b6b6b6` | `#5c5c5c` |
+| `--fade` | `#8a8a8a` | `#8f8f8f` | `#8a8a8a` |
+| `--hairline` | `#262626` | `#333333` | `#dcdcd8` |
+| `--solid-bg` / `--solid-ink` | `#fff` / `#000` | `#f4f4f4` / `#141414` | `#141414` / `#f4f4f4` |
 
-```css
-.btn {
-  inline-flex; center; gap 0.5rem;
-  height 2.5rem; padding 0 1.25rem;
-  radius 6px; font 0.875rem/500;
-  border 1px solid transparent;
-  transition color/bg/border/transform 0.15s;
-}
-.btn.primary { primary bg + primary-foreground; }
-.btn.primary:hover { primary/0.9; translateY(-1px); }
-.btn.secondary { secondary bg + border; hover → accent; }
-.btn.ghost { transparent + muted + border; hover → foreground + secondary; }
-.btn-lg { height 2.75rem; padding 0 1.5rem; font-size 0.9375rem; }
-```
+Page rhythm: black → black → charcoal → paper → black → charcoal → black. Only one paper chapter.
 
-Icons in CTAs: Lucide 18×18, stroke 2, gap 0.5rem from label.
+## B5. Type
 
-## B5. Hero (first viewport)
+| Element | Font | Size | Weight | Notes |
+|---------|------|------|--------|-------|
+| Hero h1 | serif | `clamp(2.6rem, min(6vw, 8.6svh), 6.25rem)` | 250 | lh .96, `-0.035em`, max 22ch, `.fade` on its own line (inline under 760px) |
+| `.display-xl` | serif | `--text-display-xl` | 250 | Final CTA, 404 |
+| `.display-l` | serif | `--text-display-l` | 250 | Section titles, max 16ch |
+| `.display-s` | serif | `--text-display-s` | 300 | Card titles, step titles |
+| `.reasons h3` | serif | `clamp(2rem, 3.4vw, 3.4rem)` | 250 | `-0.035em` |
+| `.number` | serif | `clamp(3.5rem, 7.5vw, 7.5rem)` | 200 | Pricing `$0` |
+| `.lead` | sans | `clamp(1.05rem, 1.3vw, 1.2rem)` | 400 | muted, max 34ch, balanced |
+| Body | sans | 16px, lh 1.55 | 400 | — |
+| Card / tool text | sans | 15px / 14px | 400 | muted |
+| `.label`, `.meta`, `.caption` | sans | 13px | 400 | muted / fade |
+| `code`, `.cli` | mono | .92em / 14px | 400 | — |
 
-**Layout:** 2-col grid, gap `4rem`, align center. Padding top `nav-height + 4rem`, bottom `5rem`. Overflow hidden.
+## B6. Components
 
-**Atmosphere:** `::before` absolute radial blob — top `-20%`, right `-10%`, size `600×600`, `radial-gradient(circle, primary/0.08 → transparent 70%)`. No flat single-color-only page; blob provides atmosphere. No cards in hero. No floating badges/overlays on the mockup.
+- **Header** (`.site-header > .nav`): fixed 12px from the top, max 880px pill, `rgba(20,20,20,.62)` with `blur(18px)` and an inset hairline. `.nav-links` sit centered between auto margins. On pages without links, `.brand + .nav-actions` pushes the actions right. The script sets `aria-current` on the link for the section in view.
+- **Pills**: `.pill` 48px high, 22px side padding, 15px/500. `.pill-solid` uses solid-bg/solid-ink with a 6px halo on hover. `.pill-ghost` has an inset hairline and fills with panel on hover. `.pill-sm` is 38px. Pressing scales to .97. Icons are 18px with an 8px gap.
+- **Section label** (`.label`): `<num> <name> ———— <aside>`. 13px muted, number in ink, a 1px hairline fills the space.
+- **Announce pill** (`.announce`): 36px pill with an inset hairline, an inner `.announce-tag` on panel, and an arrow.
+- **Demo window** (`.window`): radius 24px (14px on phones), `#0a0a0a`, `--shadow-float`, aspect 1480/800. Holds `video#demo-video` (muted, loop, playsinline, poster) and `.demo-toggle`, a 44px glass pause button that shows on hover, when paused and always on phones.
+- **Chapters** (`.chapters`): three `button.chapter[data-at]` under the window. A 2px `.chapter-bar` fills with `transform: scaleX(var(--p))`. The active chapter is ink, the others fade.
+- **CLI pill** (`.cli`): mono command on panel. It scrolls sideways on desktop and wraps on phones.
+- **Bento cards** (`.card`): panel background, radius 32px, `clamp(24px,3vw,40px)` padding with none at the bottom. `.card-media` is a `<picture>` (webp, 800/1480 `srcset`) that bleeds off the right and bottom edge with a 12px top-left radius and `--shadow-float`, and rises 6px on card hover. The `.tag` “New” chip uses solid colours.
+- **Tool list** (`.tools`): 4 columns, hairline rows, icon + name + one line.
+- **Reasons** (`.reasons`): 3 columns split by left hairlines, a serif h3 with a faded second word and a muted 16px line (max 32ch). Under 760px they stack with top hairlines.
+- **Steps** (`.steps`): 3 columns, each with a 1px ink top rule, a faded number, a serif title and a muted line.
+- **FAQ** (`.faq-grid`): two columns with a sticky `.faq-head`. Items are native `<details>`/`<summary>` with a plus icon that turns 45° when open. No script needed.
+- **Final CTA** (`.cta`): centered column, `.display-xl` h2 max 12ch, actions, version meta.
+- **Footer**: brand, inline links (GitHub, Changelog, Pricing, Privacy, llms.txt), “Made by Birol ↗”, then fine print.
 
-**Left column (`.hero-content.reveal`):**
-1. `.hero-logo` — 56×56 circle, radial `primary/0.15`, primary icon 28×28, `pulseLogo`, mb 1.5rem
-2. Brand is hero-level via logo mark + product name in nav + H1 that does not overpower product context
-3. H1: “Download YouTube videos like a pro. Without the command line.”
-4. Lead paragraph (exact marketing copy in HTML)
-5. CTA group: primary “Download for Windows” (download icon) + secondary “View source on GitHub” (GitHub icon), gap 0.75rem, mb 2rem
-6. Trust chips (pill, secondary bg, border, 0.75rem/500 muted): `MIT License` · `No ads` · `Auto-installs yt-dlp + ffmpeg` · release version chip (`vX.Y.Z`)
+## B7. Media (`website/assets/`)
 
-**Right column (`.hero-visual.reveal`):** Product demo media (see B6).
+| File | Use |
+|------|-----|
+| `media/demo.mp4`, `media/demo-poster.webp` | Hero recording of the real app: paste and download, Clipper, then GIF and Divider. Chapter start times (0, 7.22, 16.23 s) live in the chapter buttons' `data-at` |
+| `media/{download,clipper,twitch,recents}-{800,1480}.webp` | Bento screenshots |
+| `og-image.jpg` | 1200×630 social card: headline plus a tilted Video tab screenshot |
+| `favicon-32.png`, `icon.png` | Favicons. The app also reads these (`src/main/folders.js`, `test/hardening-sweep.test.js`), so keep the paths |
 
-@960px: grid → 1 col. @600px: CTAs full-width min-height 44px. @380px: hero logo 48×48.
+The footage inside the recordings comes from Blender open movies (Big Buck Bunny, Sintel, Spring, Tears of Steel), CC BY, credited in the footer. Replace captures with new real app captures. Don't use drawn UI.
 
-## B6. Hero demo media
+## B8. Script (`website/script.js`)
 
-The hero visual is a real recording of the app, not a drawn mockup:
+- `initReveal()`: `.reveal` blocks fade up once as they enter (IntersectionObserver adds `.is-in`). This only happens when `<html>` has `.js` and motion is allowed. Otherwise everything is visible.
+- `initDemo()`: the video plays only while at least 25% of it is visible. The chapter bars update every frame, clicking a chapter seeks and plays, and the toggle pauses or plays and updates its `aria-label`. With reduced motion the video starts paused.
+- `initNav()`: sets `aria-current` on the header link for the section in view.
 
-```
-.app-mockup.app-mockup--media
-  img#hero-demo (960×540, fetchpriority high)
-    src            = assets/ythero-poster.jpg   (static poster, shown first)
-    data-gif-src   = animated GIF of the Video tab
-```
+## B9. Breakpoints
 
-- Outer `.app-mockup`: border, radius 12px, shadow `0 25px 50px -12px rgba(0,0,0,0.5)`, background token, `modalScaleIn` 0.6s
-- `.app-mockup--media img`: width 100%, height auto, block
-- `initHeroMedia()` in `website/script.js` preloads the GIF after `window.load` and swaps it in; if the GIF fails, the poster stays
-- Alt text describes the Video tab (URL field, Max Quality select, a download in progress, terminal output)
+| Breakpoint | Changes |
+|------------|---------|
+| `960px` | Tools → 2 columns; FAQ → 1 column (head no longer sticky) |
+| `760px` | Nav links hidden; hero `.fade` inline; bento, steps and reasons → 1 column; chapter labels 12px; demo toggle always visible; window radius 14px; CLI wraps |
+| `480px` | Tools → 1 column; homepage action pills full width (not on `.page`); nav GitHub icon hidden |
 
-The older hand-built mockup styles (`.mockup-body`, `.mockup-sidebar`, `.mockup-card`, `.mockup-progress` + `progressPulse`) remain in `website/styles.css` but are no longer used by the markup; only `.mockup-input` is still used, by the Instagram feature-row mock.
+Check at 1440 and 390 for no horizontal scroll and a hero headline that never breaks inside “Premiere‑ready” (it uses a non-breaking hyphen).
 
-## B7. Overview (`#what-is`)
+## B10. Metadata
 
-- Class `extract-section`: top+bottom borders, bg `card/0.35`
-- Definition lead: 1.0625rem muted, lh 1.75, max-width 720px; links underline primary
-- 3-col `.extract-grid` gap 1.25rem; each `.extract-card.card` pad 1.25rem
-  - Cards: “Best for video editors”, “YT-DLP GUI vs web downloaders”, “YT-DLP GUI vs yt-dlp CLI”
-- Last updated line 0.8rem muted
-
-## B8. Pain grid (`#pain`)
-
-Label “The problem” / title “Sound familiar?” / subtitle about editing walls.
-
-**Grid:** 3 columns, gap 1rem, margin-top 3rem → 2 col @960 → 1 col @600.
-
-**Each `.pain-card`:**
-- min-height 210px, radius 10px, overflow hidden, position relative
-- Border: `pain-accent / 0.18` (always red, not theme)
-- Background: `linear-gradient(145deg, card → hsl(0 30% 6%) 55% → hsl(0 40% 5%))`
-- `::before`: radial ellipse at 85% 75%, pain-accent/0.12
-- Hover: border /0.45, `translateY(-3px)`, stronger red-tinted shadow
-- Art image: absolute right/bottom `-4%`, width ~68% max 200px, masked fade to left (`mask-image: linear-gradient(to left, black 65%, transparent)`)
-- Body: relative z-index 1, pad `1.375rem 1.5rem`, max-width 78%
-- Icon box: 38×38, radius 6px, bg pain/0.12, border pain/0.28, color pain, soft glow
-- H3: 1.05rem/600/-0.02em; P: 0.8125rem muted lh 1.55
-
-**Six cards (order):**
-
-| Art file | Title | Icon concept |
-|----------|-------|--------------|
-| `pain-cli.svg` | CLI intimidation | terminal chevron |
-| `pain-web.svg` | Web converter roulette | warning triangle |
-| `pain-codec.svg` | Wrong codec, broken timeline | stacked rects / X |
-| `pain-waste.svg` | Full-video waste | clock |
-| `pain-subtitles.svg` | Subtitle scavenger hunt | message |
-| `pain-deps.svg` | Dependency hell | settings gear |
-
-Pain SVGs: dark red illustrative art, `#ef4444` fills at varying opacity; some SMIL blink animations. Size attribution 280×200.
-
-## B9. Solution bridge
-
-- Centered, padding `4rem 0`, top+bottom borders
-- Background: `linear-gradient(180deg, card/0.5 → transparent)`
-- H2: clamp 1.5–2rem / 700 / -0.03em
-- P: 1.0625rem muted, max-width 680px, centered
-
-Copy: “One desktop app. Every format you need. Zero terminal.”
-
-## B10. Features (`#features`)
-
-Intro block mb 4rem. Then alternating `.feature-row`:
-
-```
-.feature-row
-  grid 1fr 1fr; gap 3rem; align center; mb 5rem
-  .feature-copy
-    .feature-tag (primary uppercase 0.75rem/600, letter-spacing 0.06em, icon 14)
-    h3 1.75rem/700
-    p muted
-    ul.feature-list — checkmarks stroke 2.5 primary, 0.9rem text
-  .feature-visual
-    border, radius 12px, pad 1.5rem, card bg
-    — contains mini app card mock OR clipper demo OR mode grid
-  .feature-visual.feature-visual--media
-    no pad / border / bg; holds img.feature-screenshot
-    (100% width, border, radius 12px, shadow 0 25px 50px -12px rgba(0,0,0,0.5))
-.feature-row.reverse → copy order 2, visual order 1
-```
-
-Feature rows in order (copy left / visual right alternating with reverse):
-1. Video — Premiere-ready up to 4K — real Video tab screenshot (`--media`)
-2. Audio (reverse) — real Audio tab screenshot (`--media`)
-3. Instagram — reel URL card
-4. Subtitles (reverse) — monospace cue block on secondary bg
-5. Clipper — click-to-play YouTube facade + interactive range handles (see B10a)
-6. Divider (reverse) — 2×2 mode tiles, Fast Split selected with primary border
-7. Music Finder — detected song row with ACRCloud badge
-8. GIF (reverse) — “Convert to GIF” card with Width / FPS tiles (FPS highlighted primary)
-9. Recents + Settings (reverse) — tabbed mock with recents list / settings switches
-
-### B10a. Clipper mock
-
-- `.clipper-mock` wraps video box + hint + range + times
-- Video box: 16:9 black, rounded; a `.yt-facade` button (thumbnail + play icon) swaps itself for a `youtube-nocookie.com` iframe on click
-- Range track: height ~12px muted pill; fill primary/30 between handles
-- Handles: circular primary + white border, draggable; start/end roles
-- Times row: In / Clip duration badge / Out / Total — small muted labels
-
-## B11. Personas (`#personas`)
-
-Three `.persona-band` stacked:
-- Pad `3rem`, radius 12px, border, mb 1.5rem
-- H3 + P + `.persona-tags` row of pill tags
-- Audiences: video editors / social creators / power users (CLI refugees)
-
-## B12. Open source (`#opensource`)
-
-- Background: `linear-gradient(135deg, primary/0.06 → card → background)`
-- Grid of points with check icons + dual CTAs (GitHub + Download)
-
-## B13. Compare table (`#compare`)
-
-- Wrapper overflow-x auto
-- Table: full width; th/td pad + border-bottom
-- Middle column highlighted (YT-DLP GUI): `highlight-col` with primary tint on header + cells
-- Rows compare vs web converters vs CLI across privacy, quality, Premiere-ready, ads, etc.
-
-## B14. Formats / Themes / How it works / Architecture
-
-**Formats:** grid of format cards with name, use-case blurb, primary accent on recommended.
-
-**Themes:** large picker grid of 6 theme options (same names/swatches as tokens); clicking sets `data-theme` live.
-
-**How it works:** 3-col `.steps-grid` gap 1.5rem; each step has circular number badge (40×40 primary bg, primary-foreground, weight 700) + title + text. Below: `.terminal-mock` with uppercase header + Consolas body using log-info/success/warn colors. Max-width 600px centered.
-
-**Architecture:** cards describing Electron main/preload/renderer separation.
-
-## B15. FAQ
-
-- List gap 0.75rem
-- Item: border + radius, overflow hidden
-- Question button: full width, flex space-between, pad `1.25rem 1.5rem`, card bg, 0.95rem/500; hover secondary; chevron rotates 180 when `.open`
-- Answer: max-height 0 → 400px; inner pad `0 1.5rem 1.25rem`, 0.9rem muted
-- Accordion: opening one closes others (script)
-
-## B16. Final CTA
-
-- Centered, pad `5rem 0`
-- Background: `linear-gradient(180deg, transparent → primary/0.05 50% → transparent)`
-- Border-top
-- H2 clamp 1.75–2.5rem; muted lead max 560px
-- Dual CTAs centered + monospace `.code-snippet` (card bg, border, pad `1rem 1.5rem`, 0.85rem):
-  `git clone https://github.com/birol-dev/YT-DLP-GUI-.git && npm install && npm start`
-
-## B17. Footer
-
-- Pad `3rem 0 2rem`, border-top
-- Grid `2fr 1fr 1fr` gap 2rem (stacks on mobile)
-- Brand column: logo + muted blurb max 320px
-- Link columns: uppercase 0.8rem/600 muted headers; links 0.875rem at foreground/0.8 → primary on hover
-- Bottom bar: border-top, flex space-between, 0.8rem muted + disclaimer max 560px
-
-## B18. Website breakpoints
-
-| Breakpoint | Key changes |
-|------------|-------------|
-| `960px` | Grids → 1 col; hamburger nav; hide desktop theme dots & Download; pain → 2 col; section-gap `5rem`; feature rows stack |
-| `600px` | section-gap `3.5rem`; nav `56px`; container pad `1rem`; CTAs full-width ≥44px; pain → 1 col; mockup sidebar hidden; theme picker 3-col |
-| `380px` | Theme picker 2-col; hero logo 48×48 |
-
-Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
+- JSON-LD `@graph` in `index.html`: WebSite, WebPage, Person (Birol Softa), SoftwareApplication (version, price 0) and FAQPage. The FAQPage must match the visible FAQ, so change both together.
+- On each release, update the version in the SoftwareApplication JSON-LD, the CTA meta line, the announce pill, `llms.txt`, `pricing.md`, `pricing.html` and `sitemap.xml` `lastmod`.
+- Analytics: Cloudflare Web Analytics beacon (no cookies). The privacy page says so. Don't add anything that stores data in the browser.
 
 ---
 
@@ -699,8 +540,9 @@ Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
 
 - **System:** Lucide-style inline SVG only
 - Attributes: `fill="none" stroke="currentColor" stroke-width="2"` (checks use `2.5`), `stroke-linecap="round" stroke-linejoin="round"`, `viewBox="0 0 24 24"`
-- No emoji in production UI (Music Finder marketing mock may show a music note glyph in a muted square as placeholder art)
-- Sizes: nav 18, logo 24/22/28, feature tags 14, list checks 16, pain icons 18
+- No emoji in production UI
+- App sizes: nav 18, logo 24, list checks 16
+- Website: one inline `<svg>` sprite of `<symbol>`s per page, used via `<use href="#i-…">`; `.i` is 18px with stroke-width `1.75` (brand mark 22px, announce arrow 14px)
 
 ---
 
@@ -713,8 +555,9 @@ Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
 | `assets/equal_chunks.png` | Divider mode thumb |
 | `assets/spatial_split.png` | Divider mode thumb |
 | `build/icon.png` | Electron app icon |
-| `website/assets/icon.png` | Favicon, apple-touch, OG |
-| `website/assets/pain/pain-{cli,web,codec,waste,subtitles,deps}.svg` | Pain card art |
+| `website/assets/favicon-32.png`, `website/assets/icon.png` | Site favicons (the app reads these paths too) |
+| `website/assets/og-image.jpg` | Social card |
+| `website/assets/media/` | Hero demo video, poster and bento screenshots (see B7) |
 
 ---
 
@@ -723,8 +566,7 @@ Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
 | Control | Hover | Focus | Active / selected | Notes |
 |---------|-------|-------|-------------------|-------|
 | Nav btn (app) | accent fill | — | secondary fill; icon opacity 1 | SVG default 0.7 |
-| Nav link (site) | secondary + foreground | — | same as hover when scrolled-to | sticky active |
-| Primary btn | primary/0.9 (+ lift site) | — | — | — |
+| Primary btn | primary/0.9 | — | — | — |
 | Secondary / ghost | accent or secondary | — | — | — |
 | Input / select | — | ring border + 1px ring | — | transparent bg |
 | Theme option / dot | accent / scale 1.15 | — | ring / foreground border | — |
@@ -732,29 +574,24 @@ Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
 | Weather | lift −2px | — | — | — |
 | Drop zone | primary border + lift | — | `.dragover` same | — |
 | Switch | — | — | track primary; thumb slides | — |
-| Pain card | lift −3px + red border | — | — | red always |
-| FAQ | secondary bg | — | open expands | accordion |
-| Feature visual cards | subtle border emphasis | — | selected tiles primary border | — |
+
+Website states (pills, nav links, chapters, bento cards, FAQ) are listed with their components in B6.
 
 ---
 
-## 9. Do / don’t (visual fidelity)
+## 9. Do / don’t (app visual fidelity)
 
 **Do:**
 - Use HSL channel CSS variables exactly as listed
 - Keep default theme near-black zinc with white/silver primary
 - Keep Inter + tight negative letter-spacing on large headings
-- Keep section labels uppercase + primary-colored
-- Recreate the hero as one composition: brand mark, one headline, one lead, one CTA group, one full-bleed-feeling product visual (edge-to-edge within column, not a floating inset collage)
-- Keep pain cards permanently red-accented regardless of theme
 
 **Don’t:**
 - Don’t introduce Inter/Roboto as the *only* identity without the zinc token system
 - Don’t use purple-indigo gradient marketing tropes as the default theme
-- Don’t put stats strips, schedule chips, or floating promo badges on the hero
-- Don’t turn the hero visual into a rounded media card floating in whitespace with labels on top
-- Don’t use cards in the hero (trust chips are pills, not cards; the demo media sits in a product window frame)
-- Don’t lighten the app to a cream/warm paper look
+- Don’t lighten the app to a cream/warm paper look (the paper tone belongs to the website only)
+
+**Website:** follow B1. Don’t bring the app's accent colours, card borders or uppercase labels onto the site, and don’t add stats strips, comparison tables or drawn mockups.
 
 ---
 
@@ -766,10 +603,9 @@ Touch targets ≥ 44px for mobile nav toggle and primary download buttons.
 4. Implement primitives: card, btn primary, inputs/selects, switch, progress, theme chips.
 5. Build greeting + weather header; wire tab panes for all 12 nav items.
 6. Layer specialty UIs: clipper and Twitch range timelines, divider drop zone + 4 modes, browser sniffer, modals.
-7. Build **website**: fixed blurred nav → hero (blob + demo media) → extract → pain → bridge → feature rows → personas → opensource → compare → formats → themes → steps → architecture → FAQ → final CTA → footer.
-8. Add reveal IntersectionObserver, theme persistence, FAQ accordion, mobile nav at 960px, hero GIF swap, YouTube facade.
-9. Verify theme swapping only changes primary/ring/primary-foreground everywhere (except pain cards).
-10. Pixel-check: hero media shows the real Video tab; trust chips present; section-label uppercase primary; radius scale consistent.
+7. Verify theme swapping only changes primary/ring/primary-foreground everywhere.
+8. Build the **website** from Part B: tones and tokens → floating header → hero with demo video and chapters → statement → features bento + tools → reasons + steps → FAQ → final CTA → footer.
+9. Add the three site scripts (reveal, demo, nav) and check 1440 and 390 widths for overflow.
 
 ---
 
@@ -779,8 +615,8 @@ Authoritative implementation files (prefer reading these if available):
 
 - `styles.css` — Electron tokens + components (~2700 lines)
 - `index.html` — Electron markup (many secondary buttons use inline styles)
-- `website/styles.css` — Marketing system (~2550 lines)
-- `website/index.html` — Full section copy + structure
-- `website/script.js` — Theme, FAQ, reveal, mobile nav, clipper demo, Recents/Settings mock tabs, YouTube facade, hero GIF swap
+- `website/styles.css` — Website tokens, tones and components (~1250 lines)
+- `website/index.html` — Section copy, structure and JSON-LD
+- `website/script.js` — Reveal, hero demo playback and chapters, header link state
 
 When this document and the CSS disagree, **CSS wins**.

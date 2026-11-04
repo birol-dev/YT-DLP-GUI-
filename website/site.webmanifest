@@ -1,12 +1,12 @@
 {
   "name": "YT-DLP GUI",
   "short_name": "YT-DLP GUI",
-  "description": "Free open-source YouTube and Instagram downloader for video editors. Premiere-ready H.264 MP4, clipper, subtitles, and GIF export.",
+  "description": "Free, open-source desktop app for YouTube, Instagram and Twitch downloads. Premiere-ready MP4, clipper, subtitles and GIF export.",
   "start_url": "/",
   "scope": "/",
   "display": "browser",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "lang": "en-US",
   "icons": [
     {
