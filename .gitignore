@@ -166,6 +166,8 @@ build/
 
 # Media Output / Executable Binaries
 *.mp4
+# ...except the website's own demo recording
+!website/assets/media/*.mp4
 *.mp3
 *.webm
 *.m4a
