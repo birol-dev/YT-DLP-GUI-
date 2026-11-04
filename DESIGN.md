@@ -425,9 +425,9 @@ The site (`website/`) is static HTML, one stylesheet and one small script. There
 | # | Section | Tone | Content |
 |---|---------|------|---------|
 | — | `.site-header` | floating pill | Brand · Features / How it works / FAQ · GitHub icon · Download (releases/latest) |
-| 1 | `.hero#top` | black | `.announce` pill linking to `#twitch` · h1 “Paste a link. *Get a Premiere‑ready file.*” · lead · Download for Windows + View on GitHub · meta line · demo video with three chapter buttons |
+| 1 | `.hero#top` | black | h1 “Paste a link. *Get a Premiere‑ready file.*” · lead · Download for Windows + View on GitHub · meta line · demo video with three chapter buttons |
 | 2 | `.statement` | black | “Sketchy converter sites, or a terminal full of flags. *There’s a calmer way.*” plus the yt-dlp command it replaces |
-| 3 | `#features` (01) | charcoal | “Everything an editor *reaches for.*” · 2×2 bento (Premiere-ready, Clipper, Twitch VODs `#twitch`, drag to timeline) · eight-tool list |
+| 3 | `#features` (01) | charcoal | “Everything an editor *reaches for.*” · 2×2 bento (Premiere-ready, Clipper, Twitch VODs, drag to timeline) · eight-tool list |
 | 4 | Why it’s different (02) + `#how-it-works` (03) | paper | Three reasons (It keeps working / Nothing shady / Full quality), then three steps (Install, Paste, Drag) |
 | 5 | `#faq` (04) | black | Sticky heading on the left, nine `<details>` on the right |
 | 6 | `.cta#download` | charcoal | “Your next clip is *one paste away.*” · Download + Star on GitHub · version line |
@@ -489,7 +489,6 @@ Page rhythm: black → black → charcoal → paper → black → charcoal → b
 - **Header** (`.site-header > .nav`): fixed 12px from the top, max 880px pill, `rgba(20,20,20,.62)` with `blur(18px)` and an inset hairline. `.nav-links` sit centered between auto margins. On pages without links, `.brand + .nav-actions` pushes the actions right. The script sets `aria-current` on the link for the section in view.
 - **Pills**: `.pill` 48px high, 22px side padding, 15px/500. `.pill-solid` uses solid-bg/solid-ink with a 6px halo on hover. `.pill-ghost` has an inset hairline and fills with panel on hover. `.pill-sm` is 38px. Pressing scales to .97. Icons are 18px with an 8px gap.
 - **Section label** (`.label`): `<num> <name> ———— <aside>`. 13px muted, number in ink, a 1px hairline fills the space.
-- **Announce pill** (`.announce`): 36px pill with an inset hairline, an inner `.announce-tag` on panel, and an arrow.
 - **Demo window** (`.window`): radius 24px (14px on phones), `#0a0a0a`, `--shadow-float`, aspect 1480/800. Holds `video#demo-video` (muted, loop, playsinline, poster) and `.demo-toggle`, a 44px glass pause button that shows on hover, when paused and always on phones.
 - **Chapters** (`.chapters`): three `button.chapter[data-at]` under the window. A 2px `.chapter-bar` fills with `transform: scaleX(var(--p))`. The active chapter is ink, the others fade.
 - **CLI pill** (`.cli`): mono command on panel. It scrolls sideways on desktop and wraps on phones.
@@ -524,14 +523,14 @@ The footage inside the recordings comes from Blender open movies (Big Buck Bunny
 |------------|---------|
 | `960px` | Tools → 2 columns; FAQ → 1 column (head no longer sticky) |
 | `760px` | Nav links hidden; hero `.fade` inline; bento, steps and reasons → 1 column; chapter labels 12px; demo toggle always visible; window radius 14px; CLI wraps |
-| `480px` | Tools → 1 column; homepage action pills full width (not on `.page`); nav GitHub icon hidden |
+| `480px` | Tools → 1 column; action pills full width on the homepage and 404 (not on the prose pages); nav GitHub icon hidden |
 
 Check at 1440 and 390 for no horizontal scroll and a hero headline that never breaks inside “Premiere‑ready” (it uses a non-breaking hyphen).
 
 ## B10. Metadata
 
 - JSON-LD `@graph` in `index.html`: WebSite, WebPage, Person (Birol Softa), SoftwareApplication (version, price 0) and FAQPage. The FAQPage must match the visible FAQ, so change both together.
-- On each release, update the version in the SoftwareApplication JSON-LD, the CTA meta line, the announce pill, `llms.txt`, `pricing.md`, `pricing.html` and `sitemap.xml` `lastmod`.
+- On each release, update the version in the SoftwareApplication JSON-LD, the CTA meta line, `llms.txt`, `pricing.md`, `pricing.html` and `sitemap.xml` `lastmod`.
 - Analytics: Cloudflare Web Analytics beacon (no cookies). The privacy page says so. Don't add anything that stores data in the browser.
 
 ---
@@ -542,7 +541,7 @@ Check at 1440 and 390 for no horizontal scroll and a hero headline that never br
 - Attributes: `fill="none" stroke="currentColor" stroke-width="2"` (checks use `2.5`), `stroke-linecap="round" stroke-linejoin="round"`, `viewBox="0 0 24 24"`
 - No emoji in production UI
 - App sizes: nav 18, logo 24, list checks 16
-- Website: one inline `<svg>` sprite of `<symbol>`s per page, used via `<use href="#i-…">`; `.i` is 18px with stroke-width `1.75` (brand mark 22px, announce arrow 14px)
+- Website: one inline `<svg>` sprite of `<symbol>`s per page, used via `<use href="#i-…">`; `.i` is 18px with stroke-width `1.75` (brand mark 22px)
 
 ---
 
