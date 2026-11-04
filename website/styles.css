@@ -502,36 +502,6 @@ code {
   display: block;
 }
 
-.announce {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 36px;
-  padding: 4px 14px 4px 4px;
-  border-radius: 999px;
-  font-size: 13px;
-  color: var(--muted);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-  transition: color 0.2s var(--ease-out), background-color 0.2s var(--ease-out);
-}
-
-.announce:hover {
-  color: var(--ink);
-  background: var(--panel);
-}
-
-.announce-tag {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--panel);
-  color: var(--ink);
-}
-
-.announce .i {
-  width: 14px;
-  height: 14px;
-}
-
 .hero .actions {
   margin-top: 4px;
 }
@@ -1108,6 +1078,10 @@ code {
   margin: 0;
 }
 
+.page.cta .actions {
+  justify-content: center;
+}
+
 /* Reveal: blocks fade up once as they enter. Only with JS and motion allowed. */
 @media (prefers-reduced-motion: no-preference) {
   .js .reveal {
@@ -1239,6 +1213,11 @@ code {
 
   .page .actions .pill {
     width: auto;
+  }
+
+  /* Centered pages (404) stack full-width buttons like the homepage CTA */
+  .page.cta .actions .pill {
+    width: 100%;
   }
 
   .nav {
