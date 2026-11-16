@@ -2,6 +2,7 @@ const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, protocol, n
 const path = require('path');
 const { spawn, exec, spawnSync } = require('child_process');
 const { pathToFileURL, fileURLToPath } = require('url');
+const { Readable } = require('stream');
 const fs = require('fs');
 const https = require('https');
 const os = require('os');
@@ -12,6 +13,78 @@ let guestBrowserHooksVersion = 0;
 
 const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const GUEST_BROWSER_HOOKS_VERSION = 6;
+
+// The in-app browser lives in its own persistent partition so that its catch-all webRequest hooks,
+// UA override, permission handler and "clear data" never touch the app's own window (session.defaultSession).
+const GUEST_BROWSER_PARTITION = 'persist:in-app-browser';
+const GUEST_SESSION_MIGRATION_MARKER = 'in-app-browser-session-migrated.json';
+let guestSessionReadyPromise = null;
+
+function getGuestSession() {
+  return session.fromPartition(GUEST_BROWSER_PARTITION);
+}
+
+// One-time copy of the cookies the in-app browser used to keep in session.defaultSession.
+async function migrateDefaultSessionCookiesToGuest() {
+  let markerPath;
+  try {
+    markerPath = path.join(app.getPath('userData'), GUEST_SESSION_MIGRATION_MARKER);
+    if (fs.existsSync(markerPath)) return;
+  } catch (e) {
+    return;
+  }
+
+  let cookies;
+  try {
+    cookies = await session.defaultSession.cookies.get({});
+  } catch (e) {
+    return; // try again next launch
+  }
+
+  const guestCookies = getGuestSession().cookies;
+  let copied = 0;
+  for (const cookie of cookies) {
+    try {
+      const host = (cookie.domain || '').replace(/^\./, '');
+      if (!host || !cookie.name) continue;
+      const cookiePath = cookie.path || '/';
+      const details = {
+        url: `${cookie.secure ? 'https' : 'http'}://${host}${cookiePath}`,
+        name: cookie.name,
+        value: cookie.value || '',
+        path: cookiePath,
+        secure: Boolean(cookie.secure),
+        httpOnly: Boolean(cookie.httpOnly)
+      };
+      if (!cookie.hostOnly) details.domain = cookie.domain;
+      if (cookie.expirationDate) details.expirationDate = cookie.expirationDate;
+      if (cookie.sameSite) details.sameSite = cookie.sameSite;
+      await guestCookies.set(details);
+      copied++;
+      // The copy succeeded, so drop the original: nothing in the app window needs it, and leaving it behind
+      // would keep old logins in a session that "Clear browser data" can no longer reach.
+      try {
+        await session.defaultSession.cookies.remove(details.url, cookie.name);
+      } catch (e) {}
+    } catch (e) {
+      // ignore individual cookie failures
+    }
+  }
+
+  try {
+    fs.writeFileSync(markerPath, JSON.stringify({ migratedAt: new Date().toISOString(), copied }), 'utf8');
+  } catch (e) {}
+}
+
+// Resolves once the guest session is safe to use. Never rejects.
+function ensureGuestSessionReady() {
+  if (!guestSessionReadyPromise) {
+    guestSessionReadyPromise = migrateDefaultSessionCookiesToGuest().catch((err) => {
+      console.error('In-app browser cookie migration failed:', err && err.message);
+    });
+  }
+  return guestSessionReadyPromise;
+}
 
 function getGuestPageUrl() {
   if (guestBrowserView && !guestBrowserView.webContents.isDestroyed()) {
@@ -199,11 +272,6 @@ function registerGuestEmbedProxy(session) {
 }
 
 async function fetchEmbedDocument(targetUrl, referer) {
-  const fetchOptions = {};
-  if (guestBrowserView && !guestBrowserView.webContents.isDestroyed()) {
-    fetchOptions.session = guestBrowserView.webContents.session;
-  }
-
   const target = normalizeEmbedUrl(targetUrl);
   const refererCandidates = [];
   if (referer) {
@@ -220,7 +288,7 @@ async function fetchEmbedDocument(targetUrl, referer) {
     if (ref) headers['Referer'] = ref;
 
     try {
-      const response = await net.fetch(target, { ...fetchOptions, headers });
+      const response = await getGuestSession().fetch(target, { headers });
       if (!response.ok) continue;
       const html = await response.text();
       if (!html || html.length < 80) continue;
@@ -455,8 +523,10 @@ function isMedia(urlStr, contentType) {
   return false;
 }
 
-ipcMain.on('browser-view-init', (event, bounds) => {
+ipcMain.on('browser-view-init', async (event, bounds) => {
   const win = BrowserWindow.fromWebContents(event.sender);
+  await ensureGuestSessionReady();
+  if (!win || win.isDestroyed()) return;
 
   if (guestBrowserView && guestBrowserHooksVersion < GUEST_BROWSER_HOOKS_VERSION) {
     try {
@@ -469,6 +539,7 @@ ipcMain.on('browser-view-init', (event, bounds) => {
   if (!guestBrowserView) {
     guestBrowserView = new WebContentsView({
       webPreferences: {
+        partition: GUEST_BROWSER_PARTITION,
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: false,
@@ -479,12 +550,13 @@ ipcMain.on('browser-view-init', (event, bounds) => {
     });
     
     guestBrowserView.webContents.setUserAgent(BROWSER_USER_AGENT);
-    guestBrowserView.webContents.session.setUserAgent(BROWSER_USER_AGENT);
+    const guestSession = getGuestSession();
+    guestSession.setUserAgent(BROWSER_USER_AGENT);
     
     win.contentView.addChildView(guestBrowserView);
     
     // Set permission request handler for media and fullscreen support
-    guestBrowserView.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    guestSession.setPermissionRequestHandler((webContents, permission, callback) => {
       const allowed = ['media', 'geolocation', 'notifications', 'fullscreen', 'pointerLock'];
       callback(allowed.includes(permission));
     });
@@ -500,6 +572,9 @@ ipcMain.on('browser-view-init', (event, bounds) => {
     guestBrowserView.webContents.loadURL('https://www.google.com');
     
     const sendNav = (url) => {
+      // The renderer clears its visible sniffer list on every navigation; reset the dedupe cache with it
+      // so media that was already seen is reported again after navigating away and back.
+      ctx.detectedMediaUrlCache.clear();
       if (!win.isDestroyed()) {
         win.webContents.send('browser-navigate', url);
       }
@@ -507,18 +582,29 @@ ipcMain.on('browser-view-init', (event, bounds) => {
     guestBrowserView.webContents.on('did-navigate', (e, url) => sendNav(url));
     guestBrowserView.webContents.on('did-navigate-in-page', (e, url) => sendNav(url));
     
-    const session = guestBrowserView.webContents.session;
-
-    registerGuestEmbedProxy(session);
+    registerGuestEmbedProxy(guestSession);
     setupGuestNetworkHooks(guestBrowserView.webContents);
     startEmbedIframeHydration(guestBrowserView.webContents);
     
-    session.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
-      const requestHeaders = applyGuestBrowserHeaders(details, { ...details.requestHeaders });
+    guestSession.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
+      const incomingHeaders = { ...details.requestHeaders };
+      if (getHeaderIgnoreCase(incomingHeaders, INTERNAL_FETCH_HEADER) !== undefined) {
+        // media-preview:// fetch: send exactly what the protocol handler built, minus the marker
+        deleteHeaderIgnoreCase(incomingHeaders, INTERNAL_FETCH_HEADER);
+        if (internalRequestIds.size >= 500) internalRequestIds.delete(internalRequestIds.values().next().value);
+        internalRequestIds.add(details.id);
+        callback({ requestHeaders: incomingHeaders });
+        return;
+      }
+      const requestHeaders = applyGuestBrowserHeaders(details, incomingHeaders);
       callback({ requestHeaders });
     });
 
-    session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+    guestSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+      if (internalRequestIds.has(details.id)) {
+        callback({ cancel: false });
+        return;
+      }
       const responseHeaders = { ...details.responseHeaders };
       
       // Remove blocking headers to allow embeds and standard playback
@@ -621,18 +707,17 @@ ipcMain.on('browser-view-load', (event, url) => {
 });
 
 ipcMain.handle('browser-clear-data', async () => {
-  if (guestBrowserView) {
-    try {
-      const ses = guestBrowserView.webContents.session;
-      await ses.clearStorageData();
-      await ses.clearCache();
-      return true;
-    } catch (err) {
-      console.error('Failed to clear browser storage/cache data:', err);
-      return false;
-    }
+  // Only the in-app browser's own partition is wiped; the app window's storage (defaultSession) is untouched.
+  try {
+    const ses = getGuestSession();
+    await ses.clearStorageData();
+    await ses.clearCache();
+    ctx.detectedMediaUrlCache.clear();
+    return true;
+  } catch (err) {
+    console.error('Failed to clear browser storage/cache data:', err);
+    return false;
   }
-  return false;
 });
 
 ipcMain.on('browser-view-control', (event, action) => {
@@ -644,6 +729,10 @@ ipcMain.on('browser-view-control', (event, action) => {
     } else if (action === 'reload') {
       guestBrowserView.webContents.reload();
     }
+  }
+  // Sent by the renderer's sniffer "Clear" button: forget what was already reported.
+  if (action === 'clear-detected-media') {
+    ctx.detectedMediaUrlCache.clear();
   }
 });
 
@@ -659,10 +748,41 @@ ipcMain.on('browser-view-hide', () => {
   }
 });
 
+const STREAM_VIDEO_COPY_EXTENSIONS = ['.mp4', '.mkv', '.webm', '.mov', '.m4v'];
+// Audio codec (as reported by ffprobe) -> container that can hold it with a plain stream copy.
+const STREAM_AUDIO_COPY_CONTAINERS = {
+  aac: '.m4a',
+  mp3: '.mp3',
+  opus: '.opus',
+  vorbis: '.ogg',
+  flac: '.flac'
+};
+
+// Picks the output container and codec args for a sniffed stream. Manifests (.m3u8 / .mpd) and unknown
+// extensions must never be used as the output extension (a .mpd output makes ffmpeg write a DASH manifest
+// plus chunk files instead of one media file).
+function pickStreamOutput(url, isAudioOnly, acodec) {
+  if (isAudioOnly) {
+    const container = STREAM_AUDIO_COPY_CONTAINERS[String(acodec || '').toLowerCase()];
+    if (container) {
+      return { ext: container, codecArgs: ['-vn', '-c:a', 'copy'] };
+    }
+    // Unknown / incompatible audio codec: transcode so the result is always a valid, playable .mp3
+    return { ext: '.mp3', codecArgs: ['-vn', '-c:a', 'libmp3lame', '-q:a', '2'] };
+  }
+
+  let urlExt = '';
+  try {
+    urlExt = path.extname(String(url || '').split('?')[0].split('#')[0]).toLowerCase();
+  } catch (e) {}
+  const ext = STREAM_VIDEO_COPY_EXTENSIONS.includes(urlExt) ? urlExt : '.mp4';
+  return { ext, codecArgs: ['-c', 'copy'] };
+}
+
 ipcMain.on('download-media-stream', async (event, { url, title, contentType, pageUrl }) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const baseDir = ctx.settings.downloadDir || app.getPath('downloads');
-  
+
   const isAudioOnly = contentType && contentType.toLowerCase().startsWith('audio/');
   const subFolder = isAudioOnly ? 'yt-audios' : 'yt-videos';
   const targetDir = path.join(baseDir, subFolder);
@@ -671,18 +791,25 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
   }
 
   let cleanTitle = ctx.sanitizeFilename(title || 'stream_download');
-  let ext = isAudioOnly ? '.mp3' : '.mp4';
-  
-  if (url.includes('.m3u8')) {
-    ext = isAudioOnly ? '.mp3' : '.mp4';
-  } else {
-    const cleanUrlPath = url.split('?')[0].split('#')[0];
-    const urlExt = path.extname(cleanUrlPath);
-    if (urlExt && urlExt.length <= 5) {
-      ext = urlExt;
-    }
+
+  if (win && !win.isDestroyed()) win.webContents.send('download-status', `[STREAM] Starting direct FFmpeg download...`);
+
+  const ffmpegPath = ctx.getFfmpegPath();
+
+  const headers = buildStreamRequestHeaders(pageUrl);
+
+  let totalDuration = 0;
+  let acodec = '';
+  try {
+    const meta = await ctx.probeLocalVideo(url, headers);
+    totalDuration = meta.duration || 0;
+    acodec = meta.acodec || '';
+  } catch (err) {
+    console.log('Stream probe failed (normal for live/some hosts):', err.message);
   }
-  
+
+  const { ext, codecArgs } = pickStreamOutput(url, isAudioOnly, acodec);
+
   let baseOut = path.join(targetDir, cleanTitle);
   let count = 0;
   let outputPath = `${baseOut}${ext}`;
@@ -691,45 +818,29 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
     outputPath = `${baseOut}_${count}${ext}`;
   }
 
-  if (win && !win.isDestroyed()) win.webContents.send('download-status', `[STREAM] Starting direct FFmpeg download...`);
-  
-  const ffmpegPath = ctx.getFfmpegPath();
-  
-  const headers = buildStreamRequestHeaders(pageUrl);
-
   const args = [
     '-y',
     '-headers', headers.join('\r\n') + '\r\n',
     '-i', url,
-    '-c', 'copy',
+    ...codecArgs,
     outputPath
   ];
-  
-  const downloadStartedAt = Date.now();
-  
-  let totalDuration = 0;
-  try {
-    const meta = await ctx.probeLocalVideo(url, headers);
-    totalDuration = meta.duration || 0;
-  } catch (err) {
-    console.log('Stream probe failed (normal for live/some hosts):', err.message);
-  }
 
   let proc;
   try {
     proc = spawn(ffmpegPath, args);
-    ctx.registerProcess(proc, { isYtDlp: false });
+    ctx.registerProcess(proc, { isYtDlp: false, group: 'download' });
   } catch (err) {
     if (win && !win.isDestroyed()) win.webContents.send('download-error', `[STREAM] FFmpeg failed to start: ${err.message}`);
     return;
   }
-  
+
   let stderr = '';
-  
+
   proc.stderr.on('data', (data) => {
     const text = data.toString();
     stderr += text;
-    
+
     if (totalDuration > 0) {
       const progress = ctx.parseFfmpegProgress(text, totalDuration);
       if (progress !== null) {
@@ -755,8 +866,10 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
       if (ctx.settings.autoOpenFolder) {
         ctx.openFolderOrRevealItem(outputPath);
       }
+    } else if (code === null || ctx.wasProcessStopped(proc)) {
+      // Killed (user cancelled / channel switch) - the registry already notified the renderer
     } else {
-      win.webContents.send('download-error', `[STREAM] FFmpeg copy failed with code ${code}.\nStderr: ${stderr.slice(-200)}`);
+      win.webContents.send('download-error', `[STREAM] FFmpeg ${isAudioOnly ? 'audio extraction' : 'copy'} failed with code ${code}.\nStderr: ${stderr.slice(-200)}`);
     }
   });
 
@@ -767,14 +880,97 @@ ipcMain.on('download-media-stream', async (event, { url, title, contentType, pag
   });
 });
 
+const PREVIEW_CORS_EXPOSE_HEADERS = 'Content-Length, Content-Range, Accept-Ranges, Content-Type, X-Upstream-Url';
+
+function buildPreviewCorsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Range, Content-Type, Accept',
+    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    'Access-Control-Expose-Headers': PREVIEW_CORS_EXPOSE_HEADERS,
+    'Access-Control-Max-Age': '600'
+  };
+}
+
+const PREVIEW_MAX_REDIRECTS = 8;
+
+// Marks requests made by the media-preview handler so the guest session's sniffer / header hooks leave them alone
+// (otherwise the app's own preview fetches would show up as "detected media").
+const INTERNAL_FETCH_HEADER = 'X-YTGUI-Internal';
+const internalRequestIds = new Set();
+
+// Requests the media through the guest session (its cookies), following redirects by hand so the final URL is
+// known: net.fetch / Session.fetch have no `session` option / no usable response.url, and hls.js needs the final
+// URL to resolve relative playlist entries.
+function requestRemotePreview(targetUrl, method, headers) {
+  return new Promise((resolve, reject) => {
+    let finalUrl = targetUrl;
+    let hops = 0;
+    const req = net.request({
+      method,
+      url: targetUrl,
+      session: getGuestSession(),
+      useSessionCookies: true,
+      redirect: 'manual'
+    });
+    for (const [name, value] of Object.entries({ ...headers, [INTERNAL_FETCH_HEADER]: '1' })) {
+      req.setHeader(name, value);
+    }
+    req.on('redirect', (statusCode, redirectMethod, redirectUrl) => {
+      if (++hops > PREVIEW_MAX_REDIRECTS || !/^https?:\/\//i.test(redirectUrl)) {
+        req.abort();
+        reject(new Error('Too many redirects or unsupported redirect target'));
+        return;
+      }
+      finalUrl = redirectUrl;
+      req.followRedirect();
+    });
+    req.on('response', (res) => resolve({ res, finalUrl }));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+function getFirstHeader(headers, name) {
+  const value = headers[name];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+// Re-wraps an upstream response for media-preview://, keeping the range semantics intact
+// (206 + Content-Range / Accept-Ranges) so seeking works, and exposing the final upstream URL
+// so hls.js can resolve relative playlist entries against the real origin.
+function buildPreviewResponse(res, method, finalUrl) {
+  const headers = new Headers(buildPreviewCorsHeaders());
+  const encoded = Boolean(getFirstHeader(res.headers, 'content-encoding'));
+  for (const name of ['content-type', 'content-range', 'accept-ranges', 'content-length']) {
+    // the body is already decoded, so an encoded Content-Length would be wrong
+    if (name === 'content-length' && encoded) continue;
+    const value = getFirstHeader(res.headers, name);
+    if (value) headers.set(name, value);
+  }
+  if (finalUrl) headers.set('X-Upstream-Url', finalUrl);
+  const bodyless = method === 'HEAD' || [204, 205, 304].includes(res.statusCode);
+  if (bodyless) res.resume();
+  return new Response(bodyless ? null : Readable.toWeb(res), {
+    status: res.statusCode,
+    statusText: res.statusMessage,
+    headers
+  });
+}
+
 function registerMediaProtocols() {
   protocol.handle('media-preview', async (request) => {
     try {
+      // The app window (file://) loads previews cross-origin (hls.js XHR), so CORS preflights land here too.
+      if (request.method === 'OPTIONS') {
+        return new Response(null, { status: 204, headers: buildPreviewCorsHeaders() });
+      }
+
       const parsed = new URL(request.url);
       const targetUrl = parsed.searchParams.get('url');
       const pageUrl = parsed.searchParams.get('pageUrl') || getGuestPageUrl();
       if (!targetUrl) {
-        return new Response('Missing url parameter', { status: 400 });
+        return new Response('Missing url parameter', { status: 400, headers: buildPreviewCorsHeaders() });
       }
 
       // Local Clipper sources and remuxed previews (allowed roots only): serve the file directly (with Range).
@@ -798,15 +994,21 @@ function registerMediaProtocols() {
         return net.fetch(targetUrl, { method: request.method, headers: request.headers });
       }
 
+      if (!/^https?:\/\//i.test(targetUrl)) {
+        return new Response('Unsupported url scheme', { status: 400, headers: buildPreviewCorsHeaders() });
+      }
+
+      // Remote media is fetched through the in-app browser session (cookies) with the page as Referer.
+      const method = request.method === 'HEAD' ? 'HEAD' : 'GET';
       const fetchHeaders = { 'User-Agent': BROWSER_USER_AGENT };
       if (pageUrl) fetchHeaders['Referer'] = pageUrl;
-      const fetchOptions = { headers: fetchHeaders };
-      if (guestBrowserView && !guestBrowserView.webContents.isDestroyed()) {
-        fetchOptions.session = guestBrowserView.webContents.session;
-      }
-      return net.fetch(targetUrl, fetchOptions);
+      const range = request.headers.get('range');
+      if (range) fetchHeaders['Range'] = range;
+
+      const { res, finalUrl } = await requestRemotePreview(targetUrl, method, fetchHeaders);
+      return buildPreviewResponse(res, method, finalUrl);
     } catch (err) {
-      return new Response(err.message, { status: 500 });
+      return new Response(err.message, { status: 500, headers: buildPreviewCorsHeaders() });
     }
   });
 
@@ -832,11 +1034,6 @@ function registerMediaProtocols() {
         refererCandidates.push('');
       }
 
-      const fetchOptions = {};
-      if (guestBrowserView && !guestBrowserView.webContents.isDestroyed()) {
-        fetchOptions.session = guestBrowserView.webContents.session;
-      }
-
       let lastResponse = null;
       for (const ref of refererCandidates) {
         const fetchHeaders = {
@@ -849,7 +1046,7 @@ function registerMediaProtocols() {
         };
         if (ref) fetchHeaders['Referer'] = ref;
 
-        const response = await net.fetch(fetchUrl, { ...fetchOptions, headers: fetchHeaders });
+        const response = await getGuestSession().fetch(fetchUrl, { headers: fetchHeaders });
         if (response.status === 404 && ref !== refererCandidates[refererCandidates.length - 1]) {
           lastResponse = response;
           continue;
@@ -898,6 +1095,11 @@ Object.defineProperty(ctx, 'guestBrowserHooksVersion', {
 });
 ctx.BROWSER_USER_AGENT = BROWSER_USER_AGENT;
 ctx.GUEST_BROWSER_HOOKS_VERSION = GUEST_BROWSER_HOOKS_VERSION;
+ctx.GUEST_BROWSER_PARTITION = GUEST_BROWSER_PARTITION;
+ctx.getGuestSession = getGuestSession;
+ctx.ensureGuestSessionReady = ensureGuestSessionReady;
+ctx.migrateDefaultSessionCookiesToGuest = migrateDefaultSessionCookiesToGuest;
+ctx.pickStreamOutput = pickStreamOutput;
 ctx.getGuestPageUrl = getGuestPageUrl;
 ctx.buildStreamRequestHeaders = buildStreamRequestHeaders;
 ctx.resolveGuestRequestOrigin = resolveGuestRequestOrigin;
@@ -927,4 +1129,4 @@ ctx.MEDIA_EXTENSIONS = MEDIA_EXTENSIONS;
 ctx.MEDIA_MIME_TYPES = MEDIA_MIME_TYPES;
 ctx.isMedia = isMedia;
 ctx.registerMediaProtocols = registerMediaProtocols;
-module.exports = { guestBrowserView, guestBrowserHooksVersion, BROWSER_USER_AGENT, GUEST_BROWSER_HOOKS_VERSION, getGuestPageUrl, buildStreamRequestHeaders, resolveGuestRequestOrigin, EMBED_PLAYER_HOST_HINTS, EMBED_PROXY_HOSTS, isEmbedPlayerHost, isEmbedProxyHost, getHeaderIgnoreCase, deleteHeaderIgnoreCase, isNavigationResourceType, refererMatchesParentSite, applyGuestBrowserHeaders, buildEmbedReferer, injectEmbedBaseHref, buildBrowserProxyUrl, getEmbedProxyUrlFilters, registerGuestEmbedProxy, fetchEmbedDocument, getEmbedFetchPatterns, normalizeEmbedUrl, hydratedIframeUrls, embedIframeFirstSeen, EMBED_SRCDOC_WAIT_MS, startEmbedIframeHydration, setupGuestNetworkHooks, MEDIA_EXTENSIONS, MEDIA_MIME_TYPES, isMedia, registerMediaProtocols };
+module.exports = { guestBrowserView, guestBrowserHooksVersion, BROWSER_USER_AGENT, GUEST_BROWSER_HOOKS_VERSION, GUEST_BROWSER_PARTITION, getGuestSession, ensureGuestSessionReady, migrateDefaultSessionCookiesToGuest, pickStreamOutput, getGuestPageUrl, buildStreamRequestHeaders, resolveGuestRequestOrigin, EMBED_PLAYER_HOST_HINTS, EMBED_PROXY_HOSTS, isEmbedPlayerHost, isEmbedProxyHost, getHeaderIgnoreCase, deleteHeaderIgnoreCase, isNavigationResourceType, refererMatchesParentSite, applyGuestBrowserHeaders, buildEmbedReferer, injectEmbedBaseHref, buildBrowserProxyUrl, getEmbedProxyUrlFilters, registerGuestEmbedProxy, fetchEmbedDocument, getEmbedFetchPatterns, normalizeEmbedUrl, hydratedIframeUrls, embedIframeFirstSeen, EMBED_SRCDOC_WAIT_MS, startEmbedIframeHydration, setupGuestNetworkHooks, MEDIA_EXTENSIONS, MEDIA_MIME_TYPES, isMedia, registerMediaProtocols };

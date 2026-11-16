@@ -61,11 +61,33 @@ function resolveFinalDownloadPath(candidatePath, downloadDir, startedAtMs) {
   return findNewestCompletedFile(downloadDir, startedAtMs) || cleanPath;
 }
 
+// The shared Cancel button (#btn-cancel-download) represents the Downloader, Clipper, Twitch,
+// browser-sniffer and Divider-import downloads ('download') and the Divider's divide job ('divide').
+// Other work (Music Finder scan, GIF export, background probes) and other apps' yt-dlp.exe are left alone.
+const DOWNLOAD_CANCEL_GROUPS = ['download', 'divide'];
+
 ipcMain.handle('cancel-download', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  await ctx.stopAllBlockingTasks(win, 'user cancelled download');
+  await ctx.stopAllBlockingTasks(win, 'user cancelled download', {
+    groups: DOWNLOAD_CANCEL_GROUPS,
+    // Always reset the download UI, even if the process had already exited
+    alwaysNotify: ['download']
+  });
   return { ok: true };
 });
+
+// A child killed on purpose (user cancel / channel switch) must not surface as "failed with code null".
+// The registry already told the renderer (download-error), so only log a clean status here.
+// A null exit code that this app did not cause (external kill / crash) still reports an error so the UI never hangs.
+function reportAbnormalDownloadExit(win, proc, code, signal, label, failureMessage) {
+  if (ctx.wasProcessStopped(proc)) {
+    safeSend(win, 'download-status', `${label} Download cancelled.`);
+  } else if (code === null) {
+    safeSend(win, 'download-error', `${label} Download was interrupted${signal ? ` (${signal})` : ''}.`);
+  } else {
+    safeSend(win, 'download-error', failureMessage);
+  }
+}
 
 ipcMain.handle('copy-to-clipboard', async (_event, text) => {
   if (typeof text === 'string') {
@@ -202,7 +224,7 @@ ipcMain.on('download-video', async (event, { url, quality }) => {
     }
   });
   ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
-  ytProcess.on('close', (code) => {
+  ytProcess.on('close', (code, signal) => {
     throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
@@ -211,7 +233,7 @@ ipcMain.on('download-video', async (event, { url, quality }) => {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
-    else safeSend(win, 'download-error', `[VIDEO] Download failed with code ${code}`);
+    else reportAbnormalDownloadExit(win, ytProcess, code, signal, '[VIDEO]', `[VIDEO] Download failed with code ${code}`);
   });
 });
 
@@ -286,7 +308,7 @@ ipcMain.on('download-audio', async (event, { url }) => {
     }
   });
   ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
-  ytProcess.on('close', (code) => {
+  ytProcess.on('close', (code, signal) => {
     throttledProgress.flush();
     if (code === 0) {
       finalPath = resolveFinalDownloadPath(finalPath, audioDir, downloadStartedAt);
@@ -295,7 +317,7 @@ ipcMain.on('download-audio', async (event, { url }) => {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
-    else safeSend(win, 'download-error', `[AUDIO] Download failed with code ${code}`);
+    else reportAbnormalDownloadExit(win, ytProcess, code, signal, '[AUDIO]', `[AUDIO] Download failed with code ${code}`);
   });
 });
 
@@ -364,7 +386,7 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
     }
   });
   ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
-  ytProcess.on('close', (code) => {
+  ytProcess.on('close', (code, signal) => {
     throttledProgress.flush();
     finalPath = resolveFinalDownloadPath(finalPath, subsDir, downloadStartedAt);
     const hasSubtitleFile = !!(finalPath && fs.existsSync(finalPath));
@@ -374,7 +396,7 @@ ipcMain.on('download-subtitles', async (event, { url, lang }) => {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
-    else safeSend(win, 'download-error', `[SUBS] Download failed with code ${code}`);
+    else reportAbnormalDownloadExit(win, ytProcess, code, signal, '[SUBS]', `[SUBS] Download failed with code ${code}`);
   });
 });
 
@@ -487,7 +509,7 @@ ipcMain.on('download-instagram', async (event, { url, format }) => {
     stderrOutput += text;
     throttledProgress.push(text);
   });
-  ytProcess.on('close', (code) => {
+  ytProcess.on('close', (code, signal) => {
     throttledProgress.flush();
     if (code === 0) {
       const type = format === 'audio' ? 'ig-audio' : 'ig-video';
@@ -496,6 +518,9 @@ ipcMain.on('download-instagram', async (event, { url, format }) => {
       if (ctx.settings.autoOpenFolder && finalPath) {
         ctx.openFolderOrRevealItem(finalPath);
       }
+    }
+    else if (code === null || ctx.wasProcessStopped(ytProcess)) {
+      reportAbnormalDownloadExit(win, ytProcess, code, signal, `[INSTAGRAM ${label}]`, '');
     }
     else {
       safeSend(win, 'download-error', ctx.formatInstagramDownloadError(code, stderrOutput, label));
@@ -512,4 +537,5 @@ ctx.findNewestCompletedFile = findNewestCompletedFile;
 ctx.resolveFinalDownloadPath = resolveFinalDownloadPath;
 ctx.buildVideoDownloadArgs = buildVideoDownloadArgs;
 ctx.safeSend = safeSend;
-module.exports = { isTemporaryDownloadPath, findNewestCompletedFile, resolveFinalDownloadPath, buildVideoDownloadArgs, safeSend };
+ctx.reportAbnormalDownloadExit = reportAbnormalDownloadExit;
+module.exports = { isTemporaryDownloadPath, findNewestCompletedFile, resolveFinalDownloadPath, buildVideoDownloadArgs, safeSend, reportAbnormalDownloadExit };

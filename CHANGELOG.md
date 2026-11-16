@@ -14,6 +14,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Correct documented specifics: WAV output is 16-bit PCM at the source sample rate (not 24-bit / 48 kHz), MP3 uses LAME V0 (`--audio-quality 0`), binary-replacement retries use linear (not exponential) backoff, subtitle downloads use the scoped `--sub-langs` list, and repository links point to `birol-dev/YT-DLP-GUI-`.
 - Refresh stale code comments in `src/main/deps.js`, `src/main/folders.js` and `src/main/browser-view.js`, and reword test titles / assertion messages that named `main.js` / `renderer.js` while actually checking the whole main-process / renderer source.
 
+### Fixed
+- **In-app browser isolation**: the Browser tab now runs in its own persistent session (`persist:in-app-browser`). "Clear browser data" no longer wipes the app's own saved state (recents, Twitch preferences, weather cache), and the browser's request hooks no longer replace the Clipper's preview headers or leak the visited page's Referer onto the app's own requests. Existing in-app-browser cookies are moved to the new session once, and the "app-browser" cookie mode reads from it.
+- Escape page titles, URLs, codec names, error text and recognition results before they reach `innerHTML` (media sniffer list, Recents, download / Divider errors, Music Finder results, weather widget), via a shared `renderer/html.js` helper.
+- Media sniffer: already-seen media is reported again after navigating away and back or pressing Clear; previews are fetched through the in-app browser session, support seeking (Range), and are no longer listed as detected media; `hls.js` is pinned to an exact version with an integrity hash.
+- Sniffed stream downloads no longer write a DASH manifest plus chunk files for `.mpd` URLs, and audio-only streams are copied into a matching container or transcoded to MP3 instead of stream-copied into `.mp3`.
+- **Cancel** now stops only downloads and Divider jobs. It no longer kills a running Music Finder scan, GIF export or metadata probe, no longer kills other applications' `yt-dlp.exe`, and no longer raises error states in idle tabs. Cancelled tasks report a clean "cancelled" status instead of "failed with code null".
+- The throttled progress sender no longer drops non-progress lines or sends the last line twice.
+- A second click during the playlist probe can no longer start a second download.
+- The download-complete thumbnail no longer stacks click / drag handlers for every earlier file.
+- Child processes (yt-dlp, FFmpeg) are stopped when the app quits.
+- Music Finder no longer demands an AcoustID key and `fpcalc` when ACRCloud is selected; AcoustID query values are URL-encoded; the empty-results text names the active service.
+- Divider precise cuts and spatial crops of `.webm` (and other non-H.264 containers) are written as `.mp4` with AAC audio instead of failing.
+- Failed or timed-out video probes are no longer cached for the rest of the session.
+- `fpcalc` on `PATH` is detected (`-version`), and FFmpeg nightly / `n7.1`-style builds are no longer "updated" down to the bundled release.
+- Divider and GIF output names keep non-ASCII letters instead of turning them into underscores.
+- Settings: a typed weather city is geocoded instead of being saved with the previous city's coordinates, picking a suggestion saves immediately, changes made while a save is in flight are no longer dropped, and the weather widget and greeting refresh as soon as city, unit or name change.
+- Onboarding no longer falls back to San Francisco when the IP location lookup fails; the weather widget shows an error instead of loading forever on a malformed response.
+- Correct the MP3 (LAME V0) and WAV (16-bit) descriptions in the app, and the weather wording on the privacy page.
+
 ### Removed
 - Remove the old website's pain-card illustrations (`website/assets/pain/*.svg`) and hero poster (`website/assets/ythero-poster.jpg`), along with its theme picker, comparison table, persona bands and YouTube facade.
 

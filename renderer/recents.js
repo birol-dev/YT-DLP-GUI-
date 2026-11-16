@@ -1,3 +1,5 @@
+import { escapeHtml, safeHttpUrl } from './html.js';
+
 // Recents Logic
 export function getRecents() {
   const recents = localStorage.getItem('yt-recents');
@@ -15,12 +17,24 @@ export function saveRecent(url, type, filePath) {
 export function extractVideoId(url) {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
   const match = url.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : null;
+  // Video ids are 11 chars of [A-Za-z0-9_-]; anything else must never reach an src/innerHTML string
+  return (match && /^[A-Za-z0-9_-]{11}$/.test(match[2])) ? match[2] : null;
 }
 
+// One live binding per element: the completion cards reuse the same persistent thumb element for
+// every finished download, so the previous file's handlers must be removed before binding the new one.
+const thumbnailBindings = new WeakMap();
+
 export function bindRecentThumbnailActions(dragEl, filePath) {
+  const previous = thumbnailBindings.get(dragEl);
+  if (previous) previous.abort();
+  const controller = new AbortController();
+  thumbnailBindings.set(dragEl, controller);
+  const { signal } = controller;
+
   let nativeDragActive = false;
   let clickTimer = null;
+  signal.addEventListener('abort', () => clearTimeout(clickTimer));
 
   dragEl.setAttribute('draggable', 'true');
   dragEl.querySelectorAll('img, svg').forEach((child) => {
@@ -30,7 +44,7 @@ export function bindRecentThumbnailActions(dragEl, filePath) {
   dragEl.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     nativeDragActive = false;
-  });
+  }, { signal });
 
   // Electron native drag-out: preventDefault in dragstart, then startDrag via IPC.
   // https://www.electronjs.org/docs/latest/tutorial/native-file-drag-drop
@@ -41,7 +55,7 @@ export function bindRecentThumbnailActions(dragEl, filePath) {
     nativeDragActive = true;
     clearTimeout(clickTimer);
     window.electronAPI.startFileDrag(filePath);
-  });
+  }, { signal });
 
   dragEl.addEventListener('click', (e) => {
     if (nativeDragActive) {
@@ -56,7 +70,7 @@ export function bindRecentThumbnailActions(dragEl, filePath) {
     clickTimer = setTimeout(() => {
       window.electronAPI.openFolder(filePath);
     }, 280);
-  });
+  }, { signal });
 
   dragEl.addEventListener('dblclick', (e) => {
     e.preventDefault();
@@ -68,7 +82,7 @@ export function bindRecentThumbnailActions(dragEl, filePath) {
     } else {
       window.electronAPI.openFolder(filePath);
     }
-  });
+  }, { signal });
 }
 
 export function renderRecents() {
@@ -85,14 +99,18 @@ export function renderRecents() {
     const li = document.createElement('li');
     li.className = 'recent-item';
     
-    const videoId = extractVideoId(item.url);
-    const isInstagram = item.url.includes('instagram.com') || item.url.includes('instagr.am') || item.type.startsWith('ig-');
+    // Recents live in localStorage and originate from video metadata: treat every field as untrusted text
+    const itemUrl = String(item.url || '');
+    const itemType = String(item.type || '');
+    const itemDate = String(item.date || '');
+    const videoId = extractVideoId(itemUrl);
+    const isInstagram = itemUrl.includes('instagram.com') || itemUrl.includes('instagr.am') || itemType.startsWith('ig-');
     
     const thumbTitle = 'Click to reveal file · Double-click to open · Drag to import into Premiere Pro';
     let thumbnailHtml = '';
     if (videoId) {
-      thumbnailHtml = `<img src="https://img.youtube.com/vi/${videoId}/hqdefault.jpg" alt="Thumbnail" class="recent-thumbnail" draggable="false">`;
-    } else if (item.type.startsWith('twitch') || item.url.includes('twitch.tv')) {
+      thumbnailHtml = `<img src="https://img.youtube.com/vi/${escapeHtml(videoId)}/hqdefault.jpg" alt="Thumbnail" class="recent-thumbnail" draggable="false">`;
+    } else if (itemType.startsWith('twitch') || itemUrl.includes('twitch.tv')) {
       thumbnailHtml = `<div class="recent-thumbnail">
         <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2H3v16h5v4l4-4h5l4-4V2zm-10 9V7m5 4V7"/></svg>
       </div>`;
@@ -105,12 +123,12 @@ export function renderRecents() {
     }
     
     li.innerHTML = `
-      <div class="recent-thumb-drag" title="${thumbTitle}">${thumbnailHtml}</div>
+      <div class="recent-thumb-drag" title="${escapeHtml(thumbTitle)}">${thumbnailHtml}</div>
       <div class="recent-details">
-        <button type="button" class="recent-url" title="${item.url}">${item.url}</button>
+        <button type="button" class="recent-url" title="${escapeHtml(itemUrl)}">${escapeHtml(itemUrl)}</button>
         <div class="recent-meta">
-          <span class="badge">${item.type.toUpperCase()}</span>
-          <span>${item.date}</span>
+          <span class="badge">${escapeHtml(itemType.toUpperCase())}</span>
+          <span>${escapeHtml(itemDate)}</span>
         </div>
       </div>
     `;
@@ -123,7 +141,8 @@ export function renderRecents() {
     const urlEl = li.querySelector('.recent-url');
     if (urlEl) {
       urlEl.addEventListener('click', () => {
-        window.electronAPI.openExternalUrl(item.url);
+        const safeUrl = safeHttpUrl(itemUrl);
+        if (safeUrl) window.electronAPI.openExternalUrl(safeUrl);
       });
     }
 

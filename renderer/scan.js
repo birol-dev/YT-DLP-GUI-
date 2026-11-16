@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { escapeHtml, safeHttpUrl } from './html.js';
 
 // ==========================================
 // Music Finder Tab Logic
@@ -206,6 +207,9 @@ window.electronAPI.onScanProgress((progress) => {
 });
 
 window.electronAPI.onScanError((error) => {
+  // The main process also emits scan-error when unrelated tasks are stopped
+  // (yt-dlp channel switch, download cancel); ignore it while no scan is running.
+  if (!isScanningMusic) return;
   isScanningMusic = false;
   if (musicFinderErrorText) {
     musicFinderErrorText.textContent = error;
@@ -218,6 +222,13 @@ window.electronAPI.onScanComplete((results) => {
   isScanningMusic = false;
   renderScanResults(results);
 });
+
+// Name of the recognition service the user currently has selected (default matches main.js).
+function getActiveServiceLabel() {
+  return state.currentSettings && state.currentSettings.musicFinderService === 'acrcloud'
+    ? 'ACRCloud'
+    : 'AcoustID';
+}
 
 // Render Results
 export function renderScanResults(results) {
@@ -235,7 +246,7 @@ export function renderScanResults(results) {
       <div style="color: hsl(var(--muted-foreground)); text-align: center; padding: 3rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
         <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
         <span style="font-weight: 500;">No songs recognized</span>
-        <span style="font-size: 0.75rem;">AcoustID database did not find matches for any of the generated fingerprints.</span>
+        <span style="font-size: 0.75rem;">${escapeHtml(getActiveServiceLabel())} did not find matches for any of the scanned audio clips.</span>
       </div>
     `;
     return;
@@ -260,13 +271,15 @@ export function renderScanResults(results) {
       trackItem.style.backgroundColor = 'transparent';
     });
 
+    // Track fields come from a third-party recognition API: escape text, allow only http(s) cover URLs.
+    const coverUrl = safeHttpUrl(track.coverUrl);
     let imgHtml = '';
-    if (track.coverUrl) {
-      imgHtml = `<img src="${track.coverUrl}" alt="Cover" class="track-cover" style="width: 50px; height: 50px; border-radius: 4px; object-fit: cover; border: 1px solid hsl(var(--border));" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`;
+    if (coverUrl) {
+      imgHtml = `<img src="${escapeHtml(coverUrl)}" alt="Cover" class="track-cover" style="width: 50px; height: 50px; border-radius: 4px; object-fit: cover; border: 1px solid hsl(var(--border));" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`;
     }
     
     const fallbackSvg = `
-      <div class="track-cover-fallback" style="display: ${track.coverUrl ? 'none' : 'flex'}; width: 50px; height: 50px; border-radius: 4px; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); align-items: center; justify-content: center; border: 1px solid hsl(var(--border)); flex-shrink: 0;">
+      <div class="track-cover-fallback" style="display: ${coverUrl ? 'none' : 'flex'}; width: 50px; height: 50px; border-radius: 4px; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); align-items: center; justify-content: center; border: 1px solid hsl(var(--border)); flex-shrink: 0;">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z"/><circle cx="12" cy="12" r="2"/></svg>
       </div>
     `;
@@ -277,13 +290,13 @@ export function renderScanResults(results) {
         ${fallbackSvg}
       </div>
       <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
-        <span style="font-weight: 600; font-size: 0.9rem; color: hsl(var(--foreground)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${track.title}</span>
-        <span style="font-size: 0.775rem; color: hsl(var(--muted-foreground)); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${track.artist}</span>
-        ${track.album ? `<span style="font-size: 0.725rem; color: hsl(var(--muted-foreground) / 0.8); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${track.album}</span>` : ''}
+        <span style="font-weight: 600; font-size: 0.9rem; color: hsl(var(--foreground)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(track.title)}</span>
+        <span style="font-size: 0.775rem; color: hsl(var(--muted-foreground)); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(track.artist)}</span>
+        ${track.album ? `<span style="font-size: 0.725rem; color: hsl(var(--muted-foreground) / 0.8); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(track.album)}</span>` : ''}
       </div>
       <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px;">
         <span class="badge" style="font-size: 0.7rem; font-family: monospace; letter-spacing: 0.02em; padding: 0.25rem 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">
-          @ ${item.timestampStr}
+          @ ${escapeHtml(item.timestampStr)}
         </span>
       </div>
     `;

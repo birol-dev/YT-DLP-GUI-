@@ -1,7 +1,8 @@
 import { stopDownloadIndicator } from './download.js';
 import { setupCityAutocomplete, showOnboardingFlow } from './onboarding.js';
 import { state } from './state.js';
-import { initAppDashboard } from './weather.js';
+import { clearWeatherCache, geocodeCity, initAppDashboard, initWeatherAndClock, refreshGreeting } from './weather.js';
+import { escapeHtml as escapeHtmlShared } from './html.js';
 
 // Settings Variables and State
 
@@ -95,6 +96,10 @@ export function showSaveIndicator(message = 'Settings saved!', isSuccess = true)
   }, 2500);
 }
 
+// True while the weather city box holds text the user is still typing (input events only,
+// no change event or picked suggestion yet).
+let cityInputUncommitted = false;
+
 export function collectCurrentSettingsFromUI() {
   const settingsCityInputVal = document.getElementById('settings-weather-city')?.value.trim() || '';
   
@@ -102,13 +107,22 @@ export function collectCurrentSettingsFromUI() {
   let lon = state.currentSettings.weatherLon ?? null;
   let city = state.currentSettings.weatherCity || '';
   
-  if (settingsCityInputVal) {
-    if (state.settingsCityData && state.settingsCityData.name === settingsCityInputVal) {
-      city = state.settingsCityData.name;
-      lat = state.settingsCityData.lat;
-      lon = state.settingsCityData.lon;
+  if (cityInputUncommitted) {
+    // Still being typed: autosaves fired by keystrokes keep the saved location until the
+    // text is committed (change/Enter/blur or a picked suggestion), so half-typed names
+    // are never geocoded or saved.
+  } else if (settingsCityInputVal) {
+    const picked = state.settingsCityData;
+    if (picked && (picked.name === settingsCityInputVal || picked.query === settingsCityInputVal)) {
+      city = picked.name;
+      lat = picked.lat;
+      lon = picked.lon;
     } else {
+      // Typed by hand: never keep the previous city's coordinates. performSaveSettings
+      // resolves the name via geocoding; until then the name is saved without coordinates.
       city = settingsCityInputVal;
+      lat = null;
+      lon = null;
     }
   } else {
     city = '';
@@ -147,16 +161,78 @@ export function collectCurrentSettingsFromUI() {
   };
 }
 
+// A city typed without picking a suggestion has no coordinates yet: look up the top
+// geocoding match so the saved name and lat/lon always describe the same place.
+async function resolveTypedCity(settings) {
+  if (!settings.weatherCity || (settings.weatherLat != null && settings.weatherLon != null)) return;
+
+  const query = settings.weatherCity;
+  const resolved = await geocodeCity(query);
+
+  // The box changed while the lookup ran (a suggestion was picked or the text was edited):
+  // this answer is for stale text. Keep the saved location; the save queued by that change
+  // stores the new one.
+  const cityInput = document.getElementById('settings-weather-city');
+  if (cityInput && cityInput.value.trim() !== query) {
+    settings.weatherCity = state.currentSettings.weatherCity || '';
+    settings.weatherLat = state.currentSettings.weatherLat ?? null;
+    settings.weatherLon = state.currentSettings.weatherLon ?? null;
+    return;
+  }
+
+  if (!resolved) return; // saved name-only; the weather widget resolves (or reports) it by name
+
+  settings.weatherCity = resolved.name;
+  settings.weatherLat = resolved.lat;
+  settings.weatherLon = resolved.lon;
+  state.settingsCityData = { ...resolved, query };
+
+  if (cityInput && document.activeElement !== cityInput) {
+    cityInput.value = resolved.name;
+  }
+}
+
+// Weather and greeting read state.currentSettings; re-render them when a saved value they use changed.
+function applyDashboardSettingChanges(prev, next) {
+  const weatherChanged =
+    (prev.weatherCity || '') !== (next.weatherCity || '') ||
+    (prev.weatherLat ?? null) !== (next.weatherLat ?? null) ||
+    (prev.weatherLon ?? null) !== (next.weatherLon ?? null) ||
+    (prev.tempFormat || 'fahrenheit') !== (next.tempFormat || 'fahrenheit');
+  const nameChanged = (prev.userName || '') !== (next.userName || '');
+
+  if (weatherChanged) {
+    clearWeatherCache();
+    initWeatherAndClock();
+  }
+  if (nameChanged) {
+    refreshGreeting().catch(err => console.error('Greeting refresh failed:', err));
+  }
+}
+
+// A save requested while another is in flight is remembered and run once afterwards
+// (re-reading the UI then), so edits made mid-save are never dropped.
+let saveQueued = false;
+let queuedManual = false;
+
 export async function performSaveSettings(isManual = false) {
-  if (state.isAutoSaving || state.isInitializingSettingsUI) return;
+  if (state.isInitializingSettingsUI) return;
+  if (state.isAutoSaving) {
+    saveQueued = true;
+    queuedManual = queuedManual || isManual;
+    return;
+  }
   state.isAutoSaving = true;
 
   try {
     const newSettings = collectCurrentSettingsFromUI();
+    await resolveTypedCity(newSettings);
+    const prevSettings = state.currentSettings;
     const success = await window.electronAPI.saveSettings(newSettings);
 
     if (success) {
       state.currentSettings = { ...state.currentSettings, ...newSettings };
+      applyDashboardSettingChanges(prevSettings, state.currentSettings);
 
       // Instantly update copywriting descriptions
       updateTabDescriptions(state.currentSettings);
@@ -181,6 +257,13 @@ export async function performSaveSettings(isManual = false) {
     showSaveIndicator('Save error: ' + (err.message || 'Unknown'), false);
   } finally {
     state.isAutoSaving = false;
+  }
+
+  if (saveQueued) {
+    const rerunManual = queuedManual;
+    saveQueued = false;
+    queuedManual = false;
+    await performSaveSettings(rerunManual);
   }
 }
 
@@ -233,6 +316,13 @@ export function triggerAutoSave(debounceMs = 0) {
   }
 });
 
+// Registered before the autosave listeners below so the flag is already right when they run.
+const cityCommitInput = document.getElementById('settings-weather-city');
+if (cityCommitInput) {
+  cityCommitInput.addEventListener('input', () => { cityInputUncommitted = true; });
+  cityCommitInput.addEventListener('change', () => { cityInputUncommitted = false; });
+}
+
 [
   'settings-user-name',
   'settings-weather-city',
@@ -270,12 +360,9 @@ document.getElementById('btn-save-settings')?.addEventListener('click', async ()
   await performSaveSettings(true);
 });
 
+// Kept as a named export for existing importers; the shared helper also escapes single quotes.
 export function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return escapeHtmlShared(text);
 }
 
 export function renderCookiesTestStatus(result, isLoading = false) {
@@ -1142,11 +1229,11 @@ export function updateTabDescriptions(settings) {
   const audioDescEl = document.getElementById('audio-card-desc');
   if (audioDescEl) {
     if (audioFormat === 'mp3') {
-      audioDescEl.textContent = 'Extracts high-quality audio as MP3 (320kbps Level 0 VBR).';
+      audioDescEl.textContent = 'Extracts high-quality audio as MP3 (LAME V0, the highest-quality variable bitrate).';
     } else if (audioFormat === 'm4a') {
       audioDescEl.textContent = 'Extracts highly efficient web-standard audio as M4A (AAC codec).';
     } else if (audioFormat === 'wav') {
-      audioDescEl.textContent = 'Extracts uncompressed studio-grade lossless audio as WAV (24-bit PCM).';
+      audioDescEl.textContent = 'Extracts uncompressed studio-grade lossless audio as WAV (16-bit PCM).';
     } else if (audioFormat === 'flac') {
       audioDescEl.textContent = 'Extracts high-fidelity compressed lossless audio as FLAC.';
     }
@@ -1273,6 +1360,9 @@ const settingsCityResults = document.getElementById('settings-city-results');
 if (settingsCityInput && settingsCityResults) {
   setupCityAutocomplete(settingsCityInput, settingsCityResults, (data) => {
     state.settingsCityData = data;
+    // Picking a suggestion sets the box from script (no input/change event), so commit and save it here.
+    cityInputUncommitted = false;
+    triggerAutoSave(0);
   });
 }
 

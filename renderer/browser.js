@@ -1,6 +1,7 @@
 import { appendLog, startDownloadIndicator } from './download.js';
 import { state } from './state.js';
 import { secondsToHHMMSS } from './time.js';
+import { escapeHtml, safeHttpUrl } from './html.js';
 
 // ==========================================
 // Browser Tab & Media Sniffer Logic
@@ -116,6 +117,8 @@ if (btnSnifferClear) {
   btnSnifferClear.addEventListener('click', () => {
     detectedMediaList = [];
     updateSnifferUI();
+    // Also reset the main-process dedupe cache, otherwise already-seen media would never be reported again
+    window.electronAPI.browserViewControl('clear-detected-media');
   });
 }
 
@@ -126,6 +129,41 @@ export function getUrlDomain(urlStr) {
   } catch (e) {
     return '';
   }
+}
+
+const SNIFFER_BADGE_STYLE = 'padding: 1px 4px; font-size: 0.6rem;';
+const SNIFFER_PRIMARY_BADGE_STYLE = 'padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); border: 1px solid hsl(var(--primary) / 0.3); font-weight: 600;';
+const SNIFFER_SECONDARY_BADGE_STYLE = 'padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;';
+
+// Builds the badge row for a sniffed media item. Every interpolated value comes from the guest page
+// or the probe and is escaped before it reaches innerHTML.
+function buildSnifferBadgesHtml(media) {
+  const isAudio = Boolean(media.contentType && media.contentType.toLowerCase().startsWith('audio/'));
+  const isHls = String(media.url || '').includes('.m3u8');
+  const badgeText = isHls ? 'HLS Stream' : (isAudio ? 'Audio' : 'Video');
+
+  let resolutionText = '';
+  let durationText = '';
+  let codecText = '';
+
+  if (media.width && media.height) {
+    resolutionText = `<span class="badge" style="${SNIFFER_PRIMARY_BADGE_STYLE}">${escapeHtml(`${media.width}x${media.height}`)}</span>`;
+  }
+  if (media.duration) {
+    durationText = `<span class="badge" style="${SNIFFER_SECONDARY_BADGE_STYLE}">${escapeHtml(secondsToHHMMSS(media.duration))}</span>`;
+  } else if (isHls) {
+    durationText = `<span class="badge" style="${SNIFFER_SECONDARY_BADGE_STYLE}">Live / Adaptive</span>`;
+  }
+  if (media.vcodec && media.vcodec !== 'Unknown') {
+    codecText = `<span class="badge" style="${SNIFFER_SECONDARY_BADGE_STYLE}">${escapeHtml(media.vcodec)}</span>`;
+  }
+
+  return `
+          <span class="badge" style="${SNIFFER_BADGE_STYLE}">${escapeHtml(badgeText)}</span>
+          ${resolutionText}
+          ${durationText}
+          ${codecText}
+        `;
 }
 
 export function updateSnifferUI() {
@@ -172,37 +210,17 @@ export function updateSnifferUI() {
       }
     } catch (e) {}
 
-    const isHls = media.url.includes('.m3u8');
-    const badgeText = isHls ? 'HLS Stream' : (isAudio ? 'Audio' : 'Video');
-    
-    // Probed details formatting
-    let resolutionText = '';
-    let durationText = '';
-    let codecText = '';
-    
-    if (media.width && media.height) {
-      resolutionText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); border: 1px solid hsl(var(--primary) / 0.3); font-weight: 600;">${media.width}x${media.height}</span>`;
-    }
-    if (media.duration) {
-      durationText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">${secondsToHHMMSS(media.duration)}</span>`;
-    } else if (isHls) {
-      durationText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">Live / Adaptive</span>`;
-    }
-    if (media.vcodec && media.vcodec !== 'Unknown') {
-      codecText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">${media.vcodec}</span>`;
-    }
-    
+    const safeTitle = escapeHtml(displayTitle);
+    const safeUrl = escapeHtml(media.url);
+
     item.innerHTML = `
       ${iconSvg}
       <div class="sniffer-media-info" style="flex: 1; min-width: 0;">
-        <span class="sniffer-media-title" title="${displayTitle}" style="font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem;">${displayTitle}</span>
+        <span class="sniffer-media-title" title="${safeTitle}" style="font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem;">${safeTitle}</span>
         <div class="sniffer-media-meta" style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; margin-bottom: 4px;">
-          <span class="badge" style="padding: 1px 4px; font-size: 0.6rem;">${badgeText}</span>
-          ${resolutionText}
-          ${durationText}
-          ${codecText}
+${buildSnifferBadgesHtml(media)}
         </div>
-        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; display: block; font-size: 0.65rem; color: hsl(var(--muted-foreground));" title="${media.url}">${media.url}</span>
+        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; display: block; font-size: 0.65rem; color: hsl(var(--muted-foreground));" title="${safeUrl}">${safeUrl}</span>
       </div>
       <div class="sniffer-media-actions" style="display: flex; gap: 4px; align-items: center;">
         <button class="sniffer-action-btn btn-preview" title="Preview Stream" style="display: flex; align-items: center; justify-content: center; width: 1.65rem; height: 1.65rem; padding: 0; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); border-radius: 4px; color: hsl(var(--foreground)); cursor: pointer;">
@@ -285,6 +303,8 @@ export function updateSnifferUI() {
 }
 
 window.electronAPI.onMediaDetected((media) => {
+  // Only ever surface plain http(s) media URLs
+  if (!media || !safeHttpUrl(media.url)) return;
   const exists = detectedMediaList.some(item => item.url === media.url);
   if (!exists) {
     detectedMediaList.unshift(media);
@@ -308,30 +328,7 @@ window.electronAPI.onMediaProbed((probedData) => {
     if (existingItem) {
       const metaContainer = existingItem.querySelector('.sniffer-media-meta');
       if (metaContainer) {
-        const isHls = probedData.url.includes('.m3u8');
-        const isAudio = detectedMediaList[index].contentType && detectedMediaList[index].contentType.toLowerCase().startsWith('audio/');
-        const badgeText = isHls ? 'HLS Stream' : (isAudio ? 'Audio' : 'Video');
-        let resolutionText = '';
-        let durationText = '';
-        let codecText = '';
-        
-        if (probedData.width && probedData.height) {
-          resolutionText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); border: 1px solid hsl(var(--primary) / 0.3); font-weight: 600;">${probedData.width}x${probedData.height}</span>`;
-        }
-        if (probedData.duration) {
-          durationText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">${secondsToHHMMSS(probedData.duration)}</span>`;
-        } else if (isHls) {
-          durationText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">Live / Adaptive</span>`;
-        }
-        if (probedData.vcodec && probedData.vcodec !== 'Unknown') {
-          codecText = `<span class="badge" style="padding: 1px 4px; font-size: 0.6rem; background-color: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-weight: 600;">${probedData.vcodec}</span>`;
-        }
-        metaContainer.innerHTML = `
-          <span class="badge" style="padding: 1px 4px; font-size: 0.6rem;">${badgeText}</span>
-          ${resolutionText}
-          ${durationText}
-          ${codecText}
-        `;
+        metaContainer.innerHTML = buildSnifferBadgesHtml(detectedMediaList[index]);
         return;
       }
     }
@@ -343,7 +340,7 @@ window.electronAPI.onMediaProbed((probedData) => {
 const btnBrowserClear = document.getElementById('btn-browser-clear');
 if (btnBrowserClear) {
   btnBrowserClear.addEventListener('click', async () => {
-    if (confirm('Are you sure you want to clear all browser cache, cookies, and session storage?')) {
+    if (confirm("Clear the in-app browser's cache, cookies, and site data? You will be signed out of sites you logged in to here, and yt-dlp will lose those cookies. The app's own settings and history are not affected.")) {
       const success = await window.electronAPI.browserClearData();
       if (success) {
         alert('Browser data cleared successfully!');
@@ -357,7 +354,9 @@ if (btnBrowserClear) {
 
 // Media Preview Modal Player Logic
 let activeHls = null;
-const PREVIEW_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const HLS_JS_VERSION = '1.7.4';
+const HLS_JS_URL = `https://cdn.jsdelivr.net/npm/hls.js@${HLS_JS_VERSION}/dist/hls.min.js`;
+const HLS_JS_INTEGRITY = 'sha384-p9vgU/7IYJWd3I4STrtqxqR/2cAQlhIX7D/HrTnIMEjjcUox165b7se7sxmm3zDg';
 
 export function buildMediaPreviewSrc(url, pageUrl) {
   const params = new URLSearchParams();
@@ -375,6 +374,55 @@ export function restoreBrowserViewIfActive() {
   }
 }
 
+// hls.js loader that routes every manifest / playlist / segment / key request through media-preview://,
+// so the main process fetches them with the in-app browser session (cookies) and the page's Referer.
+// hls.js resolves relative playlist URIs against the response URL, so the real upstream URL is put back
+// on the context and response before hls.js sees them.
+export function createMediaPreviewHlsLoader(Hls, pageUrl) {
+  const BaseLoader = Hls.DefaultConfig.loader;
+  return class MediaPreviewLoader extends BaseLoader {
+    load(context, config, callbacks) {
+      const realUrl = context.url;
+      if (!/^https?:\/\//i.test(realUrl || '')) {
+        super.load(context, config, callbacks);
+        return;
+      }
+      context.url = buildMediaPreviewSrc(realUrl, pageUrl);
+      const restore = () => { context.url = realUrl; };
+      super.load(context, config, {
+        onSuccess: (response, stats, ctxt, networkDetails) => {
+          restore();
+          let upstreamUrl = realUrl;
+          try {
+            const finalUrl = networkDetails && networkDetails.getResponseHeader
+              ? networkDetails.getResponseHeader('X-Upstream-Url')
+              : '';
+            if (safeHttpUrl(finalUrl)) upstreamUrl = finalUrl;
+          } catch (e) {}
+          callbacks.onSuccess({ ...response, url: upstreamUrl }, stats, ctxt, networkDetails);
+        },
+        onError: (error, ctxt, networkDetails, stats) => {
+          restore();
+          callbacks.onError(error, ctxt, networkDetails, stats);
+        },
+        onTimeout: (stats, ctxt, networkDetails) => {
+          restore();
+          callbacks.onTimeout(stats, ctxt, networkDetails);
+        },
+        onAbort: callbacks.onAbort
+          ? (stats, ctxt, networkDetails) => {
+            restore();
+            callbacks.onAbort(stats, ctxt, networkDetails);
+          }
+          : undefined,
+        onProgress: callbacks.onProgress
+          ? (stats, ctxt, data, networkDetails) => callbacks.onProgress(stats, ctxt, data, networkDetails)
+          : undefined
+      });
+    }
+  };
+}
+
 export function loadHlsJs() {
   return new Promise((resolve, reject) => {
     if (window.Hls) {
@@ -382,7 +430,9 @@ export function loadHlsJs() {
       return;
     }
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest';
+    script.src = HLS_JS_URL;
+    script.integrity = HLS_JS_INTEGRITY;
+    script.crossOrigin = 'anonymous';
     script.onload = () => resolve();
     script.onerror = () => reject(new Error('Failed to load hls.js from CDN'));
     document.head.appendChild(script);
@@ -433,10 +483,7 @@ export async function playPreview(url, title, mediaMeta) {
         throw new Error('HLS is not supported in this browser environment');
       }
       activeHls = new window.Hls({
-        xhrSetup: (xhr) => {
-          xhr.setRequestHeader('User-Agent', PREVIEW_USER_AGENT);
-          if (pageUrl) xhr.setRequestHeader('Referer', pageUrl);
-        }
+        loader: createMediaPreviewHlsLoader(window.Hls, pageUrl)
       });
       activeHls.loadSource(url);
       activeHls.attachMedia(video);

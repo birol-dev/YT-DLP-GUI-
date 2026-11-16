@@ -144,6 +144,23 @@ describe('Dependency Auto-Updates & Real-time Notification System', () => {
     assert.strictEqual(compareVersions('7.1', '7.1.0'), 0);
   });
 
+  test('parseVersionParts accepts n/v prefixes and rejects nightly builds so they are never "older"', () => {
+    const normalized = mainCode.replace(/\r\n/g, '\n');
+    const helpersMatch = normalized.match(/function parseVersionParts\(v\) \{[\s\S]*?\n\}\n+function compareVersions\(v1, v2\) \{[\s\S]*?\n\}\n+(?:\/\/[^\n]*\n)*function isComparableVersion\(v\) \{[\s\S]*?\n\}/);
+    assert.ok(helpersMatch, 'parseVersionParts/compareVersions/isComparableVersion not found in deps.js source');
+    const { parseVersionParts, isComparableVersion } = new Function(`${helpersMatch[0]}; return { parseVersionParts, isComparableVersion };`)();
+
+    assert.deepStrictEqual(parseVersionParts('7.1'), [7, 1]);
+    assert.deepStrictEqual(parseVersionParts('n7.1'), [7, 1]);
+    assert.deepStrictEqual(parseVersionParts('v6.1.1'), [6, 1, 1]);
+    assert.deepStrictEqual(parseVersionParts('6.1-full_build'), [6, 1]);
+    assert.deepStrictEqual(parseVersionParts('N-118193-gabcdef'), []);
+    assert.deepStrictEqual(parseVersionParts(''), []);
+    assert.strictEqual(isComparableVersion('N-118193-gabcdef'), false);
+    assert.strictEqual(isComparableVersion('n7.1'), true);
+    assert.match(normalized, /isComparableVersion\(current\.version\)/, 'checkFfmpegUpdate must keep builds with an unparseable version');
+  });
+
   test('formatBadgeVersion cleanly extracts compact badge version strings', () => {
     function formatBadgeVersion(raw) {
       if (!raw) return 'Installed';
