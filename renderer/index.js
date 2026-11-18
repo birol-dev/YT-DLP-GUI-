@@ -13,6 +13,10 @@ import './weather.js';
 import './scan.js';
 import './browser.js';
 import './gif.js';
+import './compressor.js';
+import './compress-queue.js';
+import './compress-compare.js';
+import './compress-card.js';
 
 renderRecents();
 initSettingsUI();

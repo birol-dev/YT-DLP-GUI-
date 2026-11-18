@@ -17,6 +17,7 @@ require('./src/main/twitch');
 require('./src/main/divider');
 require('./src/main/scan');
 require('./src/main/gif');
+require('./src/main/compressor');
 require('./src/main/browser-view');
 require('./src/main/onboarding');
 

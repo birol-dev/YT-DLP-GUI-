@@ -1400,7 +1400,7 @@ if (musicFinderScanIntervalInput && musicFinderScanIntervalLabel) {
   musicFinderScanIntervalInput.addEventListener('change', async (e) => {
     const val = parseInt(e.target.value, 10);
     state.currentSettings.acoustidScanInterval = val;
-    await window.electronAPI.saveSettings(state.currentSettings);
+    await window.electronAPI.saveSettings({ acoustidScanInterval: val });
   });
 }
 
@@ -1448,6 +1448,6 @@ if (mfServiceSelectorInput) {
     
     // Persist immediately on toggle
     state.currentSettings.musicFinderService = val;
-    await window.electronAPI.saveSettings(state.currentSettings);
+    await window.electronAPI.saveSettings({ musicFinderService: val });
   });
 }

@@ -9,7 +9,7 @@ export function updateTerminalVisibility(tabId) {
   const progressEl = document.getElementById('download-progress-container');
   
   if (terminalEl) {
-    if (tabId === 'settings-tab' || tabId === 'divider-tab' || tabId === 'musicfinder-tab' || tabId === 'browser-tab' || tabId === 'gif-tab') {
+    if (tabId === 'settings-tab' || tabId === 'divider-tab' || tabId === 'musicfinder-tab' || tabId === 'browser-tab' || tabId === 'gif-tab' || tabId === 'compress-tab') {
       terminalEl.style.display = 'none';
       if (progressEl) progressEl.style.display = 'none';
     } else {
@@ -42,6 +42,9 @@ navBtns.forEach(btn => {
     if (twitchPlayer && typeof twitchPlayer.pause === 'function') {
       twitchPlayer.pause();
     }
+    document.querySelectorAll('#compress-tab video').forEach((v) => {
+      if (typeof v.pause === 'function') v.pause();
+    });
     const gifPlayer = document.getElementById('gif-video-player');
     if (gifPlayer && typeof gifPlayer.pause === 'function') {
       gifPlayer.pause();

@@ -12,7 +12,7 @@ const activeYtDlpProcesses = new Set();
 
 // Task groups a registered process can belong to. They let a user cancel stop only the work the
 // shared Cancel button represents, instead of every child process in the app.
-const PROCESS_GROUPS = ['download', 'divide', 'scan', 'gif', 'probe', 'other'];
+const PROCESS_GROUPS = ['download', 'divide', 'scan', 'gif', 'compress', 'probe', 'other'];
 // Non-yt-dlp helpers (ffmpeg/fpcalc) in these groups belong to the same task as the yt-dlp process
 // of that group, so a yt-dlp-wide stop (channel switch / force update) also stops them.
 const TASK_LINKED_GROUPS = new Set(['scan', 'divide', 'gif']);
