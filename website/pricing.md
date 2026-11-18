@@ -1,8 +1,8 @@
 # Pricing: YT-DLP GUI
 
 - HTML page: https://ytdlpgui.birol.tech/pricing.html
-- Last updated: 2026-11-04
-- Current version: 1.10.0
+- Last updated: 2026-11-18
+- Current version: 1.11.0
 
 ## Summary
 
