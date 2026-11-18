@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-18
+
 ### Added
 - Add a **Compress** tab for shrinking videos, HandBrake-style. Drop or browse files (or batch them), then pick one of 12 presets (Discord 10 MB / Nitro, WhatsApp, Email, Telegram, X, Reels, YouTube, Half size, HEVC archive, AV1 smallest, Convert to MP4) or tune it yourself:
   - **Size or quality**: hit a target size (MB or % of the original, always staying under it) or pick a quality level, or just change the container without re-encoding.
