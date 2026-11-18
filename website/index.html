@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script>document.documentElement.classList.add('js');</script>
   <title>YT-DLP GUI: Free YouTube Downloader for Video Editors</title>
-  <meta name="description" content="Paste a link, get a Premiere-ready MP4. Free, open-source desktop app for YouTube, Instagram and Twitch VODs, built on yt-dlp. No command line, no ads.">
+  <meta name="description" content="Paste a link, get a Premiere-ready MP4. Free, open-source desktop app for YouTube, Instagram and Twitch VODs, built on yt-dlp, with a built-in video compressor. No command line, no ads.">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <meta name="author" content="Birol Softa">
   <meta name="application-name" content="YT-DLP GUI">
@@ -138,10 +138,22 @@
     <!-- Features -->
     <section class="section" id="features" data-tone="charcoal" aria-labelledby="features-title">
       <div class="wrap">
-        <div class="label reveal"><span class="label-num">01</span><span>Features</span><span class="label-rule"></span><span>10 tools, one app</span></div>
+        <div class="label reveal"><span class="label-num">01</span><span>Features</span><span class="label-rule"></span><span>11 tools, one app</span></div>
         <h2 id="features-title" class="display-l section-title reveal">Everything an editor <span class="fade">reaches for.</span></h2>
 
         <div class="bento">
+          <article class="card card-wide reveal">
+            <div class="card-copy">
+              <h3 class="display-s">Shrink it to fit. <span class="tag">New</span></h3>
+              <p>Too big for Discord, WhatsApp or email? Pick a preset and the Compress tab lands under the limit, using your GPU when it can.</p>
+              <p>Trim, crop and resize on the way, preview a 10-second sample side by side, or let it compress every download automatically.</p>
+            </div>
+            <picture class="card-media">
+              <source srcset="assets/media/compress-800.webp 800w, assets/media/compress-1480.webp 1480w" sizes="(max-width: 760px) 92vw, 640px" type="image/webp">
+              <img src="assets/media/compress-1480.webp" width="1480" height="879" loading="lazy" decoding="async" alt="Compress tab with a 112 MB video set to the Discord 10 MB preset, showing presets, target size options and an estimate of 9.5 MB">
+            </picture>
+          </article>
+
           <article class="card reveal">
             <div class="card-copy">
               <h3 class="display-s">Premiere-ready by default.</h3>
@@ -166,7 +178,7 @@
 
           <article class="card reveal">
             <div class="card-copy">
-              <h3 class="display-s">Twitch VODs, by chapter. <span class="tag">New</span></h3>
+              <h3 class="display-s">Twitch VODs, by chapter.</h3>
               <p>Pick a resolution, jump to a chapter, keep only the hour you want.</p>
             </div>
             <picture class="card-media">
@@ -265,6 +277,10 @@
             <p>Playlists, yes: paste the playlist link and it downloads every video. For members-only or age-restricted videos your account can watch, sign in through the Browser tab or let the app use your browser’s cookies in Settings.</p>
           </details>
           <details>
+            <summary>Can it make a video small enough for Discord or email?<svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+            <p>Yes. Open the Compress tab, or press Compress on a finished download, and pick a preset like Discord 10 MB, WhatsApp or Email. It aims just under the limit and saves the result next to the original, which stays untouched.</p>
+          </details>
+          <details>
             <summary>Does it work with other sites?<svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></summary>
             <p>Instagram and Twitch have their own tabs, and the Video tab hands any link to yt-dlp, which supports many more sites. If a page still won’t work, open it in the Browser tab and save the video it finds.</p>
           </details>
@@ -294,7 +310,7 @@
             Star on GitHub
           </a>
         </div>
-        <p class="meta">Version 1.10.0 · <a href="https://github.com/birol-dev/YT-DLP-GUI-/blob/main/CHANGELOG.md">What’s new</a></p>
+        <p class="meta">Version 1.11.0 · <a href="https://github.com/birol-dev/YT-DLP-GUI-/blob/main/CHANGELOG.md">What’s new</a></p>
       </div>
     </section>
 
@@ -342,7 +358,7 @@
         "isPartOf": { "@id": "https://ytdlpgui.birol.tech/#website" },
         "about": { "@id": "https://ytdlpgui.birol.tech/#software" },
         "datePublished": "2026-05-19",
-        "dateModified": "2026-11-04",
+        "dateModified": "2026-11-18",
         "inLanguage": "en-US"
       },
       {
@@ -362,11 +378,11 @@
         "applicationCategory": "MultimediaApplication",
         "applicationSubCategory": "Video Downloader",
         "operatingSystem": "Windows 10+, macOS, Linux",
-        "softwareVersion": "1.10.0",
+        "softwareVersion": "1.11.0",
         "datePublished": "2026-05-19",
-        "dateModified": "2026-10-13",
+        "dateModified": "2026-11-18",
         "releaseNotes": "https://github.com/birol-dev/YT-DLP-GUI-/blob/main/CHANGELOG.md",
-        "description": "Free, MIT-licensed desktop app that wraps yt-dlp and FFmpeg: Premiere-ready H.264 MP4 downloads, audio, subtitles, Instagram, Twitch VODs, a video clipper, divider, GIF converter and Music Finder.",
+        "description": "Free, MIT-licensed desktop app that wraps yt-dlp and FFmpeg: Premiere-ready H.264 MP4 downloads, audio, subtitles, Instagram, Twitch VODs, a video clipper, divider, GIF converter, video compressor and Music Finder.",
         "downloadUrl": "https://github.com/birol-dev/YT-DLP-GUI-/releases/latest",
         "license": "https://opensource.org/licenses/MIT",
         "isAccessibleForFree": true,
@@ -381,6 +397,7 @@
           "Video clipper with in and out points",
           "Video divider: split, equal chunks, spatial crop",
           "Video to GIF converter",
+          "Video compressor with size-target presets for Discord, WhatsApp and email, GPU encoding and side-by-side preview",
           "Music Finder via AcoustID or ACRCloud",
           "In-app browser with cookie passthrough",
           "Drag finished files into Premiere Pro, After Effects or DaVinci Resolve",
@@ -392,6 +409,7 @@
         "@id": "https://ytdlpgui.birol.tech/#faq",
         "mainEntity": [
           { "@type": "Question", "name": "Is YT-DLP GUI really free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. It is MIT licensed for personal and commercial work, with no paid tier, no ads and no trial." } },
+          { "@type": "Question", "name": "Can YT-DLP GUI make a video small enough for Discord or email?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Open the Compress tab, or press Compress on a finished download, and pick a preset like Discord 10 MB, WhatsApp or Email. It aims just under the limit and saves the result next to the original, which stays untouched." } },
           { "@type": "Question", "name": "Is YT-DLP GUI safe?", "acceptedAnswer": { "@type": "Answer", "text": "It is open source, with no ads, no account and no telemetry. Files go straight from the site to your computer. Optional extras like weather and Music Finder only call their own services when you turn them on." } },
           { "@type": "Question", "name": "Will YT-DLP GUI files open in Premiere?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Video defaults to H.264 and AAC in an MP4, which Premiere Pro, After Effects and DaVinci Resolve open without converting. Files can be dragged from the app onto the timeline." } },
           { "@type": "Question", "name": "What if YouTube breaks YT-DLP GUI?", "acceptedAnswer": { "@type": "Answer", "text": "yt-dlp updates itself every time the app starts. If a download still fails, use Force Update in Settings or switch to the nightly yt-dlp channel." } },

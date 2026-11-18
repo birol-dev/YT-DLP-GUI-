@@ -22,6 +22,7 @@ YT-DLP GUI is an MIT-licensed Electron app for Windows (installer), macOS and Li
 - Twitch VODs: past broadcasts, highlights and clips; resolution picker, chapter chips, in/out trimming, audio-only option
 - Video Divider: fast split, frame-accurate split, equal chunks, spatial crop
 - Video to GIF: trim, frame rate and width controls, local FFmpeg export
+- Compress: shrink a video to fit a size limit or quality level, with presets for Discord (10 MB), WhatsApp, email, Telegram, X, Reels and YouTube; H.264, HEVC, AV1 or VP9 with automatic GPU encoding (NVENC, Quick Sync, AMF); trim, crop, resize, speed and audio options; 10-second side-by-side preview; a job queue; auto-compress after download or a watched folder. Output is saved next to the original
 - Music Finder: identify songs in a video via AcoustID or ACRCloud (free API key required)
 - Browser: in-app browser with media detection and cookie passthrough, so members-only or age-restricted videos the user can watch can be saved
 - Recents: history with thumbnails; drag finished files into editing apps
@@ -43,4 +44,4 @@ Free. MIT License. No subscription. See https://ytdlpgui.birol.tech/pricing.md
 
 ## Version
 
-1.10.0 (released October 13, 2026). This file was updated November 4, 2026.
+1.11.0 (released November 18, 2026). This file was updated November 18, 2026.

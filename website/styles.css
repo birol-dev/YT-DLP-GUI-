@@ -677,6 +677,27 @@ code {
   font-size: 15px;
 }
 
+/* A full-row card: copy on the left, the screenshot rising out of the bottom-right corner. */
+.card-wide {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: clamp(24px, 4vw, 56px);
+}
+
+.card-wide .card-copy {
+  flex: 0 1 34ch;
+  align-self: center;
+  padding-bottom: clamp(24px, 3vw, 40px);
+}
+
+.card-wide .card-media {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 640px;
+  margin-left: auto;
+}
+
 .tag {
   display: inline-block;
   vertical-align: middle;
@@ -1143,6 +1164,20 @@ code {
   .bento,
   .steps {
     grid-template-columns: 1fr;
+  }
+
+  .card-wide {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .card-wide .card-copy {
+    flex: none;
+    padding-bottom: 0;
+  }
+
+  .card-wide .card-media {
+    max-width: none;
   }
 
   .reasons {
