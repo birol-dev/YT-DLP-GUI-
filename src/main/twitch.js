@@ -207,8 +207,9 @@ ipcMain.on('download-twitch-vod', async (event, payload) => {
       if (ctx.settings.autoOpenFolder && finalPath) {
         ctx.openFolderOrRevealItem(finalPath);
       }
-    } else if (code === null) {
-      // Killed (user cancelled / channel switch) — the registry already notified the renderer
+    } else if (code === null || ctx.wasProcessStopped(ytProcess)) {
+      // Killed on purpose (user cancelled / channel switch; Windows taskkill can report a non-null code) — the registry already notified the renderer
+      ctx.safeSend(win, 'download-status', `${label} Download cancelled.`);
     } else {
       const hasYtDlpError = /ERROR/i.test(stderrTail);
       const reason = hasYtDlpError ? describeTwitchError(stderrTail) : `Download failed with code ${code}`;

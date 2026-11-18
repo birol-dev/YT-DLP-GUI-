@@ -8,15 +8,32 @@ const os = require('os');
 const ctx = require('./ctx');
 ctx.saveSettingsInternal = ctx.saveSettingsInternal || (() => {});
 
+// ffmpeg, ffprobe and fpcalc only understand the single-dash `-version` flag
+// (`fpcalc --version` exits with code 2); yt-dlp and most other CLIs use `--version`.
+function getVersionFlag(command) {
+  return /^(ffmpeg|ffprobe|fpcalc)$/i.test(String(command || '')) ? '-version' : '--version';
+}
+
 function isCommandInPath(command) {
   return new Promise((resolve) => {
-    const arg = command === 'ffmpeg' ? '-version' : '--version';
-    const proc = spawn(command, [arg]);
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    let proc;
+    try {
+      proc = spawn(command, [getVersionFlag(command)], { windowsHide: true });
+    } catch (e) {
+      finish(false);
+      return;
+    }
     proc.on('error', () => {
-      resolve(false);
+      finish(false);
     });
     proc.on('close', (code) => {
-      resolve(code === 0);
+      finish(code === 0);
     });
   });
 }
@@ -544,7 +561,9 @@ async function updateFfmpeg(win, { onProgress, silent = false } = {}) {
 
 function parseVersionParts(v) {
   if (!v) return [];
-  const clean = String(v).trim().replace(/^v/i, '');
+  // Accept "v6.1.1" and git-tag style "n7.1"; nightly builds such as "N-118193-g..."
+  // have no release number and stay unparseable ([]).
+  const clean = String(v).trim().replace(/^[nv]/i, '');
   const match = clean.match(/^(\d+(?:\.\d+)*)/);
   if (!match) return [];
   return match[1].split('.').map(n => parseInt(n, 10));
@@ -561,6 +580,13 @@ function compareVersions(v1, v2) {
     if (num1 < num2) return -1;
   }
   return 0;
+}
+
+// True when the version string carries a release number we can compare against.
+// Nightly/git builds (e.g. "N-118193-gabcdef") do not, so they must never be
+// treated as "older" than a release.
+function isComparableVersion(v) {
+  return parseVersionParts(v).length > 0;
 }
 
 async function getSystemFfmpegVersion() {
@@ -606,7 +632,12 @@ async function checkFfmpegUpdate(win, { force = false, silent = false } = {}) {
   if (current.local && fs.existsSync(ctx.localFfmpeg)) {
     try {
       const sysVersion = await getSystemFfmpegVersion();
-      if (sysVersion && compareVersions(sysVersion, current.version) > 0) {
+      if (
+        sysVersion &&
+        isComparableVersion(sysVersion) &&
+        isComparableVersion(current.version) &&
+        compareVersions(sysVersion, current.version) > 0
+      ) {
         fs.unlinkSync(ctx.localFfmpeg);
         const reverted = await getFfmpegVersionInfo();
         const res = {
@@ -645,6 +676,29 @@ async function checkFfmpegUpdate(win, { force = false, silent = false } = {}) {
 
   // If FFmpeg is already installed and available:
   if (current.available) {
+    // Installed version cannot be parsed (e.g. an "N-118193-g..." nightly build):
+    // we cannot tell whether it is older, so keep it instead of risking a downgrade.
+    if (!isComparableVersion(current.version)) {
+      const res = {
+        item: 'ffmpeg',
+        status: 'up-to-date',
+        previousVersion,
+        version: current.version,
+        local: current.local,
+        message: `Installed FFmpeg (${current.version}) is a development build with no release number. Keeping current build.`
+      };
+      if (!silent && win && !win.isDestroyed() && force) {
+        win.webContents.send('dependency-update-status', {
+          phase: 'completed',
+          timestamp: new Date().toISOString(),
+          updatedCount: 0,
+          hasError: false,
+          ffmpeg: res,
+          message: res.message
+        });
+      }
+      return res;
+    }
     const cmp = compareVersions(current.version, targetVersion);
     // If current is newer or equal, DO NOT DOWNGRADE!
     if (cmp >= 0) {
@@ -848,6 +902,7 @@ ctx.checkFfmpegUpdate = checkFfmpegUpdate;
 ctx.checkAndUpdateAllDependencies = checkAndUpdateAllDependencies;
 ctx.parseVersionParts = parseVersionParts;
 ctx.compareVersions = compareVersions;
+ctx.isComparableVersion = isComparableVersion;
 ctx.getSystemFfmpegVersion = getSystemFfmpegVersion;
 
 module.exports = {
@@ -866,5 +921,7 @@ module.exports = {
   checkAndUpdateAllDependencies,
   parseVersionParts,
   compareVersions,
+  isComparableVersion,
+  getVersionFlag,
   getSystemFfmpegVersion
 };

@@ -15,7 +15,10 @@ function getGifOutputPath(inputPath) {
   }
   const ext = path.extname(inputPath);
   const baseName = path.basename(inputPath, ext);
-  const sanitized = baseName.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_');
+  // Unicode-safe sanitiser from divider.js (keeps non-ASCII titles readable)
+  const sanitized = typeof ctx.sanitizeFilename === 'function'
+    ? ctx.sanitizeFilename(baseName, 'gif')
+    : baseName.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_');
   const timestamp = Date.now();
   return path.join(gifOutputDir, `${sanitized}_${timestamp}.gif`);
 }
@@ -63,7 +66,7 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
       const proc = spawn(ffmpegPath, args, {
         windowsHide: true
       });
-      ctx.registerProcess(proc, { isYtDlp: false });
+      ctx.registerProcess(proc, { isYtDlp: false, group: 'gif' });
       
       let stderr = '';
       let lastProgress = -1;
@@ -89,7 +92,9 @@ ipcMain.handle('convert-video-to-gif', async (event, payload) => {
           resolve(result);
         } else {
           console.error(`ffmpeg failed with code ${code}. Stderr: ${stderr}`);
-          const errorMsg = `FFmpeg process exited with code ${code}. Stderr: ${stderr.slice(-300)}`;
+          const errorMsg = (code === null || ctx.wasProcessStopped(proc))
+            ? 'GIF export was cancelled.'
+            : `FFmpeg process exited with code ${code}. Stderr: ${stderr.slice(-300)}`;
           const result = { success: false, error: errorMsg };
           send('gif-finished', result);
           resolve(result);

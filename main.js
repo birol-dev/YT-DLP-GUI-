@@ -94,13 +94,24 @@ app.whenReady().then(() => {
   });
 });
 
+// Never leave yt-dlp/ffmpeg children running after the app quits (process trees on Windows).
+function stopChildProcessesOnQuit() {
+  try { ctx.killAllRegisteredProcessesSync(); } catch (e) {}
+}
+
 app.on('before-quit', () => {
   ctx.flushSettingsSync();
+  stopChildProcessesOnQuit();
+});
+
+app.on('will-quit', () => {
+  stopChildProcessesOnQuit();
 });
 
 app.on('window-all-closed', () => {
   ctx.flushSettingsSync();
   if (process.platform !== 'darwin') {
+    stopChildProcessesOnQuit();
     app.quit();
   }
 });

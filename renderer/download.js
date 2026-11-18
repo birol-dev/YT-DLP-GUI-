@@ -1,3 +1,4 @@
+import { escapeHtml } from './html.js';
 import { bindRecentThumbnailActions, extractVideoId, saveRecent } from './recents.js';
 import { playSuccessChime } from './settings.js';
 import { state } from './state.js';
@@ -82,51 +83,67 @@ export function isLikelyPlaylistUrl(url) {
   return /[?&]list=/.test(url) || /youtube\.com\/playlist/i.test(url);
 }
 
+// Returns true when the download was started, false when another download already holds the slot
+// (or starting failed). state.isDownloading is claimed before the first await so a second click/Enter
+// during the playlist probe cannot start a second download; every exit path below releases it.
 export async function beginMediaDownload({ url, type, quality, statusMsg }) {
-  resetDownloadProgressState();
-  resetActiveDownloadInfo();
+  if (state.isDownloading) return false;
+  state.isDownloading = true;
 
-  let initialStatus = statusMsg;
-  let detectedTitle = '';
+  try {
+    resetDownloadProgressState();
+    resetActiveDownloadInfo();
 
-  if (isLikelyPlaylistUrl(url)) {
-    try {
-      const probe = await window.electronAPI.probePlaylist(url);
-      if (probe.isPlaylist) {
-        state.downloadProgressState.mode = 'playlist';
-        state.downloadProgressState.totalItems = probe.playlistCount || 1;
-        state.downloadProgressState.playlistTitle = probe.title || '';
-        detectedTitle = probe.title || '';
-        const countLabel = probe.playlistCount ? `${probe.playlistCount} items` : 'playlist';
-        initialStatus = probe.title
-          ? `Downloading playlist: ${probe.title} (${countLabel})`
-          : `Downloading playlist (${countLabel})...`;
-      }
-    } catch {
-      if (isLikelyPlaylistUrl(url)) {
-        state.downloadProgressState.mode = 'playlist';
-        initialStatus = 'Downloading playlist...';
+    let initialStatus = statusMsg;
+    let detectedTitle = '';
+
+    if (isLikelyPlaylistUrl(url)) {
+      try {
+        const probe = await window.electronAPI.probePlaylist(url);
+        if (probe.isPlaylist) {
+          state.downloadProgressState.mode = 'playlist';
+          state.downloadProgressState.totalItems = probe.playlistCount || 1;
+          state.downloadProgressState.playlistTitle = probe.title || '';
+          detectedTitle = probe.title || '';
+          const countLabel = probe.playlistCount ? `${probe.playlistCount} items` : 'playlist';
+          initialStatus = probe.title
+            ? `Downloading playlist: ${probe.title} (${countLabel})`
+            : `Downloading playlist (${countLabel})...`;
+        }
+      } catch {
+        if (isLikelyPlaylistUrl(url)) {
+          state.downloadProgressState.mode = 'playlist';
+          initialStatus = 'Downloading playlist...';
+        }
       }
     }
-  }
 
-  const badge = type === 'video'
-    ? `VIDEO • ${(quality ? quality + 'P ' : '') + (state.currentSettings.videoFormat || 'mp4').toUpperCase()}`
-    : `AUDIO • ${(state.currentSettings.audioFormat || 'mp3').toUpperCase()}`;
+    // Something reset the download slot while the probe was running (e.g. a channel switch error): abort quietly
+    if (!state.isDownloading) return false;
 
-  startDownloadIndicator(initialStatus, {
-    preserveProgressState: true,
-    url,
-    type,
-    quality,
-    badge,
-    title: detectedTitle || url
-  });
+    const badge = type === 'video'
+      ? `VIDEO • ${(quality ? quality + 'P ' : '') + (state.currentSettings.videoFormat || 'mp4').toUpperCase()}`
+      : `AUDIO • ${(state.currentSettings.audioFormat || 'mp3').toUpperCase()}`;
 
-  if (type === 'video') {
-    window.electronAPI.downloadVideo({ url, quality });
-  } else {
-    window.electronAPI.downloadAudio({ url });
+    startDownloadIndicator(initialStatus, {
+      preserveProgressState: true,
+      url,
+      type,
+      quality,
+      badge,
+      title: detectedTitle || url
+    });
+
+    if (type === 'video') {
+      window.electronAPI.downloadVideo({ url, quality });
+    } else {
+      window.electronAPI.downloadAudio({ url });
+    }
+    return true;
+  } catch (err) {
+    stopDownloadIndicator();
+    appendLog(`[Error] Could not start download: ${err && err.message ? err.message : err}`, 'log-error');
+    return false;
   }
 }
 
@@ -428,13 +445,13 @@ document.getElementById('btn-download-video').addEventListener('click', async ()
   const quality = document.getElementById('video-quality').value;
   hideDownloadCompleteCard('video');
 
-  await beginMediaDownload({
+  const started = await beginMediaDownload({
     url,
     type: 'video',
     quality,
     statusMsg: 'Downloading video...'
   });
-  inputEl.value = '';
+  if (started) inputEl.value = '';
 });
 
 // Download Audio
@@ -450,12 +467,12 @@ document.getElementById('btn-download-audio').addEventListener('click', async ()
 
   hideDownloadCompleteCard('audio');
 
-  await beginMediaDownload({
+  const started = await beginMediaDownload({
     url,
     type: 'audio',
     statusMsg: 'Extracting audio...'
   });
-  inputEl.value = '';
+  if (started) inputEl.value = '';
 });
 
 // Download Subtitles
@@ -821,6 +838,12 @@ window.electronAPI.onUpdateLog((log) => {
 });
 
 window.electronAPI.onDownloadError((error) => {
+  // A stray error while nothing is downloading (e.g. a yt-dlp channel switch stopping a probe) is only
+  // logged: it must not flip any tab into an error state.
+  if (!state.isDownloading) {
+    appendLog(error, 'log-warn');
+    return;
+  }
   appendLog(error, 'log-error');
   stopDownloadIndicator();
   
@@ -837,7 +860,7 @@ window.electronAPI.onDownloadError((error) => {
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <div>
             <div style="font-weight: 600;">Import/Download Failed</div>
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">${error}</div>
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">${escapeHtml(error)}</div>
           </div>
         </div>
       `;

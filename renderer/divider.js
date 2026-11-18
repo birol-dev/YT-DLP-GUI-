@@ -1,6 +1,7 @@
 import { startDownloadIndicator, stopDownloadIndicator } from './download.js';
 import { playSuccessChime } from './settings.js';
 import { state } from './state.js';
+import { escapeHtml } from './html.js';
 import { formatBytes, hhmmssToSecondsWithMs, pointerToTime, secondsToHHMMSSWithMs, sliderPercents } from './time.js';
 
 // ==========================================
@@ -13,6 +14,8 @@ let dividerEndVal = 0;
 let isDividerPreviewing = false;
 let dividerMode = 'fast';
 let isDividing = false;
+// True while a YouTube source import (shared download indicator) is running
+let isDividerImporting = false;
 let dividerLastTargetSeekTime = null;
 let dividerOutputFolder = '';
 
@@ -131,6 +134,7 @@ if (btnDividerLoad) {
     }
     
     const quality = dividerQualitySelect.value;
+    isDividerImporting = true;
     startDownloadIndicator('Downloading YouTube video source...');
     window.electronAPI.dividerImportUrl({ url, quality });
   });
@@ -637,6 +641,7 @@ if (btnDividerOpenFolder) {
 
 // IPC Receivers for import yt-dlp & division progress
 window.electronAPI.onDividerImportComplete((data) => {
+  isDividerImporting = false;
   loadDividerSource(data.filePath);
   stopDownloadIndicator();
   
@@ -722,8 +727,19 @@ window.electronAPI.onDivideComplete((data) => {
   }
 });
 
+// An import that fails or is cancelled is reported on 'download-error' (handled in download.js);
+// just drop the flag so a later stray divide-error is not mistaken for an import failure.
+window.electronAPI.onDownloadError(() => {
+  isDividerImporting = false;
+});
+
 window.electronAPI.onDivideError((error) => {
+  // The main process also emits divide-error when unrelated tasks are stopped
+  // (yt-dlp channel switch, download cancel). Only react while the Divider is
+  // actually busy: dividing, or importing its source through the download indicator.
+  if (!isDividing && !(isDividerImporting && state.isDownloading)) return;
   isDividing = false;
+  isDividerImporting = false;
   stopDownloadIndicator();
   
   // Show clean inline error status
@@ -738,7 +754,7 @@ window.electronAPI.onDivideError((error) => {
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <div>
           <div style="font-weight: 600;">Division Failed</div>
-          <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">${error}</div>
+          <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 2px;">${escapeHtml(error)}</div>
         </div>
       </div>
     `;

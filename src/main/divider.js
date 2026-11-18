@@ -8,8 +8,38 @@ const os = require('os');
 const ctx = require('./ctx');
 
 // Video Divider Helpers & Handlers
-function sanitizeFilename(name) {
-  return name.replace(/[^a-zA-Z0-9_\-]/g, '_');
+
+// Windows device names cannot be used as file names (with or without an extension).
+const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
+const MAX_FILENAME_LENGTH = 100;
+
+// Unicode-safe: letters/digits of every script are kept, only characters that are
+// invalid in Windows/macOS/Linux file names (plus '%', which ffmpeg treats as a
+// pattern character in segment output paths) are replaced.
+function sanitizeFilename(name, fallback = 'untitled') {
+  let result = String(name === null || name === undefined ? '' : name)
+    .normalize('NFC')
+    .replace(/[<>:"/\\|?*%\u0000-\u001f\u007f]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const chars = Array.from(result);
+  if (chars.length > MAX_FILENAME_LENGTH) {
+    result = chars.slice(0, MAX_FILENAME_LENGTH).join('');
+  }
+  // Windows silently strips trailing dots/spaces; a leading dot hides the file on Unix.
+  result = result.replace(/[. ]+$/, '').replace(/^\.+/, (dots) => '_'.repeat(dots.length));
+  if (!result) return fallback;
+  if (WINDOWS_RESERVED_NAME.test(result)) result = `_${result}`;
+  return result;
+}
+
+// Containers that can hold re-encoded H.264 + AAC. Anything else (webm, avi, flv, ...)
+// is written as .mp4 whenever the output is re-encoded.
+const H264_CONTAINER_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.mkv']);
+
+function getReencodeExtension(ext) {
+  const normalized = String(ext || '').toLowerCase();
+  return H264_CONTAINER_EXTENSIONS.has(normalized) ? ext : '.mp4';
 }
 
 function buildDivideOutputDir(inputPath) {
@@ -74,7 +104,7 @@ function probeLocalVideo(filePath, headers = null) {
     }
     args.push('-i', filePath);
     const proc = spawn(ffmpegPath, args);
-    ctx.registerProcess(proc, { isYtDlp: false });
+    ctx.registerProcess(proc, { isYtDlp: false, group: 'probe' });
 
     let settled = false;
     let stderr = '';
@@ -91,12 +121,13 @@ function probeLocalVideo(filePath, headers = null) {
       filePath
     });
 
-    const finish = (result) => {
+    const finish = (result, { cacheable = false } = {}) => {
       if (settled) return;
       settled = true;
       clearTimeout(killTimeout);
       ctx.inFlightProbes.delete(cacheKey);
-      ctx.probeMetadataCache.set(cacheKey, result);
+      // Only successful probes are cached; a timed-out or failed probe must be retried next time.
+      if (cacheable) ctx.probeMetadataCache.set(cacheKey, result);
       resolve(result);
     };
 
@@ -162,6 +193,7 @@ function probeLocalVideo(filePath, headers = null) {
         } catch (e) {}
       }
 
+      const hasUsefulMetadata = duration > 0 || width > 0 || vcodec !== 'Unknown' || acodec !== 'None';
       finish({
         duration,
         width,
@@ -172,7 +204,7 @@ function probeLocalVideo(filePath, headers = null) {
         fps,
         acodec,
         filePath
-      });
+      }, { cacheable: hasUsefulMetadata });
     });
     proc.on('error', (err) => {
       ctx.inFlightProbes.delete(cacheKey);
@@ -213,7 +245,7 @@ function runSingleFfmpegJob(job, win, jobIndex, totalJobs) {
     
     if (win && !win.isDestroyed()) win.webContents.send('divide-status', `[FFmpeg] Spawning: ${ffmpegPath} ${args.join(' ')}`);
     const proc = spawn(ffmpegPath, args);
-    ctx.registerProcess(proc, { isYtDlp: false });
+    ctx.registerProcess(proc, { isYtDlp: false, group: 'divide' });
     let stderr = '';
     
     proc.stderr.on('data', (data) => {
@@ -230,7 +262,12 @@ function runSingleFfmpegJob(job, win, jobIndex, totalJobs) {
     });
     
     proc.on('close', (code) => {
-      if (code === 0) {
+      if (code === null || ctx.wasProcessStopped(proc)) {
+        // Killed (user cancelled / channel switch; Windows taskkill reports a non-null code) - not a real ffmpeg failure
+        const cancelled = new Error('Division cancelled.');
+        cancelled.cancelled = true;
+        reject(cancelled);
+      } else if (code === 0) {
         if (job.isSegment) {
           const dir = path.dirname(job.outputPattern);
           const ext = path.extname(job.outputPattern);
@@ -268,6 +305,7 @@ async function runFfmpegQueue(jobs, win) {
         }
       }
     } catch (err) {
+      if (err && err.cancelled) throw err;
       throw new Error(`Job ${i+1} failed: ${err.message}`);
     }
   }
@@ -326,7 +364,7 @@ ipcMain.on('divider-import-url', async (event, { url, quality }) => {
   const ytDlpPath = ctx.getYtDlpPath();
   const downloadStartedAt = Date.now();
   const ytProcess = spawn(ytDlpPath, args);
-  ctx.registerYtDlpProcess(ytProcess);
+  ctx.registerYtDlpProcess(ytProcess, { group: 'divide' });
   const throttledProgress = ctx.createThrottledProgressSender(win, 'download-progress', 50);
   let finalPath = '';
 
@@ -376,6 +414,8 @@ ipcMain.on('divider-import-url', async (event, { url, quality }) => {
       } else {
         send('download-error', `[DIVIDER IMPORT] Could not find completed download file.`);
       }
+    } else if (code === null || ctx.wasProcessStopped(ytProcess)) {
+      // Killed (user cancelled / channel switch) - the process registry already notified the renderer
     } else {
       send('download-error', `[DIVIDER IMPORT] yt-dlp failed with code ${code}`);
     }
@@ -393,10 +433,13 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
   try {
     const jobs = [];
     const ext = path.extname(inputPath);
+    // Re-encoded outputs (H.264 + AAC) cannot go into every container (e.g. .webm), so
+    // they use reencodeExt; stream-copy outputs keep the input's own extension.
+    const reencodeExt = getReencodeExtension(ext);
     const baseName = path.basename(inputPath, ext);
     const sanitizedBase = sanitizeFilename(baseName);
     const outputDir = buildDivideOutputDir(inputPath);
-    
+
     if (mode === 'fast') {
       const outputPath = path.join(outputDir, `${sanitizedBase}_fast_cut${ext}`);
       const duration = options.endTimeSeconds - options.startTimeSeconds;
@@ -407,7 +450,7 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
         duration: duration
       });
     } else if (mode === 'precise') {
-      const outputPath = path.join(outputDir, `${sanitizedBase}_precise_cut${ext}`);
+      const outputPath = path.join(outputDir, `${sanitizedBase}_precise_cut${reencodeExt}`);
       const duration = options.endTimeSeconds - options.startTimeSeconds;
       jobs.push({
         label: 'Precise Split (Re-encode)',
@@ -425,7 +468,7 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
           }
         }
       }
-      
+
       const meta = await probeLocalVideo(inputPath);
       jobs.push({
         label: 'Equal Chunks Segmentation',
@@ -435,54 +478,36 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
         duration: meta.duration
       });
     } else if (mode === 'spatial') {
+      const regions = [
+        { key: 'left', label: 'Left', filter: 'crop=iw/2:ih:0:0' },
+        { key: 'right', label: 'Right', filter: 'crop=iw/2:ih:iw/2:0' },
+        { key: 'top', label: 'Top', filter: 'crop=iw:ih/2:0:0' },
+        { key: 'bottom', label: 'Bottom', filter: 'crop=iw:ih/2:0:ih/2' }
+      ];
+
       if (fs.existsSync(outputDir)) {
         const existing = fs.readdirSync(outputDir);
         for (const f of existing) {
-          if ((f.endsWith(`_left${ext}`) || f.endsWith(`_right${ext}`) || f.endsWith(`_top${ext}`) || f.endsWith(`_bottom${ext}`))) {
+          if (regions.some(r => f.endsWith(`_${r.key}${reencodeExt}`))) {
             try { fs.unlinkSync(path.join(outputDir, f)); } catch(e){}
           }
         }
       }
-      
+
       const meta = await probeLocalVideo(inputPath);
-      if (options.left) {
-        const outputPath = path.join(outputDir, `${sanitizedBase}_left${ext}`);
+      for (const region of regions) {
+        if (!options[region.key]) continue;
+        const outputPath = path.join(outputDir, `${sanitizedBase}_${region.key}${reencodeExt}`);
         jobs.push({
-          label: 'Spatial Split: Left',
-          args: ['-y', '-i', inputPath, '-vf', 'crop=iw/2:ih:0:0', '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'copy', outputPath],
-          outputPath,
-          duration: meta.duration
-        });
-      }
-      if (options.right) {
-        const outputPath = path.join(outputDir, `${sanitizedBase}_right${ext}`);
-        jobs.push({
-          label: 'Spatial Split: Right',
-          args: ['-y', '-i', inputPath, '-vf', 'crop=iw/2:ih:iw/2:0', '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'copy', outputPath],
-          outputPath,
-          duration: meta.duration
-        });
-      }
-      if (options.top) {
-        const outputPath = path.join(outputDir, `${sanitizedBase}_top${ext}`);
-        jobs.push({
-          label: 'Spatial Split: Top',
-          args: ['-y', '-i', inputPath, '-vf', 'crop=iw:ih/2:0:0', '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'copy', outputPath],
-          outputPath,
-          duration: meta.duration
-        });
-      }
-      if (options.bottom) {
-        const outputPath = path.join(outputDir, `${sanitizedBase}_bottom${ext}`);
-        jobs.push({
-          label: 'Spatial Split: Bottom',
-          args: ['-y', '-i', inputPath, '-vf', 'crop=iw:ih/2:0:ih/2', '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'copy', outputPath],
+          label: `Spatial Split: ${region.label}`,
+          // Audio is re-encoded to AAC: copying Opus/Vorbis/etc. into .mp4 is not reliable.
+          args: ['-y', '-i', inputPath, '-vf', region.filter, '-c:v', 'libx264', '-preset', 'faster', '-threads', '0', '-crf', '18', '-c:a', 'aac', outputPath],
           outputPath,
           duration: meta.duration
         });
       }
     }
-    
+
     if (jobs.length === 0) {
       throw new Error('No crop regions selected. Please select at least one region for spatial crop.');
     }
@@ -495,15 +520,20 @@ ipcMain.on('divide-video', async (event, { inputPath, mode, options }) => {
       ctx.openFolderOrRevealItem(outputDir);
     }
   } catch (err) {
-    console.error('Divide error:', err);
+    if (err && err.cancelled) {
+      send('divide-status', '[DIVIDER] Division cancelled.');
+    } else {
+      console.error('Divide error:', err);
+    }
     send('divide-error', err.message || 'An error occurred during division.');
   }
 });
 
 ctx.sanitizeFilename = sanitizeFilename;
+ctx.getReencodeExtension = getReencodeExtension;
 ctx.buildDivideOutputDir = buildDivideOutputDir;
 ctx.probeLocalVideo = probeLocalVideo;
 ctx.parseFfmpegProgress = parseFfmpegProgress;
 ctx.runSingleFfmpegJob = runSingleFfmpegJob;
 ctx.runFfmpegQueue = runFfmpegQueue;
-module.exports = { sanitizeFilename, buildDivideOutputDir, probeLocalVideo, parseFfmpegProgress, runSingleFfmpegJob, runFfmpegQueue };
+module.exports = { sanitizeFilename, getReencodeExtension, buildDivideOutputDir, probeLocalVideo, parseFfmpegProgress, runSingleFfmpegJob, runFfmpegQueue };

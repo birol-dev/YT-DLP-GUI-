@@ -115,11 +115,22 @@ function extractAcrcloudTrackInfo(apiResponse) {
   };
 }
 
+// Every query value is URL-encoded; "recordings+releasegroups" is AcoustID's own '+' separator.
+function buildAcoustidLookupUrl(clientKey, durationSeconds, fingerprint) {
+  const query = [
+    `client=${encodeURIComponent(String(clientKey))}`,
+    'meta=recordings+releasegroups',
+    `duration=${encodeURIComponent(String(durationSeconds))}`,
+    `fingerprint=${encodeURIComponent(String(fingerprint))}`
+  ].join('&');
+  return `https://api.acoustid.org/v2/lookup?${query}`;
+}
+
 function runFpcalc(filePath) {
   return new Promise((resolve, reject) => {
     const fpcalcPath = ctx.getFpcalcPath();
     const proc = spawn(fpcalcPath, [filePath]);
-    ctx.registerProcess(proc, { isYtDlp: false });
+    ctx.registerProcess(proc, { isYtDlp: false, group: 'scan' });
     let stdout = '';
     let stderr = '';
     
@@ -134,7 +145,7 @@ function runFpcalc(filePath) {
         if (fingerprintMatch) {
           resolve({
             fingerprint: fingerprintMatch[1].trim(),
-            duration: durationMatch ? parseFloat(durationMatch[1].trim()) : 12
+            duration: durationMatch ? parseFloat(durationMatch[1].trim()) : null
           });
         } else {
           reject(new Error('No fingerprint found in fpcalc output'));
@@ -171,19 +182,26 @@ async function performLocalFileRecognition(inputPath, win) {
       throw new Error(`File does not exist: ${inputPath}`);
     }
 
-    // 1. Verify AcoustID API Key
-    const clientKey = ctx.settings.acoustidKey || '';
-    if (!clientKey || clientKey === 'YOUR_CLIENT_API_KEY' || clientKey === 'YOUR_ACOUSTID_CLIENT_KEY' || clientKey.trim() === '') {
-      throw new Error('AcoustID Client API Key is missing. Please go to the Settings tab, obtain a free key from acoustid.org, and save it to enable the Music Finder.');
-    }
+    // Each recognition service validates only its own prerequisites.
+    const service = ctx.settings.musicFinderService === 'acrcloud' ? 'acrcloud' : 'acoustid';
+    const acoustidKey = String(ctx.settings.acoustidKey || '').trim();
 
-    // 2. Verify fpcalc utility presence
-    const fpcalcPath = ctx.getFpcalcPath();
-    if (fpcalcPath === 'fpcalc') {
-      const globalFpcalcAvailable = await ctx.isCommandInPath('fpcalc');
-      if (!globalFpcalcAvailable) {
-        throw new Error('Chromaprint fingerprint utility (fpcalc) is not installed. Please restart the app to trigger environment setup and download the required binary.');
+    if (service === 'acoustid') {
+      // 1. Verify AcoustID API Key
+      if (!acoustidKey || acoustidKey === 'YOUR_CLIENT_API_KEY' || acoustidKey === 'YOUR_ACOUSTID_CLIENT_KEY') {
+        throw new Error('AcoustID Client API Key is missing. Please go to the Settings tab, obtain a free key from acoustid.org, and save it to enable the Music Finder.');
       }
+
+      // 2. Verify fpcalc utility presence (only AcoustID fingerprints locally)
+      const fpcalcPath = ctx.getFpcalcPath();
+      if (fpcalcPath === 'fpcalc') {
+        const globalFpcalcAvailable = await ctx.isCommandInPath('fpcalc');
+        if (!globalFpcalcAvailable) {
+          throw new Error('Chromaprint fingerprint utility (fpcalc) is not installed. Please restart the app to trigger environment setup and download the required binary.');
+        }
+      }
+    } else if (!String(ctx.settings.acrcloudKey || '').trim() || !String(ctx.settings.acrcloudSecret || '').trim()) {
+      throw new Error('ACRCloud credentials are not configured. Please verify your Access Key and Access Secret in the Settings tab.');
     }
 
     win.webContents.send('scan-status', 'Probing file duration...');
@@ -200,17 +218,6 @@ async function performLocalFileRecognition(inputPath, win) {
 
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
-    }
-
-    const service = ctx.settings.musicFinderService || 'acoustid';
-    if (service === 'acoustid') {
-      if (!ctx.settings.acoustidKey) {
-        throw new Error('AcoustID Client API Key is not configured. Please add it in the Settings tab.');
-      }
-    } else if (service === 'acrcloud') {
-      if (!ctx.settings.acrcloudKey || !ctx.settings.acrcloudSecret) {
-        throw new Error('ACRCloud credentials are not configured. Please verify your Access Key and Access Secret in the Settings tab.');
-      }
     }
 
     const scanInterval = ctx.settings.acoustidScanInterval || 90;
@@ -248,7 +255,7 @@ async function performLocalFileRecognition(inputPath, win) {
             .audioFrequency(16000)
             .on('start', () => {
               if (cmd && cmd.ffmpegProc) {
-                ctx.registerProcess(cmd.ffmpegProc, { isYtDlp: false });
+                ctx.registerProcess(cmd.ffmpegProc, { isYtDlp: false, group: 'scan' });
               }
             })
             .on('end', () => resolve())
@@ -271,10 +278,11 @@ async function performLocalFileRecognition(inputPath, win) {
         }
 
         win.webContents.send('scan-status', `[${i+1}/${slicePoints.length}] Querying AcoustID database...`);
-        const clientKey = ctx.settings.acoustidKey;
+        // AcoustID only returns recordings whose stored length is within a few seconds of `duration`,
+        // so it must be the length of the whole file (the track), not of the 30 s slice that was fingerprinted.
         let response;
         try {
-          response = await fetch(`https://api.acoustid.org/v2/lookup?client=${clientKey}&meta=recordings+releasegroups&duration=${Math.round(duration)}&fingerprint=${encodeURIComponent(fpData.fingerprint)}`);
+          response = await fetch(buildAcoustidLookupUrl(acoustidKey, Math.round(duration), fpData.fingerprint));
         } catch (err) {
           throw new Error(`Network error: Failed to connect to AcoustID service. Please check your internet connection and try again.`);
         }
@@ -453,7 +461,7 @@ ipcMain.on('scan-youtube-url', async (event, url) => {
   const downloadStartedAt = Date.now();
   
   const ytProcess = spawn(ytDlpPath, finalArgs);
-  ctx.registerYtDlpProcess(ytProcess);
+  ctx.registerYtDlpProcess(ytProcess, { group: 'scan' });
   let finalPath = '';
   let stderrData = '';
   let hasSentError = false;
@@ -496,6 +504,10 @@ ipcMain.on('scan-youtube-url', async (event, url) => {
         hasSentError = true;
         win.webContents.send('scan-error', 'Failed to locate the downloaded audio file.');
       }
+    } else if (code === null || ctx.wasProcessStopped(ytProcess)) {
+      // Killed (user cancelled / channel switch) - not a real yt-dlp failure
+      hasSentError = true;
+      win.webContents.send('scan-error', 'Audio download was cancelled.');
     } else {
       hasSentError = true;
       const errMsg = stderrData.trim();
@@ -513,7 +525,8 @@ ctx.isSameTrack = isSameTrack;
 ctx.extractTrackInfo = extractTrackInfo;
 ctx.generateAcrcloudSignature = generateAcrcloudSignature;
 ctx.extractAcrcloudTrackInfo = extractAcrcloudTrackInfo;
+ctx.buildAcoustidLookupUrl = buildAcoustidLookupUrl;
 ctx.runFpcalc = runFpcalc;
 ctx.cleanupDirectory = cleanupDirectory;
 ctx.performLocalFileRecognition = performLocalFileRecognition;
-module.exports = { fluentFfmpeg, secondsToHHMMSS, isSameTrack, extractTrackInfo, generateAcrcloudSignature, extractAcrcloudTrackInfo, runFpcalc, cleanupDirectory, performLocalFileRecognition };
+module.exports = { fluentFfmpeg, secondsToHHMMSS, isSameTrack, extractTrackInfo, generateAcrcloudSignature, extractAcrcloudTrackInfo, buildAcoustidLookupUrl, runFpcalc, cleanupDirectory, performLocalFileRecognition };

@@ -1,4 +1,5 @@
 import { initSettingsUI } from './settings.js';
+import { formatCityDisplayName, geocodeCity } from './weather.js';
 import { state } from './state.js';
 
 // Dependency installer IPC listener
@@ -198,6 +199,24 @@ if (depModal) {
 
 let onboardingCityData = null;
 
+// IP-based location guess. Returns { city, lat, lon } or null when the lookup fails or
+// has no usable answer; callers must not invent a fallback location.
+async function lookupIpLocation() {
+  try {
+    const ipRes = await fetch('https://ipapi.co/json/');
+    if (!ipRes.ok) return null;
+    const ipData = await ipRes.json();
+    const lat = Number(ipData && ipData.latitude);
+    const lon = Number(ipData && ipData.longitude);
+    if (!ipData || !ipData.city || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    const region = ipData.region ? `, ${ipData.region}` : '';
+    return { city: `${ipData.city}${region}`, lat, lon };
+  } catch (err) {
+    console.error('IP Geolocation failed:', err);
+    return null;
+  }
+}
+
 // Reusable City Search Autocomplete helper
 export function setupCityAutocomplete(inputEl, resultsEl, onSelectCallback) {
   let debounceTimer;
@@ -221,9 +240,7 @@ export function setupCityAutocomplete(inputEl, resultsEl, onSelectCallback) {
         if (data.results && data.results.length > 0) {
           data.results.forEach(city => {
             const li = document.createElement('li');
-            const region = city.admin1 ? `, ${city.admin1}` : '';
-            const country = city.country ? `, ${city.country}` : '';
-            const displayName = `${city.name}${region}${country}`;
+            const displayName = formatCityDisplayName(city);
             
             li.textContent = displayName;
             li.addEventListener('click', () => {
@@ -434,6 +451,12 @@ export async function showOnboardingFlow() {
     setupCityAutocomplete(onboardingCityInput, onboardingCityResults, (data) => {
       onboardingCityData = data;
     });
+    // Retyping after picking a suggestion invalidates that pick (its coordinates are for another text)
+    onboardingCityInput.addEventListener('input', () => {
+      if (onboardingCityData && onboardingCityInput.value.trim() !== onboardingCityData.name) {
+        onboardingCityData = null;
+      }
+    });
   }
 
   // Set up Step 2 Dynamic Service Fields Toggling
@@ -544,52 +567,29 @@ export async function showOnboardingFlow() {
       const userName = onboardingNameInput.value.trim();
       const tempFormat = document.getElementById('onboarding-temp-format').value;
       
-      let city = 'Estimated Location';
-      let lat = 37.7749;
-      let lon = -122.4194;
-      
-      if (onboardingCityData) {
+      // No invented fallback: if nothing can be resolved the location stays unset.
+      let city = '';
+      let lat = null;
+      let lon = null;
+
+      const textCity = onboardingCityInput.value.trim();
+      if (onboardingCityData && onboardingCityData.name === textCity) {
         city = onboardingCityData.name;
         lat = onboardingCityData.lat;
         lon = onboardingCityData.lon;
       } else {
-        const textCity = onboardingCityInput.value.trim();
-        if (textCity.length >= 2) {
-          try {
-            const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(textCity)}&count=1&language=en&format=json`);
-            const data = await res.json();
-            if (data.results && data.results.length > 0) {
-              const firstCity = data.results[0];
-              const region = firstCity.admin1 ? `, ${firstCity.admin1}` : '';
-              const country = firstCity.country ? `, ${firstCity.country}` : '';
-              city = `${firstCity.name}${region}${country}`;
-              lat = firstCity.latitude;
-              lon = firstCity.longitude;
-            } else {
-              const ipRes = await fetch('https://ipapi.co/json/');
-              const ipData = await ipRes.json();
-              if (ipData.city) {
-                const region = ipData.region ? `, ${ipData.region}` : '';
-                city = `${ipData.city}${region}`;
-                lat = ipData.latitude;
-                lon = ipData.longitude;
-              }
-            }
-          } catch (e) {
-            console.error('Failed to geocode typed location:', e);
-          }
+        onboardingCityData = null;
+        const resolved = textCity.length >= 2 ? await geocodeCity(textCity) : null;
+        if (resolved) {
+          city = resolved.name;
+          lat = resolved.lat;
+          lon = resolved.lon;
         } else {
-          try {
-            const ipRes = await fetch('https://ipapi.co/json/');
-            const ipData = await ipRes.json();
-            if (ipData.city) {
-              const region = ipData.region ? `, ${ipData.region}` : '';
-              city = `${ipData.city}${region}`;
-              lat = ipData.latitude;
-              lon = ipData.longitude;
-            }
-          } catch (err) {
-            console.error('IP Geolocation failed:', err);
+          const ipLoc = await lookupIpLocation();
+          if (ipLoc) {
+            city = ipLoc.city;
+            lat = ipLoc.lat;
+            lon = ipLoc.lon;
           }
         }
       }
@@ -613,28 +613,14 @@ export async function showOnboardingFlow() {
       btnSkip.disabled = true;
       btnSkip.textContent = 'Estimating location...';
       
-      let estCity = 'Estimated Location';
-      let estLat = 37.7749;
-      let estLon = -122.4194;
-      
-      try {
-        const ipRes = await fetch('https://ipapi.co/json/');
-        const ipData = await ipRes.json();
-        if (ipData.city) {
-          const region = ipData.region ? `, ${ipData.region}` : '';
-          estCity = `${ipData.city}${region}`;
-          estLat = ipData.latitude;
-          estLon = ipData.longitude;
-        }
-      } catch (err) {
-        console.error('IP Geolocation failed:', err);
-      }
-      
+      // On lookup failure the location stays unset (no invented fallback).
+      const ipLoc = await lookupIpLocation();
+
       const onboardingData = {
         userName: '',
-        weatherCity: estCity,
-        weatherLat: estLat,
-        weatherLon: estLon,
+        weatherCity: ipLoc ? ipLoc.city : '',
+        weatherLat: ipLoc ? ipLoc.lat : null,
+        weatherLon: ipLoc ? ipLoc.lon : null,
         tempFormat: 'fahrenheit',
         musicFinderService: 'acoustid',
         acoustidKey: '',

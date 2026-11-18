@@ -289,7 +289,7 @@ if (ipcMain) {
   
   ytProcess.stderr.on('data', (data) => throttledProgress.push(data.toString()));
   
-  ytProcess.on('close', (code) => {
+  ytProcess.on('close', (code, signal) => {
     throttledProgress.flush();
     if (code === 0) {
       finalPath = ctx.resolveFinalDownloadPath(finalPath, videoDir, downloadStartedAt);
@@ -298,7 +298,10 @@ if (ipcMain) {
         ctx.openFolderOrRevealItem(finalPath);
       }
     }
-    else send('download-error', `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}] Download failed with code ${code}`);
+    else {
+      const clipLabel = `[CLIP ${isAudio ? 'AUDIO' : 'VIDEO'}]`;
+      ctx.reportAbnormalDownloadExit(win, ytProcess, code, signal, clipLabel, `${clipLabel} Download failed with code ${code}`);
+    }
   });
 });
 }
