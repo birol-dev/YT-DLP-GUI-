@@ -786,6 +786,15 @@ export function showDownloadCompleteCard({ type, url, filePath, title, thumbnail
     bindRecentThumbnailActions(elements.thumbWrap, filePath);
   }
 
+  // Let other modules (Compress button, see renderer/compress-card.js) know which file this card shows
+  elements.card.dataset.filePath = filePath || '';
+  elements.card.dataset.downloadType = type || '';
+  elements.card.dataset.cardKey = targetKey;
+  elements.card.dispatchEvent(new CustomEvent('download-card-shown', {
+    bubbles: true,
+    detail: { cardKey: targetKey, type: type || '', filePath: filePath || '', url: url || '' }
+  }));
+
   // Display card with animation
   elements.card.style.display = 'flex';
   try {

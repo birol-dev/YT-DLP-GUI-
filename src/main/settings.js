@@ -44,7 +44,14 @@ function initSettings() {
     dismissedYtDlpChannelHint: false,
     autoUpdateDependencies: true,
     ffmpegInstalledVersion: '',
-    lastUpdateCheck: null
+    lastUpdateCheck: null,
+    compressCustomPresets: [],
+    compressLastOptions: null,
+    compressAutoAfterDownload: false,
+    compressAutoPresetId: 'discord',
+    compressWatchEnabled: false,
+    compressWatchDir: '',
+    compressWatchPresetId: 'half'
   };
   
   Object.keys(settings).forEach((k) => { delete settings[k]; });
@@ -113,8 +120,14 @@ ipcMain.handle('get-settings', () => {
   return settings;
 });
 
+// Written only through the compress IPC handlers; a stale full-settings save must not reset them.
+const MAIN_OWNED_KEYS = ['compressCustomPresets', 'compressAutoAfterDownload', 'compressAutoPresetId',
+  'compressWatchEnabled', 'compressWatchDir', 'compressWatchPresetId'];
+
 ipcMain.handle('save-settings', async (_event, newSettings) => {
-  return saveSettingsInternal(newSettings);
+  const patch = (newSettings && typeof newSettings === 'object') ? { ...newSettings } : {};
+  for (const key of MAIN_OWNED_KEYS) delete patch[key];
+  return saveSettingsInternal(patch);
 });
 
 

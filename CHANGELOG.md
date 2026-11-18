@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add a **Compress** tab for shrinking videos, HandBrake-style. Drop or browse files (or batch them), then pick one of 12 presets (Discord 10 MB / Nitro, WhatsApp, Email, Telegram, X, Reels, YouTube, Half size, HEVC archive, AV1 smallest, Convert to MP4) or tune it yourself:
+  - **Size or quality**: hit a target size (MB or % of the original, always staying under it) or pick a quality level, or just change the container without re-encoding.
+  - **Codecs and hardware**: H.264, HEVC, AV1 and VP9, using the GPU (NVENC / Quick Sync / AMF) automatically when it is available, with two-pass encoding for software encoders.
+  - **Picture and audio**: resolution and frame-rate caps, trim (with I / O keys), crop with auto-detect, rotate and flip, playback speed, audio bitrate / channels / loudness normalisation / track choice, and burned-in or kept subtitles.
+  - **Live estimate and preview**: the projected output size updates as you change settings, and **Preview 10 s** encodes a sample and opens it in a wipe / side-by-side compare against the original.
+  - **Queue**: several jobs run in order with progress, cancel, retry and compare; outputs are saved next to the original as `<name> (compressed).<ext>` and never overwrite an existing file.
+  - **Custom presets and automation**: save your own presets, auto-compress every finished download, or watch a folder and compress whatever lands in it.
+- Add a **Compress** button with quick presets to the download-complete card, next to Open Folder, Play and Copy Path.
+
 ### Changed
 - Redesign the website (`website/`) in the birol.tech house style shared by the other project sites: thin Newsreader headlines with one faded phrase, Geist sans, black / charcoal / paper sections, pill controls and a floating pill header. The homepage is now seven short sections: a hero with a real app recording split into three clickable chapters, a one-line "why", a features bento of real screenshots plus an eight-tool list, three reasons (it keeps working, nothing shady, full quality), three steps, a nine-question FAQ and a final download call. Copy is rewritten around what first-time visitors ask about (auto-updates, safety, quality, Premiere compatibility, playlists and members-only videos, other sites, price). `pricing.html`, `privacy.html` and `404.html` use the same design. The privacy page now lists every outside service the app can contact. JSON-LD, `llms.txt`, `pricing.md`, `sitemap.xml`, `site.webmanifest` and the social card are refreshed, and DESIGN.md Part B describes the new site.
 - Trim 26 off-topic splash lines from the dashboard greeting subtitles (now 192 subtitles; titles unchanged at 111).
